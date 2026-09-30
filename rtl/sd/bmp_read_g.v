@@ -139,7 +139,8 @@ module bmp_read_g #(
         end else if (!sd_init_done) begin
             hdr_cnt <= 10'd0;
         end else if ((state == ST_SCAN || state == ST_LOAD_HDR) && sd_sec_read_data_valid) begin
-            hdr_cnt <= (hdr_cnt == 10'd33) ? hdr_cnt : hdr_cnt + 10'd1;
+            // 34 是头字段采样结束哨兵；停在 33 会让后续像素反复覆盖 compression[31:24]。
+            hdr_cnt <= (hdr_cnt >= 10'd34) ? 10'd34 : hdr_cnt + 10'd1;
             case (hdr_cnt)
                 10'd0 : header_0 <= sd_sec_read_data;
                 10'd1 : header_1 <= sd_sec_read_data;
@@ -223,20 +224,22 @@ module bmp_read_g #(
             bmp_data_wr_en <= 1'b0;
             bmp_data       <= 24'd0;
         end else if (state == ST_LOAD_DATA) begin
-            if (byte_is_pixel) begin
-                case (byte_idx)
-                    2'd0: begin bmp_data_wr_en <= 1'b0; bmp_data[7:0]  <= sd_sec_read_data; end
-                    2'd1: begin bmp_data_wr_en <= 1'b0; bmp_data[15:8] <= sd_sec_read_data; end
-                    default: begin
-                        bmp_data_wr_en  <= 1'b1;
-                        bmp_data[23:16] <= sd_sec_read_data;
-                    end
-                endcase
-                byte_idx <= (byte_idx == 2'd2) ? 2'd0 : byte_idx + 2'd1;
-            end else begin
-                bmp_data_wr_en <= 1'b0;
-                if (in_pixel_data)
-                    byte_idx <= 2'd0;      // padding 处复位拼包序（稳健性）
+            // SD 接口按有效脉冲提供字节；空拍保持拼包状态，写使能始终只打一拍。
+            bmp_data_wr_en <= 1'b0;
+            if (sd_sec_read_data_valid) begin
+                if (byte_is_pixel) begin
+                    case (byte_idx)
+                        2'd0: bmp_data[7:0]  <= sd_sec_read_data;
+                        2'd1: bmp_data[15:8] <= sd_sec_read_data;
+                        default: begin
+                            bmp_data_wr_en  <= 1'b1;
+                            bmp_data[23:16] <= sd_sec_read_data;
+                        end
+                    endcase
+                    byte_idx <= (byte_idx == 2'd2) ? 2'd0 : byte_idx + 2'd1;
+                end else if (in_pixel_data) begin
+                    byte_idx <= 2'd0;      // 仅实际收到 padding 字节时复位拼包序
+                end
             end
         end else begin
             bmp_data_wr_en <= 1'b0;

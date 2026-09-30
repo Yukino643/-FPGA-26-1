@@ -2,6 +2,8 @@
 //  卡内容: sector0-1  junk | sector2  img1 (3x2, 行尾 pad3) | sector4 junk | sector6 img2 (5x2, pad1)
 `timescale 1ns/1ps
 module tb_bmp_read_g;
+    // 参数同时覆盖连续供数和真实 SPI 中有效字节之间的空拍。
+    parameter integer BYTE_GAP = 0;
 
     reg clk = 0, rst = 1;
     always #5 clk = ~clk;      // 100MHz
@@ -86,19 +88,25 @@ module tb_bmp_read_g;
     integer    sec_cnt;
     integer    lat;
     reg        end_sent;
+    integer gap_left = 0;
     always @(posedge clk) begin
         if (sd_rd && lat == -1) begin
             sec_ptr  <= sd_addr * 512;
             sec_cnt  <= 0;
             end_sent <= 0;
             lat      <= 4;
+            gap_left <= 0;
         end else if (lat > 0) begin
             lat <= lat - 1;
         end else if (lat == 0) begin
-            if (sec_cnt < 512) begin
+            if (gap_left > 0) begin
+                sd_dv <= 1'b0;
+                gap_left <= gap_left - 1;
+            end else if (sec_cnt < 512) begin
                 sd_dv   <= 1'b1;
                 sd_data <= card[sec_ptr + sec_cnt];
                 sec_cnt <= sec_cnt + 1;
+                gap_left <= BYTE_GAP;
             end else if (!end_sent) begin
                 sd_dv    <= 1'b0;
                 sd_end   <= 1'b1;
@@ -217,5 +225,9 @@ module tb_bmp_read_g;
         if (errors == 0) $display("TB_BMP_READ_G PASS");
         else $display("TB_BMP_READ_G FAIL");
         $finish;
+    end
+    initial begin
+        #20000000;
+        $fatal(1, "FAIL BMP read timed out (BYTE_GAP=%0d)", BYTE_GAP);
     end
 endmodule
