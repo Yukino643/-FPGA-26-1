@@ -91,6 +91,11 @@ echo "[REG][INFO] SIM disp_path 较慢（约 5~8 分钟）..."
 run_sim disp      -DSIMULATION -I ../rtl/video tb_disp_path.v sdram_beh.v ../rtl/mem/mem_mpu.v ../rtl/mem/afifo_simple.v ../rtl/mem/disp_read_engine.v ../rtl/video/video_timing_gen.v ../rtl/video/pixel_pos_gen.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v
 echo "[REG][INFO] SIM scaler 较慢（约 2~3 分钟）..."
 run_sim scaler    -DSIMULATION tb_scaler.v ../rtl/video/scaler.v
+if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_scaler_block.py"; then
+  run_sim top_scaler -DSIMULATION tb_top_scaler.v ../rtl/video/scaler.v
+else
+  note_fail "SIM top_scaler 提取顶层连接失败"
+fi
 
 # 4) 渲染产物刷新（供人工/评审查看）
 cd "$ROOT/sim" || true

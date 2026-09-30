@@ -646,16 +646,11 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
     if (rst_sd) scaler_start_tgl <= 1'b0;
     else if (frame_write_finish_pulse) scaler_start_tgl <= ~scaler_start_tgl;
 end
-// toggle 跨到 ext_mem_clk 域
-reg [2:0] scaler_start_sync;
-always @(posedge ext_mem_clk or posedge rst_mem) begin
-    if (rst_mem) scaler_start_sync <= 3'b000;
-    else         scaler_start_sync <= {scaler_start_sync[1:0], scaler_start_tgl};
-end
-wire scaler_start_toggle = scaler_start_sync[1] ^ scaler_start_sync[2];
-
-// 缩放目标: 写入非当前显示页
-wire [20:0] scaler_dst_base = (disp_buf_idx == 2'd0) ? 21'h8_0000 : 21'h0_0000;
+// 缩放器内部已经完成持久 toggle 的跨时钟域同步和边沿检测。
+// 配置在同一个启动事件被锁存，必须使用本次装载的尺寸和写页。
+// 装载管理器在缩放完成前保持 busy，宽高和写页在启动同步期间保持稳定。
+// pending_buf_idx 与 write_buf_idx 在装载启动时同步更新，完成提交时也使用同一页。
+wire [20:0] scaler_dst_base = (write_buf_idx == 2'd0) ? 21'h0_0000 : 21'h8_0000;
 
 scaler #(
     .OUT_W(640),
@@ -663,11 +658,11 @@ scaler #(
 ) u_scaler (
     .clk            (ext_mem_clk),
     .rst            (rst_mem),
-    .start_toggle   (scaler_start_toggle),
-    .cfg_w          (cur_img_w[10:0]),
-    .cfg_h          (cur_img_h[10:0]),
+    .start_toggle   (scaler_start_tgl),
+    .cfg_w          (bmp_load_img_w[10:0]),
+    .cfg_h          (bmp_load_img_h[10:0]),
     .cfg_src_base   (21'hC_B000),        // MEM_BUF_SRC_BASE
-    .cfg_dst_base   (scaler_dst_base),   // W6: 写入非当前显示页
+    .cfg_dst_base   (scaler_dst_base),   // 首图与后续图均写入本次待提交页
     // mem_mpu 请求方 C
     .cmd_valid      (mpu_C_cv),
     .cmd_addr       (mpu_C_ca),

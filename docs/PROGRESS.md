@@ -513,3 +513,19 @@
 | 备份 | tmp/tf-diagnostic-backup-20260930-201535；Git标签backup/pre-tf-diag-20260930指向fec1891 |
 
 详见 [TF诊断版-20260930.md](TF诊断版-20260930.md)。
+
+## 8.23 2026-10-01 TF-D2 缩放启动与页提交修复
+
+| 项目 | 本轮结果 |
+|---|---|
+| TF-D1 板级照片 | 43/93秒；found3/error0；首图307200像素，WR/SCALE01/00，复位0；故障位于源缓存完成之后 |
+| 根因 | 首图cfg宽高取提交后才更新的cur尺寸，形成启动死锁；目标页反推与首图待提交页不一致 |
+| 修复 | 使用当前load尺寸与write_buf_idx；持久toggle只同步一次；每任务清wr_cnt；BRAM读地址保留x[9] |
+| 新测试 | 提取真实顶层原文；三任务页0/1/0，异尺寸、异步时钟、仲裁停顿、640宽全帧像素验证通过；旧连接复现失败 |
+| 验证顺序 | basic26/26 → full27/27 → 独立check_reports fails=0 |
+| 最终bit | 2026-10-01 02:21:02，643592B；SHA256 3301637cbafa98d79996854dc7dffe48bc71d1bfc64c18453a86072b70a13515 |
+| 工程门限 | LUT81.62%，BRAM9K71.9%，SWNS-6.565ns，HWNS+0.022ns；不代表所有setup路径闭合 |
+| 板级 | TF-D2尚待下载，图片在HDMI_B；卡文件无需调整，卡保持只读 |
+| 恢复 | tmp/tf-scaler-backup-20261001-012533；tmp/tf-scaler-pre-fix-20261001.bundle；标签backup/pre-scaler-fix-20261001 |
+
+详见 [TF缩放修复-20261001.md](TF缩放修复-20261001.md)。

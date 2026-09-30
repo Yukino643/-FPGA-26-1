@@ -165,9 +165,10 @@ module scaler #(
 
     // ---- 组合: BRAM 读地址 ----
     always @(*) begin
-        bram_a_addr = {1'b0, x_int_c[8:1]};
-        bram_b_addr = x_int_c[0] ? ({1'b0, x_int_c[8:1]} + 9'd1)
-                                  : {1'b0, x_int_c[8:1]};
+        // 1024 像素需要完整的 9 位字地址，不能丢失 x[9]。
+        bram_a_addr = x_int_c[9:1];
+        bram_b_addr = x_int_c[0] ? (x_int_c[9:1] + 9'd1)
+                                  : x_int_c[9:1];
         if (bram_b_addr >= row_words[8:0] && row_words[8:0] != 9'd0)
             bram_b_addr = row_words[8:0] - 9'd1;
     end
@@ -344,6 +345,8 @@ module scaler #(
                 S_IDLE: begin
                     if (st_pulse) begin
                         busy_r    <= 1'b1;
+                        // 每个缩放任务从目标页首地址重新写，不能沿用上一次任务的像素计数。
+                        wr_cnt    <= 21'd0;
                         src_w     <= (cfg_w == 0) ? 11'd1 : cfg_w;
                         src_h     <= (cfg_h == 0) ? 11'd1 : cfg_h;
                         src_base  <= cfg_src_base;
@@ -468,9 +471,9 @@ module scaler #(
                 S_RUN: begin
                     if (px_x < OUT_W) begin
                         ram_rd  <= 1'b1;
-                        ram_r0a <= {1'b0, x_int_c[8:1]};
+                        ram_r0a <= bram_a_addr;
                         ram_r0b <= bram_b_addr;
-                        ram_r1a <= {1'b0, x_int_c[8:1]};
+                        ram_r1a <= bram_a_addr;
                         ram_r1b <= bram_b_addr;
                         pxv_raw   <= 1'b1;
                         x_int_raw <= x_int_c;
