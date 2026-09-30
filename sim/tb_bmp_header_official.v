@@ -120,4 +120,3 @@ module tb_bmp_header_official;
         $fatal(1, "FAIL official BMP header test timed out");
     end
 endmodule
-
