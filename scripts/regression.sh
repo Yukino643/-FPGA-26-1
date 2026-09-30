@@ -73,6 +73,7 @@ check_generated
 run_sim afifo_boundary -DSIMULATION tb_afifo_boundary.v ../rtl/mem/afifo_simple.v
 run_sim disp_read_engine tb_disp_read_engine.v ../rtl/mem/disp_read_engine.v
 run_sim sd_arbiter tb_sd_arbiter.v ../rtl/sd/sd_arbiter.v
+run_sim tf_diag tb_tf_diag_capture.v ../rtl/ctrl/tf_diag_capture.v
 run_sim sd_card_init tb_sd_card_init.v ../rtl/sd/sd_card_sec_read_write.v
 run_sim sd_spi_sdhc tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v
 run_sim sd_spi_sdsc -Ptb_sd_spi_chain.HIGH_CAPACITY=0 tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v

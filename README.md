@@ -33,20 +33,20 @@ docs\          计划书 / 设计说明书 / 测试报告
 
 - **我（命令行）**：改代码 → 一键编译 `bash td_prj/build_all.sh` → 检查时序/资源报告 → 出 bit。
   - 工程创建/加文件脚本：`td_prj/create_project.tcl`、`td_prj/add_sources.tcl`（TCL shell 逐行解析，禁止多行块）
-  - 编译机制：run 目录下 `settings.cfg` + TD 自带 `DefaultFlow.tcl`（syn_1: elaborate→opt_rtl→opt_gate；phy_1: opt_place→opt_route→bitgen，自动导入 syn 的 gate.db）
+  - 编译机制：run 目录下 `settings.cfg` + 基于 TD 官方流程的 `flow_fixhold.tcl`（syn_1: elaborate→opt_rtl→opt_gate；phy_1: opt_place→opt_route→bitgen，自动导入 syn 的 gate.db）
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-09-16）：TD 6.2.1 已重新综合、布局布线并成功 bitgen。资源为 LUT 15,158/19,600（77.34%）、BRAM9K 46/64（71.9%）、BRAM32K 8/16（50%）、DSP 21/29（72.41%）；报告汇总 `SWNS=-6.565ns`、`STNS=-522.616ns`、`HWNS=+0.024ns`、`HTNS=0`，相对官方基线未恶化，`scripts/check_reports.py` 通过。详细 `final_timing.rpt` 仍需结合硬 SDRAM I/O 边界路径解释，不能把门限通过写成所有物理路径均已闭合。
+- 当前构建（2026-09-30 TF-D1）：basic 25/25、full 26/26、独立报告 fails=0；bit 生成于 22:29:14。LUT16032/19600（81.8%）、BRAM9K46/64（71.9%），修复后汇总与 av_media_pr.timing 一致：SWNS=-6.565ns、HWNS=+0.022ns。setup 仍有负余量，板级 TF 图片问题尚待诊断；详见 [TF诊断版说明](docs/TF诊断版-20260930.md)。
 
 ## 回归门（每轮改动后必跑）
 
 ```bash
-bash scripts/regression.sh          # 仿真×4 + 生成物同步 + 报告门限（约1分钟）
-bash scripts/regression.sh --full   # 上述 + 重新全编译出 bit（约5分钟）
+bash scripts/regression.sh          # 模块/通路仿真 + 生成物同步 + 报告门限（含慢速仿真）
+bash scripts/regression.sh --full   # 上述 + 从当前源码重新全编译出 bit
 ```
 
-检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和缩放仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前完整回归为 18/18 PASS。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
+检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和缩放仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前完整回归为 26/26 PASS。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
 
 ## 状态
 

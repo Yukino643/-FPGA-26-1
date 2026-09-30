@@ -13,6 +13,7 @@ module monitor_compositor(
     input  wire [31:0] I_frame_cnt,
     input  wire [15:0] I_sync_dev,
     input  wire [1:0]  I_mode,     // 0:启动 1:广告 2:应急
+    input  wire [191:0] I_tf_diag, // 握手快照：TF 板级只读诊断
     output wire [23:0] O_rgb
 );
 
@@ -43,22 +44,35 @@ module monitor_compositor(
     wire [15:0] DEV_ABS = abs16(I_sync_dev);
 
     // ---------------- 标签字符串（定长 localparam，防左填充错位） ----------------
-    localparam [8*21-1:0] STR_TITLE = "SYS MONITOR  HX4S20C ";
+    localparam [8*21-1:0] STR_TITLE = "SYS MONITOR TF-D1    ";
     localparam [8*8-1:0]  STR_UP    = "UPTIME  ";
     localparam [8*8-1:0]  STR_FRM   = "FRAMES  ";
     localparam [8*8-1:0]  STR_SYN   = "AV-SYNC ";
     localparam [8*8-1:0]  STR_MOD   = "MODE    ";
 
+    localparam [8*8-1:0] STR_TF = "TF F/SNE";
+    localparam [8*8-1:0] STR_LBA = "TF LBA  ";
+    localparam [8*8-1:0] STR_IO = "RD/RESET";
+    localparam [8*8-1:0] STR_HEAD = "BMP HEAD";
+    localparam [8*8-1:0] STR_PIX = "PIXELS  ";
+    localparam [8*8-1:0] STR_COM = "WR/SCALE";
+
     function [7:0] label_char;
-        input [2:0] ln;
+        input [3:0] ln;
         input [6:0] c;
         begin
             case (ln)
-                3'd0: label_char = (c < 7'd21) ? STR_TITLE[(20 - c)*8 +: 8] : 8'h20;
-                3'd1: label_char = (c < 7'd8)  ? STR_UP[(7 - c)*8 +: 8]    : 8'h20;
-                3'd2: label_char = (c < 7'd8)  ? STR_FRM[(7 - c)*8 +: 8]   : 8'h20;
-                3'd3: label_char = (c < 7'd8)  ? STR_SYN[(7 - c)*8 +: 8]   : 8'h20;
-                3'd4: label_char = (c < 7'd8)  ? STR_MOD[(7 - c)*8 +: 8]   : 8'h20;
+                4'd0: label_char = (c < 7'd21) ? STR_TITLE[(20 - c)*8 +: 8] : 8'h20;
+                4'd1: label_char = (c < 7'd8)  ? STR_UP[(7 - c)*8 +: 8]    : 8'h20;
+                4'd2: label_char = (c < 7'd8)  ? STR_FRM[(7 - c)*8 +: 8]   : 8'h20;
+                4'd3: label_char = (c < 7'd8)  ? STR_SYN[(7 - c)*8 +: 8]   : 8'h20;
+                4'd4: label_char = (c < 7'd8)  ? STR_MOD[(7 - c)*8 +: 8]   : 8'h20;
+                4'd6: label_char = (c < 8) ? STR_TF[(7-c)*8 +: 8] : 8'h20;
+                4'd7: label_char = (c < 8) ? STR_LBA[(7-c)*8 +: 8] : 8'h20;
+                4'd8: label_char = (c < 8) ? STR_IO[(7-c)*8 +: 8] : 8'h20;
+                4'd9: label_char = (c < 8) ? STR_HEAD[(7-c)*8 +: 8] : 8'h20;
+                4'd10: label_char = (c < 8) ? STR_PIX[(7-c)*8 +: 8] : 8'h20;
+                4'd11: label_char = (c < 8) ? STR_COM[(7-c)*8 +: 8] : 8'h20;
                 default: label_char = 8'h20;
             endcase
         end
@@ -66,15 +80,15 @@ module monitor_compositor(
 
     // 值字符: 8'hFF 表示该列不由值渲染接管（回退到标签/空格）
     function [7:0] value_char;
-        input [2:0] ln;
+        input [3:0] ln;
         input [6:0] c;
         begin
             case (ln)
-                3'd1: value_char = (c >= 9 && c < 17)
+                4'd1: value_char = (c >= 9 && c < 17)
                         ? hex2ascii(I_uptime_sec[(7 - (c - 9)) * 4 +: 4]) : 8'hFF;
-                3'd2: value_char = (c >= 9 && c < 17)
+                4'd2: value_char = (c >= 9 && c < 17)
                         ? hex2ascii(I_frame_cnt[(7 - (c - 9)) * 4 +: 4]) : 8'hFF;
-                3'd3: begin // 符号 + 4 位 hex
+                4'd3: begin // 符号 + 4 位 hex
                     if (c == 9)
                         value_char = I_sync_dev[15] ? "N" : "P";
                     else if (c >= 10 && c < 14)
@@ -82,12 +96,33 @@ module monitor_compositor(
                     else
                         value_char = 8'hFF;
                 end
-                3'd4: begin
+                4'd4: begin
                     if (c == 9)       value_char = (I_mode == 2'd2) ? "E" :
                                                    (I_mode == 2'd1) ? "A" : "B";
                     else if (c == 10) value_char = (I_mode == 2'd2) ? "M" :
                                                    (I_mode == 2'd1) ? "D" : "O";
                     else              value_char = 8'hFF;
+                end
+                4'd6: begin
+                    if (c >= 9 && c < 13) value_char = hex2ascii(I_tf_diag[176 + (12-c)*4 +: 4]);
+                    else if (c == 13) value_char = "/";
+                    else if (c >= 14 && c < 17) value_char = hex2ascii(I_tf_diag[160 + (16-c)*4 +: 4]);
+                    else value_char = 8'hFF;
+                end
+                4'd7: value_char = (c >= 9 && c < 17) ? hex2ascii(I_tf_diag[128 + (16-c)*4 +: 4]) : 8'hFF;
+                4'd8: begin
+                    if (c >= 9 && c < 17) value_char = hex2ascii(I_tf_diag[96 + (16-c)*4 +: 4]);
+                    else if (c == 17) value_char = "/";
+                    else if (c >= 18 && c < 22) value_char = hex2ascii(I_tf_diag[80 + (21-c)*4 +: 4]);
+                    else value_char = 8'hFF;
+                end
+                4'd9: value_char = (c >= 9 && c < 17) ? hex2ascii(I_tf_diag[48 + (16-c)*4 +: 4]) : 8'hFF;
+                4'd10: value_char = (c >= 9 && c < 17) ? hex2ascii(I_tf_diag[16 + (16-c)*4 +: 4]) : 8'hFF;
+                4'd11: begin
+                    if (c >= 9 && c < 11) value_char = hex2ascii(I_tf_diag[8 + (10-c)*4 +: 4]);
+                    else if (c == 11) value_char = "/";
+                    else if (c >= 12 && c < 14) value_char = hex2ascii(I_tf_diag[(13-c)*4 +: 4]);
+                    else value_char = 8'hFF;
                 end
                 default: value_char = 8'hFF;
             endcase
@@ -99,15 +134,15 @@ module monitor_compositor(
     wire [4:0] line = I_y[8:4];     // 0..29
     wire [3:0] crow = I_y[3:0];
 
-    wire [2:0] ln3 = (line == 5'd0)  ? 3'd0 :
-                     (line == 5'd3)  ? 3'd1 :
-                     (line == 5'd5)  ? 3'd2 :
-                     (line == 5'd7)  ? 3'd3 :
-                     (line == 5'd9)  ? 3'd4 : 3'd5;
-    wire is_text_line = (ln3 != 3'd5);
-    wire [7:0] vch  = value_char(ln3, col);
-    wire [7:0] ch   = !is_text_line  ? 8'h20 :
-                      (vch != 8'hFF) ? vch  : label_char(ln3, col);
+    wire [3:0] ln3 = (line == 0) ? 4'd0 :
+                     (line == 3) ? 4'd1 : (line == 5) ? 4'd2 :
+                     (line == 7) ? 4'd3 : (line == 9) ? 4'd4 :
+                     (line == 13) ? 4'd6 : (line == 15) ? 4'd7 :
+                     (line == 17) ? 4'd8 : (line == 19) ? 4'd9 :
+                     (line == 21) ? 4'd10 : (line == 23) ? 4'd11 : 4'd5;
+    wire is_text_line = (ln3 != 4'd5);
+    wire [7:0] vch = value_char(ln3, col);
+    wire [7:0] ch = !is_text_line ? 8'h20 : (vch != 8'hFF) ? vch : label_char(ln3, col);
 
     // 字模: 标题行文字带垂直居中(y∈[4,19] → row=y-4)，其余行 row=y[3:0]
     wire [3:0] font_row = (line == 5'd0) ? (I_y - 9'd4) : {1'b0, crow};
@@ -126,7 +161,7 @@ module monitor_compositor(
     reg [8:0]  y_d;
     reg        de_d;
     reg [7:0]  ch_d;
-    reg [2:0]  ln3_d;
+    reg [3:0]  ln3_d;
     reg        is_text_line_d;
     reg        line0_d;
     always @(posedge I_clk) begin

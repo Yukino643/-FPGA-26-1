@@ -13,17 +13,23 @@ PHY  = os.path.join(ROOT, "td_prj", "av_media_Runs", "phy_1")
 MANIFEST = os.path.join(PHY, "build_manifest.sha256")
 
 def source_files():
-    """返回参与构建的新鲜度校验的工程输入；不扫描 TD 生成物。"""
+    """返回工程输入与 bit；显式列出必要的 TD 快照，拒绝旧固件替换。"""
     paths = []
     for base in (os.path.join(ROOT, "rtl"), os.path.join(ROOT, "constraints")):
         for dirpath, _, names in os.walk(base):
             for name in names:
                 path = os.path.join(dirpath, name)
-                if name.lower().endswith((".v", ".vh", ".vhd", ".enc.v", ".sdc", ".adc", ".ipc")):
+                if name.lower().endswith((".v", ".vh", ".vhd", ".enc.v", ".sdc", ".adc", ".ipc", ".hex", ".tcl")):
                     paths.append(path)
     paths.extend([
         os.path.join(ROOT, "td_prj", "av_media.al"),
+        os.path.join(ROOT, "td_prj", "flow_fixhold.tcl"),
+        os.path.join(ROOT, "td_prj", "build_all.sh"),
+        os.path.join(ROOT, "td_prj", "av_media_Runs", "syn_1", "settings.cfg"),
+        os.path.join(ROOT, "td_prj", "av_media_Runs", "phy_1", "settings.cfg"),
+        os.path.join(ROOT, "td_prj", "av_media_Runs", "syn_1", "av_media.prj"),
         os.path.join(PHY, "av_media.prj"),
+        os.path.join(PHY, "av_media.bit"),
     ])
     return sorted(path for path in paths if os.path.isfile(path))
 
@@ -33,6 +39,31 @@ def sha256(path):
         for block in iter(lambda: f.read(1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+def project_snapshots_match():
+    """比较入口和两个 run 快照的源文件签名；TD 工程 XML 含未转义 P&R，故不用 XML 解析器。"""
+    from pathlib import Path
+    def signature(path):
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
+        files = []
+        pattern = re.compile(r'<File Path="([^"]+)">\s*<FileInfo>(.*?)</FileInfo>', re.S)
+        attr_re = re.compile(r'<Attr Name="([^"]+)" Val="([^"]*)"/>')
+        for rel, body in pattern.findall(text):
+            attrs = tuple(sorted(attr_re.findall(body)))
+            absolute = os.path.normcase(os.path.normpath(os.path.join(os.path.dirname(path), rel)))
+            files.append((absolute, attrs))
+        top = re.search(r'<TOP_MODULE>.*?<LABEL>(.*?)</LABEL>.*?<MODULE>(.*?)</MODULE>', text, re.S)
+        return tuple(sorted(files)), tuple(top.groups()) if top else ()
+    try:
+        entry = signature(os.path.join(ROOT, "td_prj", "av_media.al"))
+        for run in ("syn_1", "phy_1"):
+            if signature(os.path.join(ROOT, "td_prj", "av_media_Runs", run, "av_media.prj")) != entry:
+                print(f"[RPT][FAIL] av_media.al 与 {run} 工程快照不一致")
+                return False
+    except OSError as exc:
+        print(f"[RPT][FAIL] 工程入口/快照无法读取: {exc}")
+        return False
+    return True
 
 def manifest_matches():
     if not os.path.isfile(MANIFEST):
@@ -53,7 +84,7 @@ def manifest_matches():
         missing = sorted(set(expected) - set(actual))
         changed = sorted(k for k in set(expected) & set(actual) if expected[k] != actual[k])
         added = sorted(set(actual) - set(expected))
-        print("[RPT][FAIL] 构建清单与当前输入不一致")
+        print("[RPT][FAIL] 构建清单与当前输入或 bit 不一致")
         if missing: print("  清单中已不存在:", ", ".join(missing[:8]))
         if changed: print("  已修改:", ", ".join(changed[:8]))
         if added: print("  构建后新增:", ", ".join(added[:8]))
@@ -90,6 +121,8 @@ def main():
     if not os.path.isfile(bitgen_end):
         print("[RPT][FAIL] 缺少 .bitgen.end.f，bitgen 未被当前流程确认完成")
         return 1
+    if not project_snapshots_match():
+        return 1
     if not manifest_matches():
         return 1
     print("[RPT][PASS] av_media.bit 与 SHA-256 构建清单一致")
@@ -106,6 +139,22 @@ def main():
         print("[RPT][FAIL] 时序报告格式解析失败")
         return 1
     swns, hwns = float(m.group(1)), float(h.group(1))
+    # TD 自动 final_timing.rpt 在手动 fix_hold 前生成；以流程末尾详细报告核对汇总。
+    detailed_path = os.path.join(PHY, "av_media_pr.timing")
+    try:
+        with open(detailed_path, encoding="utf-8", errors="replace") as src:
+            detailed = src.read()
+    except OSError as exc:
+        print(f"[RPT][FAIL] 无法读取修复后详细时序报告: {exc}")
+        return 1
+    dm = re.search(r"SWNS:\s*([-0-9.]+)ns,\s*STNS:\s*([-0-9.]+)ns", detailed)
+    dh = re.search(r"HWNS:\s*([-0-9.]+)ns", detailed)
+    if not (dm and dh) or (dm.group(1), dm.group(2), dh.group(1)) != (m.group(1), m.group(2), h.group(1)):
+        print("[RPT][FAIL] 修复后详细时序报告与汇总不一致")
+        return 1
+    print("[RPT][PASS] av_media_pr.timing 与修复后汇总一致")
+    if swns < 0:
+        print("[RPT][WARN] setup 仍有负余量；按现有基线验收，不代表所有路径已闭合")
     base, tol = cfg["SWNS_BASE"], cfg["SWNS_TOL"]
     if swns >= base - tol:
         print(f"[RPT][PASS] SWNS={swns:.3f}ns (基线 {base}ns, 容差 {tol})")

@@ -169,6 +169,8 @@ proc opt_place_fun {} {
   }
 
 ### Editable zone for opt_place ###
+  # 官方 MultiSeed.tcl 使用 place seed；固定种子 5 避免本轮局部布线冲突。
+  set_param place seed 5
   place
   update_timing -mode manhattan
   report_timing_summary -file ${prj_name}_place.timing
@@ -189,6 +191,8 @@ proc opt_route_fun {} {
   if { ![info exists singleRun] } { commit_param -step route }
 
 ### Editable zone for opt_route ###
+  # 优先保证布线可达；保持原 hold 修复及报告门限。
+  set_param route effort routability
   route
   fix_hold
   report_qor -step route -file route.qor

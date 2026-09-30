@@ -307,6 +307,8 @@ end
 wire scaler_commit_toggle = scaler_done_sync[1];
 
 // ===================== TF 多图扫描与缓存（双缓冲，W3 泛化版: 8 图 + 任意分辨率） =====================
+wire [31:0] tf_bmp_debug;
+wire [191:0] tf_video_snapshot;
 wire [3:0]  img_count;
 wire [15:0] cur_img_w, cur_img_h;
 
@@ -329,6 +331,7 @@ sd_card_bmp_g #(
     .key_auto          (key2),
     .hold_load         (tr_hold_load),
     .state_code        (state_code),
+    .debug_status      (tf_bmp_debug),
     .img_count         (img_count),
     .cur_img_w         (cur_img_w),
     .cur_img_h         (cur_img_h),
@@ -379,6 +382,19 @@ sd_card_top u_sd_card_top(
     .sd_sec_read_data_valid(sd_phy_sec_read_data_valid), .sd_sec_read_end(sd_phy_sec_read_end),
     .sd_sec_write(1'b0), .sd_sec_write_addr(32'd0), .sd_sec_write_data(8'd0),
     .sd_sec_write_data_req(), .sd_sec_write_end()
+);
+
+// TF 诊断旁路：所有输入均已在 SD 时钟域；握手快照后才交给视频渲染。
+tf_diag_capture u_tf_diag (
+    .sd_clk(sd_card_clk), .sd_rst(rst_sd), .video_clk(video_clk), .video_rst(rst_video),
+    .sd_init_done(sd_init_done), .bmp_status(tf_bmp_debug),
+    .sd_req(sd_phy_sec_read), .sd_addr(sd_phy_sec_read_addr),
+    .sd_data(sd_phy_sec_read_data), .sd_data_valid(sd_phy_sec_read_data_valid),
+    .sd_end(sd_phy_sec_read_end), .controller_reset(sd_controller_reset),
+    .bmp_timeout(bmp_sd_timeout), .wav_timeout(wav_sd_timeout),
+    .pixel_valid(bmp_wr_en), .write_req(sd_card_write_req),
+    .frame_write_finish_pulse(frame_write_finish_pulse),
+    .scaler_commit_toggle(scaler_commit_toggle), .video_snapshot(tf_video_snapshot)
 );
 
 // W6: src_packer — 24bit BMP 像素流 → RGB565 打包（2 像素/字）
@@ -1141,6 +1157,7 @@ monitor_compositor u_mon_compositor(
     .I_frame_cnt  (frame_cnt),
     .I_sync_dev   (sync_dev_real),
     .I_mode       (mode_v1),
+    .I_tf_diag    (tf_video_snapshot),
     .O_rgb        (mon_rgb)
 );
 

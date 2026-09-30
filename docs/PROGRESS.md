@@ -495,3 +495,21 @@
 | 备份 | 本地 D:/FPGA/tmp/bmp-header-backup-20260930-183732，远端标签 backup/pre-bmp-fix-20260930 |
 
 详见 [TF图片黑屏定位-20260930.md](TF图片黑屏定位-20260930.md)。
+
+
+## 8.22 2026-09-30 TF-D1 官方 SD 资料对照与板级诊断
+
+| 项目 | 本轮结果 |
+|---|---|
+| 本地官方资料 | SD读写实验8页与对应RTL、VGA/HDMI及开发板TF原理图已核对；不解析FAT目录，原演示包含写卡操作 |
+| 真实 H: 卡 | 3张官方BMP完全一致，起始LBA32784/34592/36400，簇链连续且全部位于前64MiB扫描范围，卡全程只读 |
+| 诊断实现 | HDMI_A标题TF-D1，六组状态/计数；跨时钟域握手快照，软控制器复位保留故障历史；MISO按官方改PULLUP |
+| 构建修复 | seed5普通路由仍冲突；官方routability策略消除局部冲突；保留hold修复和原门限 |
+| 同版门禁 | 输入起止哈希、入口与两份run快照一致性、字体hex/IP Tcl及bit SHA；替换bit/漏模块负测试均被拒绝 |
+| 验收 | basic25/25、full26/26、full后独立check_reports fails=0 |
+| 最终bit | 2026-09-30 22:29:14，643592B，SHA256 79d7cd311b10509ca8ac70496aec740bafb581c2db845ca04b3a18ce1df27166 |
+| 时序限制 | 修复后SWNS=-6.565ns、HWNS=+0.022ns；setup仍负余量，不能宣称所有路径闭合 |
+| 板级 | HDMI_A/B基本显示已实测正常；TF-D1尚待Julian下载拍照，TF黑屏根因仍待确认 |
+| 备份 | tmp/tf-diagnostic-backup-20260930-201535；Git标签backup/pre-tf-diag-20260930指向fec1891 |
+
+详见 [TF诊断版-20260930.md](TF诊断版-20260930.md)。

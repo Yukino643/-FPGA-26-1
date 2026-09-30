@@ -523,6 +523,14 @@
                     <Attr Name="CompileOrder" Val="64"/>
                 </FileInfo>
             </File>
+            <File Path="../rtl/ctrl/tf_diag_capture.v">
+                <FileInfo>
+                    <Attr Name="UsedInSyn" Val="true"/>
+                    <Attr Name="UsedInP&R" Val="true"/>
+                    <Attr Name="BelongTo" Val="design_1"/>
+                    <Attr Name="CompileOrder" Val="65"/>
+                </FileInfo>
+            </File>
         </Verilog>
         <ADC_FILE>
             <File Path="../constraints/pin.adc">

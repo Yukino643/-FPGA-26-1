@@ -22,6 +22,7 @@ module sd_card_bmp_g #(
     output wire        load_done,
     output wire [15:0] load_img_w,
     output wire [15:0] load_img_h,
+    output wire [31:0] debug_status,  // 只读状态总线，供板级诊断使用
 
     input  wire        write_finish_toggle,
     output reg  [1:0]  write_buf_idx,
@@ -88,6 +89,10 @@ module sd_card_bmp_g #(
     wire [3:0] first_good_image;
     wire        any_good_image;
 
+    // [27:20]坏图掩码，[19:16]状态，[15:12]错误，[11:8]发现数，[7:0]阶段标志。
+    assign debug_status = {4'd0, failed_mask, state_code, bmp_error_code, img_found_count,
+                           any_good_image, first_image_committed, display_valid,
+                           load_retry_used, load_fault, source_done_seen, load_busy, scan_done};
     assign write_en   = bmp_data_wr_en;
     // bmp_read_g 已按 {R,G,B} 输出；保持 24 位接口，禁止 32→24 位截断丢失 R 分量。
     assign write_data = bmp_data;
