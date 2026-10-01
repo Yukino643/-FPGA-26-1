@@ -15,7 +15,7 @@ module tb_tf_diag_capture;
         .sd_data(data),.sd_data_valid(dv),.sd_end(sec_end),
         .controller_reset(ctrl_reset),.bmp_timeout(a_timeout),.wav_timeout(b_timeout),
         .pixel_valid(pixel),.write_req(wrreq),.frame_write_finish_pulse(wrfinish),
-        .scaler_commit_toggle(commit),.video_snapshot(snap)
+        .scaler_commit_toggle(commit),.scaler_debug_status(8'd0),.video_snapshot(snap)
     );
     integer i;
     reg [191:0] frozen_mailbox;
@@ -60,7 +60,7 @@ module tb_tf_diag_capture;
         repeat(80) @(negedge sclk);
         // 模拟真实 SD 控制器软复位，只降 init；诊断数据仍需完整保留。
         if(snap[79:48] !== 32'h424d3610 || snap[47:16] !== 6 ||
-           snap[127:96] !== 1 || snap[95:80] !== 1 || snap[15:0] !== 16'h0101 ||
+           snap[127:96] !== 1 || snap[95:80] !== 1 || snap[15:0] !== 16'h0100 ||
            snap[0+176] !== 0 || snap[186:184] !== 3'b111 || snap[171:160] !== 12'h130)
             $fatal(1,"FAIL diagnostic fields or sticky fault history snap=%h",snap);
         // 接收时钟停顿后，生产者不得覆盖尚未接收的数据。

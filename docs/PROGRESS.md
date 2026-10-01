@@ -529,3 +529,14 @@
 | 恢复 | tmp/tf-scaler-backup-20261001-012533；tmp/tf-scaler-pre-fix-20261001.bundle；标签backup/pre-scaler-fix-20261001 |
 
 详见 [TF缩放修复-20261001.md](TF缩放修复-20261001.md)。
+
+## 8.24 2026-10-01 TF-D3 缩放器板级状态诊断
+
+| 项目 | 本轮结果 |
+|---|---|
+| 新诊断 | HDMI_A 标题 `SYS MONITOR TF-D3`；WR/SCALE 右侧显示 scaler state、busy、C口 valid/ready、done toggle |
+| 联调仿真 | scaler + mem_mpu + SDRAM 返回模型通过；真实顶层连接、异步时钟、页0/1/0和全帧校验通过 |
+| 回归门 | basic27/27 → full28/28 → 独立check_reports fails=0 |
+| 最终 bit | 2026-10-01 13:46:25，643592B；SHA256 7856ccf9777873493a66052ff1b99be3e76d40182897feb3e2e733e4c65d55c8 |
+| 报告 | LUT81.78%，BRAM9K71.9%，SWNS-6.565ns，HWNS+0.019ns；setup仍按既有基线验收 |
+| 板级下一步 | 下载 D3 后拍 HDMI_A；根据状态字节决定停在除法、读源还是输出阶段 |

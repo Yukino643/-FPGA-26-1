@@ -17,6 +17,11 @@ module tb_top_scaler;
     wire scaler_wr_en, scaler_busy, scaler_done_toggle;
     wire [20:0] scaler_wr_addr;
     wire [31:0] scaler_wr_din;
+    wire [3:0] scaler_debug_state;
+    reg [3:0] scaler_state_sd = 0;
+    reg scaler_busy_sd = 0, scaler_cmd_valid_sd = 0, scaler_cmd_ready_sd = 0, scaler_done_sd = 0;
+    wire [7:0] scaler_debug_status = {scaler_state_sd, scaler_busy_sd,
+        scaler_cmd_valid_sd, scaler_cmd_ready_sd, scaler_done_sd};
     `include "reg_top_scaler_block.vh"
 
     integer cycle = 0, remaining = 0, beat = 0;

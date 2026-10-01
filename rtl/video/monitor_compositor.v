@@ -44,7 +44,7 @@ module monitor_compositor(
     wire [15:0] DEV_ABS = abs16(I_sync_dev);
 
     // ---------------- 标签字符串（定长 localparam，防左填充错位） ----------------
-    localparam [8*21-1:0] STR_TITLE = "SYS MONITOR TF-D2    ";
+    localparam [8*21-1:0] STR_TITLE = "SYS MONITOR TF-D3    ";
     localparam [8*8-1:0]  STR_UP    = "UPTIME  ";
     localparam [8*8-1:0]  STR_FRM   = "FRAMES  ";
     localparam [8*8-1:0]  STR_SYN   = "AV-SYNC ";

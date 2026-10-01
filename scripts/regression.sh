@@ -92,7 +92,8 @@ run_sim disp      -DSIMULATION -I ../rtl/video tb_disp_path.v sdram_beh.v ../rtl
 echo "[REG][INFO] SIM scaler 较慢（约 2~3 分钟）..."
 run_sim scaler    -DSIMULATION tb_scaler.v ../rtl/video/scaler.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_scaler_block.py"; then
-  run_sim top_scaler -DSIMULATION tb_top_scaler.v ../rtl/video/scaler.v
+run_sim top_scaler -DSIMULATION tb_top_scaler.v ../rtl/video/scaler.v
+run_sim scaler_mpu -DSIMULATION tb_scaler_mpu.v ../rtl/video/scaler.v ../rtl/mem/mem_mpu.v sdram_beh.v
 else
   note_fail "SIM top_scaler 提取顶层连接失败"
 fi

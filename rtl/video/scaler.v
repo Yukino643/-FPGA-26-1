@@ -52,7 +52,8 @@ module scaler #(
     output reg  [31:0]              wr_din,
     output wire [3:0]               wr_dm,
     output wire                     busy,
-    output reg                      done_toggle
+    output reg                      done_toggle,
+    output wire [3:0]               debug_state
 );
     localparam FR_FULL = 1 << FRAC;
 
@@ -77,6 +78,7 @@ module scaler #(
     reg [3:0]  state;
     reg        busy_r;
     assign busy = busy_r;
+    assign debug_state = state;
     assign wr_dm = 4'hF;
 
     // ---- 配置锁存 ----

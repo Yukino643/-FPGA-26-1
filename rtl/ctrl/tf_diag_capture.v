@@ -13,6 +13,7 @@ module tf_diag_capture #(
     input wire controller_reset, bmp_timeout, wav_timeout,
     input wire pixel_valid, write_req,
     input wire frame_write_finish_pulse, scaler_commit_toggle,
+    input wire [7:0] scaler_debug_status,
     output reg [191:0] video_snapshot
 );
     reg [31:0] last_lba, sector_ends, pixel_count, probe_header;
@@ -66,8 +67,9 @@ module tf_diag_capture #(
         bmp_status[7], bmp_status[4], bmp_status[3], bmp_status[5],
         bmp_status[2], bmp_status[1], bmp_status[0], sd_init_done};
     wire [15:0] bmp_sne = {4'd0, bmp_status[19:16], bmp_status[11:8], bmp_status[15:12]};
+    // TF-D3 右侧字段显示 scaler 状态：高四位 state，随后 busy/C-valid/C-ready/done。
     wire [191:0] current_snapshot = {flags, bmp_sne, last_lba, sector_ends,
-        controller_resets, probe_header, pixel_count, write_finishes, scaler_commits};
+        controller_resets, probe_header, pixel_count, write_finishes, scaler_debug_status};
 
     reg [191:0] mailbox;
     reg request_toggle, ack_toggle;

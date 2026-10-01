@@ -309,6 +309,12 @@ wire scaler_commit_toggle = scaler_done_sync[1];
 // ===================== TF 多图扫描与缓存（双缓冲，W3 泛化版: 8 图 + 任意分辨率） =====================
 wire [31:0] tf_bmp_debug;
 wire [191:0] tf_video_snapshot;
+wire [3:0]  scaler_debug_state;
+reg  [3:0]  scaler_state_sd;
+reg         scaler_busy_sd, scaler_cmd_valid_sd, scaler_cmd_ready_sd, scaler_done_sd;
+wire [7:0]  scaler_debug_status = {scaler_state_sd, scaler_busy_sd,
+                                    scaler_cmd_valid_sd, scaler_cmd_ready_sd,
+                                    scaler_done_sd};
 wire [3:0]  img_count;
 wire [15:0] cur_img_w, cur_img_h;
 
@@ -394,7 +400,8 @@ tf_diag_capture u_tf_diag (
     .bmp_timeout(bmp_sd_timeout), .wav_timeout(wav_sd_timeout),
     .pixel_valid(bmp_wr_en), .write_req(sd_card_write_req),
     .frame_write_finish_pulse(frame_write_finish_pulse),
-    .scaler_commit_toggle(scaler_commit_toggle), .video_snapshot(tf_video_snapshot)
+    .scaler_commit_toggle(scaler_commit_toggle), .scaler_debug_status(scaler_debug_status),
+    .video_snapshot(tf_video_snapshot)
 );
 
 // W6: src_packer — 24bit BMP 像素流 → RGB565 打包（2 像素/字）
@@ -677,8 +684,26 @@ scaler #(
     .wr_din         (scaler_wr_din),
     .wr_dm          (),
     .busy           (scaler_busy),
-    .done_toggle    (scaler_done_toggle)
+    .done_toggle    (scaler_done_toggle),
+    .debug_state    (scaler_debug_state)
 );
+
+// TF-D3：将 scaler 状态和 C 口握手同步到 SD 诊断域。
+always @(posedge sd_card_clk or posedge rst_sd) begin
+    if (rst_sd) begin
+        scaler_state_sd <= 4'd0;
+        scaler_busy_sd <= 1'b0;
+        scaler_cmd_valid_sd <= 1'b0;
+        scaler_cmd_ready_sd <= 1'b0;
+        scaler_done_sd <= 1'b0;
+    end else begin
+        scaler_state_sd <= scaler_debug_state;
+        scaler_busy_sd <= scaler_busy;
+        scaler_cmd_valid_sd <= mpu_C_cv;
+        scaler_cmd_ready_sd <= mpu_C_cr;
+        scaler_done_sd <= scaler_done_toggle;
+    end
+end
 
 // ---- W6: 装载写路径 → SRC_BUF（RGB565 打包，scaler 读取源） ----
 wire video_read_en_unused;

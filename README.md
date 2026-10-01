@@ -37,7 +37,7 @@ docs\          计划书 / 设计说明书 / 测试报告
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-10-01 TF-D2）：basic 26/26、full 27/27、独立报告 fails=0；bit 生成于 02:21:02，SHA256 `3301637cbafa98d79996854dc7dffe48bc71d1bfc64c18453a86072b70a13515`。LUT15997/19600（81.62%）、BRAM9K46/64（71.9%），SWNS=-6.565ns、HWNS=+0.022ns。TF-D1 板级照片已确认三图被找到、首图307200像素及源缓存写入完成；本轮修复缩放启动、目标页和重复任务地址，TF-D2 图片显示仍待下载实测。setup 仍有负余量；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
+- 当前构建（2026-10-01 TF-D3）：basic 27/27、full 28/28、独立报告 fails=0；bit 生成于 13:46:25，SHA256 `7856ccf9777873493a66052ff1b99be3e76d40182897feb3e2e733e4c65d55c8`。LUT16029/19600（81.78%）、BRAM9K46/64（71.9%），SWNS=-6.565ns、HWNS=+0.019ns。D3 在 HDMI_A 诊断页增加 scaler state、busy、C 口 valid/ready、done 状态，定位源缓存之后的停滞点；图片仍待下载 D3 实测。setup 仍有负余量；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
 
 ## 回归门（每轮改动后必跑）
 
