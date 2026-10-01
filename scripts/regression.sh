@@ -85,6 +85,8 @@ run_sim tf_diag tb_tf_diag_capture.v ../rtl/ctrl/tf_diag_capture.v
 run_sim sd_card_init tb_sd_card_init.v ../rtl/sd/sd_card_sec_read_write.v
 run_sim sd_spi_sdhc tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v
 run_sim sd_spi_sdsc -Ptb_sd_spi_chain.HIGH_CAPACITY=0 tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v
+run_sim fat32_index tb_fat32_bmp_index.v ../rtl/sd/fat32_bmp_index.v
+run_sim fat32_mapper tb_fat32_file_sector_mapper.v ../rtl/sd/fat32_file_sector_mapper.v
 run_sim mem_mpu   tb_mem_mpu.v   ../rtl/mem/mem_mpu.v
 run_sim mem_mpu_overlap tb_mem_mpu_overlap.v ../rtl/mem/mem_mpu.v
 run_sim mem_mpu_rw tb_mem_mpu_rw.v ../rtl/mem/mem_mpu.v ../rtl/sd/frame_fifo_write.v

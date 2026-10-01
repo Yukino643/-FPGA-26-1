@@ -1,12 +1,10 @@
 // sd_card_bmp_g.v — TF 卡 BMP 扫描/轮播时序控制（泛化版，W3）
 // 基于官方 sd_card_bmp：双缓冲提交/页翻转握手逻辑保持一致；
-//   1. 轮播图数 4 → 8（img_idx 扩到 4bit）
-//   2. 底层换 bmp_read_g（任意分辨率 + padding 剥离 + 元数据）
-//   3. 对外暴露 img_count / cur_img_w / cur_img_h 给监视台
+//   1. 通过 FAT32 根目录索引图片，按文件簇链读取，避免全卡原始扇区扫描
+//   2. bmp_read_g 继续负责 BMP 头校验、行 padding 剥离与 RGB 解码
+//   3. 保留双缓冲提交和最多 8 张图片的轮播控制
 module sd_card_bmp_g #(
     parameter integer CLK_FREQ_HZ       = 100_000_000,
-    parameter [31:0]  SCAN_START_SECTOR = 32'd0,
-    parameter [31:0]  SCAN_MAX_SECTOR   = 32'd131071,
     parameter [3:0]   SCAN_TARGET_COUNT = 4'd8
 )(
     input  wire        clk,
@@ -33,6 +31,7 @@ module sd_card_bmp_g #(
     output             write_en,
     output [23:0]      write_data,
     input  wire        sd_init_done,
+    input  wire        sd_sec_read_abort,
     output wire        sd_sec_read,
     output wire [31:0] sd_sec_read_addr,
     input  wire [7:0]  sd_sec_read_data,
@@ -50,14 +49,43 @@ module sd_card_bmp_g #(
     wire [3:0]       bmp_error_code;
     wire             scan_done;
     wire             scan_found_valid;
-    wire [31:0]      scan_found_sector;
+    wire [31:0]      scan_found_cluster;
+    wire [31:0]      scan_found_size;
     wire [3:0]       scan_found_total;
-    wire [15:0]      scan_found_w;
-    wire [15:0]      scan_found_h;
+    wire             fs_scan_busy;
+    wire [7:0]       fs_scan_error;
+    wire [7:0]       fs_sectors_per_cluster;
+    wire [2:0]       fs_spc_shift;
+    wire [31:0]      fs_fat_start_lba;
+    wire [31:0]      fs_data_start_lba;
+    wire [31:0]      fs_max_cluster;
+    wire [3:0]       bmp_state_code;
+    wire             bmp_client_req;
+    wire [31:0]      bmp_client_sector;
+    wire [7:0]       bmp_client_data;
+    wire             bmp_client_data_valid;
+    wire             bmp_client_done;
+    wire             bmp_client_error;
+    wire             fs_sector_req;
+    wire [31:0]      fs_sector_lba;
+    wire             map_sector_req;
+    wire [31:0]      map_sector_lba;
+    wire             fs_sector_done;
+    wire             map_sector_done;
+    wire             fs_sector_valid;
+    wire             map_sector_valid;
+    wire [7:0]       fs_sector_error;
+    wire [7:0]       map_sector_error;
 
     reg              scan_start_pulse;
     reg              load_start_pulse;
     reg [31:0]       load_sector;
+    reg [31:0]       load_cluster;
+    reg [31:0]       load_file_size;
+    reg              physical_read_active;
+    reg              physical_read_owner_map;
+    reg [31:0]       physical_read_lba;
+    reg [8:0]        physical_read_byte_index;
     reg              scan_kicked;
     reg              first_image_committed;
     reg              auto_play_en;
@@ -66,14 +94,10 @@ module sd_card_bmp_g #(
     reg [3:0]        img_idx;             // 当前显示中的图片编号
     reg [3:0]        load_idx;            // 当前正在装载的图片编号
     reg [1:0]        pending_buf_idx;
-    reg [31:0]       img_sector0;
-    reg [31:0]       img_sector1;
-    reg [31:0]       img_sector2;
-    reg [31:0]       img_sector3;
-    reg [31:0]       img_sector4;
-    reg [31:0]       img_sector5;
-    reg [31:0]       img_sector6;
-    reg [31:0]       img_sector7;
+    reg [31:0]       img_cluster0, img_cluster1, img_cluster2, img_cluster3;
+    reg [31:0]       img_cluster4, img_cluster5, img_cluster6, img_cluster7;
+    reg [31:0]       img_size0, img_size1, img_size2, img_size3;
+    reg [31:0]       img_size4, img_size5, img_size6, img_size7;
     reg              next_req_pending;
     reg              load_busy;
     reg              source_done_seen;
@@ -90,12 +114,31 @@ module sd_card_bmp_g #(
     wire        any_good_image;
 
     // [27:20]坏图掩码，[19:16]状态，[15:12]错误，[11:8]发现数，[7:0]阶段标志。
-    assign debug_status = {4'd0, failed_mask, state_code, bmp_error_code, img_found_count,
+    assign debug_status = {4'd0, failed_mask, state_code,
+                           (fs_scan_error != 0) ? scan_error_display_code : bmp_error_code,
+                           img_found_count,
                            any_good_image, first_image_committed, display_valid,
                            load_retry_used, load_fault, source_done_seen, load_busy, scan_done};
     assign write_en   = bmp_data_wr_en;
     // bmp_read_g 已按 {R,G,B} 输出；保持 24 位接口，禁止 32→24 位截断丢失 R 分量。
     assign write_data = bmp_data;
+    assign state_code = fs_scan_busy ? 4'd2 :
+                        ((fs_scan_error != 0) ? 4'he : bmp_state_code);
+    assign scan_done = fat_index_done;
+    assign sd_sec_read = physical_read_active;
+    assign sd_sec_read_addr = physical_read_lba;
+
+    wire fat_index_done;
+    wire [31:0] selected_cluster;
+    wire [31:0] selected_file_size;
+    wire [3:0]  scan_error_display_code =
+        (fs_scan_error == 8'h10) ? 4'd1 :
+        (fs_scan_error == 8'h20) ? 4'd2 :
+        (fs_scan_error == 8'h21) ? 4'd3 :
+        (fs_scan_error == 8'h22) ? 4'd4 :
+        (fs_scan_error == 8'h24) ? 4'd5 :
+        (fs_scan_error == 8'h25) ? 4'd6 :
+        (fs_scan_error == 8'h30) ? 4'd7 : 4'hf;
     assign auto_tick  = (auto_cnt == (CLK_FREQ_HZ - 1));
     assign next_from_current = next_good_index(img_idx, img_found_count, failed_mask);
     assign first_good_image  = first_good_index(img_found_count, failed_mask);
@@ -245,21 +288,40 @@ module sd_card_bmp_g #(
         end
     endfunction
 
-    function [31:0] sector_lut;
+    function [31:0] cluster_lut;
         input [3:0] idx;
         begin
             case (idx)
-                4'd0: sector_lut = img_sector0;
-                4'd1: sector_lut = img_sector1;
-                4'd2: sector_lut = img_sector2;
-                4'd3: sector_lut = img_sector3;
-                4'd4: sector_lut = img_sector4;
-                4'd5: sector_lut = img_sector5;
-                4'd6: sector_lut = img_sector6;
-                default: sector_lut = img_sector7;
+                4'd0: cluster_lut = img_cluster0;
+                4'd1: cluster_lut = img_cluster1;
+                4'd2: cluster_lut = img_cluster2;
+                4'd3: cluster_lut = img_cluster3;
+                4'd4: cluster_lut = img_cluster4;
+                4'd5: cluster_lut = img_cluster5;
+                4'd6: cluster_lut = img_cluster6;
+                default: cluster_lut = img_cluster7;
             endcase
         end
     endfunction
+
+    function [31:0] size_lut;
+        input [3:0] idx;
+        begin
+            case (idx)
+                4'd0: size_lut = img_size0;
+                4'd1: size_lut = img_size1;
+                4'd2: size_lut = img_size2;
+                4'd3: size_lut = img_size3;
+                4'd4: size_lut = img_size4;
+                4'd5: size_lut = img_size5;
+                4'd6: size_lut = img_size6;
+                default: size_lut = img_size7;
+            endcase
+        end
+    endfunction
+
+    assign selected_cluster = load_cluster;
+    assign selected_file_size = load_file_size;
 
     function [1:0] next_buf_lut;
         input [1:0] cur_disp_buf;
@@ -277,6 +339,8 @@ module sd_card_bmp_g #(
             scan_start_pulse      <= 1'b0;
             load_start_pulse      <= 1'b0;
             load_sector           <= 32'd0;
+            load_cluster          <= 32'd0;
+            load_file_size        <= 32'd0;
             scan_kicked           <= 1'b0;
             first_image_committed <= 1'b0;
             auto_play_en          <= 1'b0;
@@ -287,14 +351,14 @@ module sd_card_bmp_g #(
             pending_buf_idx       <= 2'd0;
             write_buf_idx         <= 2'd0;
             disp_buf_idx          <= 2'd0;
-            img_sector0           <= 32'd0;
-            img_sector1           <= 32'd0;
-            img_sector2           <= 32'd0;
-            img_sector3           <= 32'd0;
-            img_sector4           <= 32'd0;
-            img_sector5           <= 32'd0;
-            img_sector6           <= 32'd0;
-            img_sector7           <= 32'd0;
+            img_cluster0          <= 32'd0; img_cluster1 <= 32'd0;
+            img_cluster2          <= 32'd0; img_cluster3 <= 32'd0;
+            img_cluster4          <= 32'd0; img_cluster5 <= 32'd0;
+            img_cluster6          <= 32'd0; img_cluster7 <= 32'd0;
+            img_size0             <= 32'd0; img_size1 <= 32'd0;
+            img_size2             <= 32'd0; img_size3 <= 32'd0;
+            img_size4             <= 32'd0; img_size5 <= 32'd0;
+            img_size6             <= 32'd0; img_size7 <= 32'd0;
             img_count             <= 4'd0;
             cur_img_w             <= 16'd0;
             cur_img_h             <= 16'd0;
@@ -332,17 +396,17 @@ module sd_card_bmp_g #(
                 failed_mask           <= 8'd0;
                 display_valid         <= 1'b0;
             end else begin
-                // 扫描阶段缓存图片起始扇区（最多 8 张）
+                // 扫描阶段缓存根目录项给出的首簇与文件长度。
                 if (scan_found_valid && (img_found_count < SCAN_TARGET_COUNT)) begin
                     case (img_found_count)
-                        4'd0: img_sector0 <= scan_found_sector;
-                        4'd1: img_sector1 <= scan_found_sector;
-                        4'd2: img_sector2 <= scan_found_sector;
-                        4'd3: img_sector3 <= scan_found_sector;
-                        4'd4: img_sector4 <= scan_found_sector;
-                        4'd5: img_sector5 <= scan_found_sector;
-                        4'd6: img_sector6 <= scan_found_sector;
-                        default: img_sector7 <= scan_found_sector;
+                        4'd0: begin img_cluster0 <= scan_found_cluster; img_size0 <= scan_found_size; end
+                        4'd1: begin img_cluster1 <= scan_found_cluster; img_size1 <= scan_found_size; end
+                        4'd2: begin img_cluster2 <= scan_found_cluster; img_size2 <= scan_found_size; end
+                        4'd3: begin img_cluster3 <= scan_found_cluster; img_size3 <= scan_found_size; end
+                        4'd4: begin img_cluster4 <= scan_found_cluster; img_size4 <= scan_found_size; end
+                        4'd5: begin img_cluster5 <= scan_found_cluster; img_size5 <= scan_found_size; end
+                        4'd6: begin img_cluster6 <= scan_found_cluster; img_size6 <= scan_found_size; end
+                        default: begin img_cluster7 <= scan_found_cluster; img_size7 <= scan_found_size; end
                     endcase
                     img_found_count <= img_found_count + 4'd1;
                 end
@@ -380,6 +444,10 @@ module sd_card_bmp_g #(
                     first_image_committed <= 1'b1;
                     load_fault            <= 1'b0;
                 end
+
+                // FAT32 扫描错误也保留在诊断状态中，避免无图/坏 BPB 只呈现为黑屏。
+                if (scan_done && (fs_scan_error != 0))
+                    load_fault <= 1'b1;
 
                 if (!scan_kicked && bmp_ready) begin
                     scan_start_pulse      <= 1'b1;
@@ -421,7 +489,9 @@ module sd_card_bmp_g #(
                     if (scan_done && !first_image_committed && bmp_ready && !load_busy
                         && (img_found_count != 4'd0) && any_good_image) begin
                         load_idx         <= first_good_image;
-                        load_sector      <= sector_lut(first_good_image);
+                        load_sector      <= 32'd0;
+                        load_cluster     <= cluster_lut(first_good_image);
+                        load_file_size   <= size_lut(first_good_image);
                         pending_buf_idx  <= 2'd0;
                         write_buf_idx    <= 2'd0;
                         load_start_pulse <= 1'b1;
@@ -435,7 +505,9 @@ module sd_card_bmp_g #(
                     else if (scan_done && bmp_ready && display_valid && !load_busy && next_req_pending
                              && (img_found_count != 4'd0) && any_good_image && !hold_load) begin
                         load_idx         <= next_from_current;
-                        load_sector      <= sector_lut(next_from_current);
+                        load_sector      <= 32'd0;
+                        load_cluster     <= cluster_lut(next_from_current);
+                        load_file_size   <= size_lut(next_from_current);
                         pending_buf_idx  <= next_buf_lut(disp_buf_idx, display_valid);
                         write_buf_idx    <= next_buf_lut(disp_buf_idx, display_valid);
                         load_start_pulse <= 1'b1;
@@ -448,7 +520,9 @@ module sd_card_bmp_g #(
                     else if (scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
                              && (img_found_count > 4'd1) && any_good_image && !hold_load) begin
                         load_idx         <= next_from_current;
-                        load_sector      <= sector_lut(next_from_current);
+                        load_sector      <= 32'd0;
+                        load_cluster     <= cluster_lut(next_from_current);
+                        load_file_size   <= size_lut(next_from_current);
                         pending_buf_idx  <= next_buf_lut(disp_buf_idx, display_valid);
                         write_buf_idx    <= next_buf_lut(disp_buf_idx, display_valid);
                         load_start_pulse <= 1'b1;
@@ -470,16 +544,16 @@ module sd_card_bmp_g #(
         .rst                    (rst),
         .ready                  (bmp_ready),
 
-        .scan_start             (scan_start_pulse),
-        .scan_start_sector      (SCAN_START_SECTOR),
-        .scan_max_sector        (SCAN_MAX_SECTOR),
-        .scan_target_count      (SCAN_TARGET_COUNT),
-        .scan_done              (scan_done),
-        .scan_found_valid       (scan_found_valid),
-        .scan_found_sector      (scan_found_sector),
-        .scan_found_total       (scan_found_total),
-        .scan_found_w           (scan_found_w),
-        .scan_found_h           (scan_found_h),
+        .scan_start             (1'b0),
+        .scan_start_sector      (32'd0),
+        .scan_max_sector        (32'd0),
+        .scan_target_count      (4'd0),
+        .scan_done              (),
+        .scan_found_valid       (),
+        .scan_found_sector      (),
+        .scan_found_total       (),
+        .scan_found_w           (),
+        .scan_found_h           (),
 
         .load_start             (load_start_pulse),
         .load_sector            (load_sector),
@@ -491,19 +565,120 @@ module sd_card_bmp_g #(
         .load_img_h             (load_img_h),
 
         .sd_init_done           (sd_init_done),
-        .state_code             (state_code),
+        .state_code             (bmp_state_code),
 
         .write_req              (write_req),
         .write_req_ack          (write_req_ack),
 
-        .sd_sec_read            (sd_sec_read),
-        .sd_sec_read_addr       (sd_sec_read_addr),
-        .sd_sec_read_data       (sd_sec_read_data),
-        .sd_sec_read_data_valid (sd_sec_read_data_valid),
-        .sd_sec_read_end        (sd_sec_read_end),
+        .sd_sec_read            (bmp_client_req),
+        .sd_sec_read_addr       (bmp_client_sector),
+        .sd_sec_read_data       (bmp_client_data),
+        .sd_sec_read_data_valid (bmp_client_data_valid),
+        .sd_sec_read_end        (bmp_client_done),
+        .sd_sec_read_error      (bmp_client_error),
 
         .bmp_data_wr_en         (bmp_data_wr_en),
         .bmp_data               (bmp_data)
     );
+
+    fat32_bmp_index #(
+        .MAX_IMAGES (8),
+        .MAX_ROOT_CLUSTERS (256)
+    ) u_fat32_bmp_index (
+        .clk (clk),
+        .rst (rst | ~sd_init_done),
+        .scan_start (scan_start_pulse),
+        .target_count (SCAN_TARGET_COUNT),
+        .busy (fs_scan_busy),
+        .scan_done (fat_index_done),
+        .error_code (fs_scan_error),
+        .partition_lba (),
+        .sectors_per_cluster (fs_sectors_per_cluster),
+        .sectors_per_cluster_shift (fs_spc_shift),
+        .fat_start_lba (fs_fat_start_lba),
+        .data_start_lba (fs_data_start_lba),
+        .max_cluster (fs_max_cluster),
+        .found_total (scan_found_total),
+        .found_valid (scan_found_valid),
+        .found_cluster (scan_found_cluster),
+        .found_size (scan_found_size),
+        .sector_req (fs_sector_req),
+        .sector_lba (fs_sector_lba),
+        .sector_busy (physical_read_active),
+        .sector_valid (fs_sector_valid),
+        .sector_byte_index (physical_read_byte_index),
+        .sector_byte (sd_sec_read_data),
+        .sector_done (fs_sector_done),
+        .sector_error (fs_sector_error)
+    );
+
+    fat32_file_sector_mapper u_fat32_file_sector_mapper (
+        .clk (clk),
+        .rst (rst | ~sd_init_done),
+        .file_start (load_start_pulse),
+        .first_cluster (selected_cluster),
+        .file_size (selected_file_size),
+        .sectors_per_cluster (fs_sectors_per_cluster),
+        .sectors_per_cluster_shift (fs_spc_shift),
+        .fat_start_lba (fs_fat_start_lba),
+        .data_start_lba (fs_data_start_lba),
+        .max_cluster (fs_max_cluster),
+        .client_req (bmp_client_req),
+        .client_sector_index (bmp_client_sector),
+        .busy (),
+        .client_done (bmp_client_done),
+        .client_error (bmp_client_error),
+        .client_data (bmp_client_data),
+        .client_data_valid (bmp_client_data_valid),
+        .sector_req (map_sector_req),
+        .sector_lba (map_sector_lba),
+        .sector_busy (physical_read_active),
+        .sector_valid (map_sector_valid),
+        .sector_byte_index (physical_read_byte_index),
+        .sector_byte (sd_sec_read_data),
+        .sector_done (map_sector_done),
+        .sector_error (map_sector_error)
+    );
+
+    assign fs_sector_valid = physical_read_active &&
+                             !physical_read_owner_map && sd_sec_read_data_valid;
+    assign map_sector_valid = physical_read_active &&
+                              physical_read_owner_map && sd_sec_read_data_valid;
+    assign fs_sector_done = physical_read_active && !physical_read_owner_map &&
+                            (sd_sec_read_end || sd_sec_read_abort);
+    assign map_sector_done = physical_read_active && physical_read_owner_map &&
+                             (sd_sec_read_end || sd_sec_read_abort);
+    assign fs_sector_error = sd_sec_read_abort ? 8'h01 : 8'h00;
+    assign map_sector_error = sd_sec_read_abort ? 8'h01 : 8'h00;
+
+    // 目录扫描和文件装载串行使用 SD 卡；事务期间锁存 owner 与 LBA。
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            physical_read_active <= 1'b0;
+            physical_read_owner_map <= 1'b0;
+            physical_read_lba <= 32'd0;
+            physical_read_byte_index <= 9'd0;
+        end else if (!sd_init_done) begin
+            physical_read_active <= 1'b0;
+            physical_read_owner_map <= 1'b0;
+            physical_read_lba <= 32'd0;
+            physical_read_byte_index <= 9'd0;
+        end else if (physical_read_active) begin
+            if (sd_sec_read_data_valid)
+                physical_read_byte_index <= physical_read_byte_index + 9'd1;
+            if (sd_sec_read_end || sd_sec_read_abort)
+                physical_read_active <= 1'b0;
+        end else if (fs_sector_req) begin
+            physical_read_active <= 1'b1;
+            physical_read_owner_map <= 1'b0;
+            physical_read_lba <= fs_sector_lba;
+            physical_read_byte_index <= 9'd0;
+        end else if (map_sector_req) begin
+            physical_read_active <= 1'b1;
+            physical_read_owner_map <= 1'b1;
+            physical_read_lba <= map_sector_lba;
+            physical_read_byte_index <= 9'd0;
+        end
+    end
 
 endmodule

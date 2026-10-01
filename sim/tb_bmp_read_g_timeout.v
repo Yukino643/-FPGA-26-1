@@ -59,6 +59,7 @@ module tb_bmp_read_g_timeout;
         .sd_sec_read_data       (8'd0),
         .sd_sec_read_data_valid (1'b0),
         .sd_sec_read_end        (1'b0),
+        .sd_sec_read_error      (1'b0),
         .bmp_data_wr_en         (bmp_data_wr_en),
         .bmp_data               (bmp_data)
     );

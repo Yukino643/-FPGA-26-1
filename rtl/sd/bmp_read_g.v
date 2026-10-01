@@ -49,6 +49,7 @@ module bmp_read_g #(
     input  wire [7:0]  sd_sec_read_data,
     input  wire        sd_sec_read_data_valid,
     input  wire        sd_sec_read_end,
+    input  wire        sd_sec_read_error,
 
     output reg         bmp_data_wr_en,
     output reg  [23:0] bmp_data
@@ -67,6 +68,7 @@ module bmp_read_g #(
     localparam [3:0] ERR_HEADER    = 4'd1;
     localparam [3:0] ERR_TIMEOUT   = 4'd2;
     localparam [3:0] ERR_TRUNCATED = 4'd3;
+    localparam [3:0] ERR_SD_READ   = 4'd4;
     localparam integer TIMEOUT_CYCLES = (CLK_FREQ_HZ / 1000) * SD_READ_TIMEOUT_MS;
 
     reg [3:0]  state;
@@ -347,9 +349,15 @@ module bmp_read_g #(
                     sd_sec_read <= 1'b1;
                     if (sd_sec_read_end) begin
                         sd_sec_read <= 1'b0;
-                        header_basic_ok   <= header_basic_match;
-                        header_check_load <= 1'b1;
-                        state             <= ST_HDR_PREP;
+                        if (sd_sec_read_error) begin
+                            error_code <= ERR_SD_READ;
+                            load_error <= 1'b1;
+                            state <= ST_IDLE;
+                        end else begin
+                            header_basic_ok   <= header_basic_match;
+                            header_check_load <= 1'b1;
+                            state             <= ST_HDR_PREP;
+                        end
                     end
                 end
 
@@ -453,7 +461,11 @@ module bmp_read_g #(
                     sd_sec_read <= 1'b1;
                     if (sd_sec_read_end) begin
                         sd_sec_read <= 1'b0;
-                        if (byte_pos >= file_len) begin
+                        if (sd_sec_read_error) begin
+                            error_code <= ERR_SD_READ;
+                            load_error <= 1'b1;
+                            state <= ST_IDLE;
+                        end else if (byte_pos >= file_len) begin
                             if (pixel_count == header_expected_pixels) begin
                                 load_done <= 1'b1;
                                 state     <= ST_IDLE;

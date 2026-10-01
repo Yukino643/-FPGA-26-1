@@ -29,7 +29,8 @@ module tb_bmp_header_official;
         .write_req(write_req), .write_req_ack(1'b0),
         .sd_sec_read(sd_req), .sd_sec_read_addr(sd_addr),
         .sd_sec_read_data(sd_data), .sd_sec_read_data_valid(sd_valid),
-        .sd_sec_read_end(sd_end), .bmp_data_wr_en(), .bmp_data()
+        .sd_sec_read_end(sd_end), .sd_sec_read_error(1'b0),
+        .bmp_data_wr_en(), .bmp_data()
     );
 
     // 以真实首扇区供数；1801 是 921654 字节向上取整后的扇区数。

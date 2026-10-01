@@ -23,8 +23,9 @@ module tb_bmp_read_g;
 
     wire        sd_rd;
     wire [31:0] sd_addr;
-    reg         sd_dv = 0, sd_end = 0;
+    reg         sd_dv = 0, sd_end = 0, sd_error = 0;
     reg  [7:0]  sd_data = 0;
+    reg         force_sd_error = 0;
 
     bmp_read_g #(.MAX_IMAGES(8), .MAX_DIM(2047)) dut (
         .clk(clk), .rst(rst),
@@ -41,6 +42,7 @@ module tb_bmp_read_g;
         .write_req(write_req), .write_req_ack(wr_ack),
         .sd_sec_read(sd_rd), .sd_sec_read_addr(sd_addr),
         .sd_sec_read_data(sd_data), .sd_sec_read_data_valid(sd_dv), .sd_sec_read_end(sd_end),
+        .sd_sec_read_error(sd_error),
         .bmp_data_wr_en(wr_en), .bmp_data(wr_data)
     );
 
@@ -96,6 +98,7 @@ module tb_bmp_read_g;
             end_sent <= 0;
             lat      <= 4;
             gap_left <= 0;
+            sd_error <= 0;
         end else if (lat > 0) begin
             lat <= lat - 1;
         end else if (lat == 0) begin
@@ -110,9 +113,11 @@ module tb_bmp_read_g;
             end else if (!end_sent) begin
                 sd_dv    <= 1'b0;
                 sd_end   <= 1'b1;
+                sd_error <= force_sd_error;
                 end_sent <= 1'b1;
             end else begin
                 sd_end <= 1'b0;
+                sd_error <= 1'b0;
                 lat    <= -1;
             end
         end else begin
@@ -185,6 +190,21 @@ module tb_bmp_read_g;
             end
         end
     endtask
+
+    task load_sd_failure(input [31:0] sec);
+        begin
+            load_sector = sec;
+            force_sd_error = 1'b1;
+            @(posedge clk); load_start = 1'b1;
+            @(posedge clk); load_start = 1'b0;
+            while (load_error !== 1'b1) @(posedge clk);
+            force_sd_error = 1'b0;
+            if (error_code !== 4'd4 || load_done === 1'b1) begin
+                errors = errors + 1;
+                $display("ERR SD failure code=%0d done=%b", error_code, load_done);
+            end
+        end
+    endtask
     integer px_base = 0;
 
     // 调试: 每个 end 脉冲打印头部采样结果
@@ -215,6 +235,9 @@ module tb_bmp_read_g;
         load_img(32'd2, 6);
         // 装载 img2: 10 像素
         load_img(32'd6, 10);
+
+        // 物理扇区虽正常结束，但控制器报告错误时必须拒绝该扇区。
+        load_sd_failure(32'd2);
 
         // 坏头不得进入写入态，也不得伪装成正常完成。
         card[2*512 + 28] = 8'd16;  // bit_count = 16，触发 ERR_HEADER

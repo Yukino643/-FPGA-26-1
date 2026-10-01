@@ -343,8 +343,6 @@ wire [31:0] packed_wr_data;
 
 sd_card_bmp_g #(
     .CLK_FREQ_HZ       (100_000_000),
-    .SCAN_START_SECTOR (32'd0),
-    .SCAN_MAX_SECTOR   (32'd131071),
     .SCAN_TARGET_COUNT (4'd8)
 ) sd_card_bmp_g_m0(
     .clk               (sd_card_clk),
@@ -371,6 +369,7 @@ sd_card_bmp_g #(
     .write_en          (bmp_wr_en),           // W6: 改接 src_packer
     .write_data        (bmp_wr_data),         // W6: 24bit RGB
     .sd_init_done      (sd_init_done),
+    .sd_sec_read_abort (bmp_sd_timeout),
     .sd_sec_read       (bmp_sd_sec_read),
     .sd_sec_read_addr  (bmp_sd_sec_read_addr),
     .sd_sec_read_data  (bmp_sd_sec_read_data),
@@ -438,8 +437,8 @@ seg_decoder seg_decoder_m0(
     .seg_data          (seg_data_0)
 );
 
-seg_scan seg_scan_m0(
-    .clk               (clk),
+seg_scan #(.CLK_FREQ(100_000_000)) seg_scan_m0(
+    .clk               (sd_card_clk),
     .rst_n             (rst_n),
     .seg_sel           (seg_sel),
     .seg_data          (seg_data),
@@ -828,7 +827,7 @@ sdram U3(
 );
 
 // ===================== WAV 播放链路 =====================
-// 上电扫描首个 WAV，播放结束后从文件起始扇区循环装载。
+// 首图提交后再扫描 WAV，避免启动阶段与图片索引/装载争用 SD 带宽。
 reg wav_scan_start_r, wav_load_start_r;
 reg wav_scan_kicked, wav_load_running;
 wire wav_rst = rst_sd | ~sd_init_done;
@@ -845,7 +844,7 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
             wav_scan_kicked  <= 1'b0;
             wav_load_running <= 1'b0;
         end else begin
-            if (!wav_scan_kicked && wav_ready) begin
+            if (!wav_scan_kicked && wav_ready && display_valid) begin
                 wav_scan_start_r <= 1'b1;
                 wav_scan_kicked  <= 1'b1;
             end
