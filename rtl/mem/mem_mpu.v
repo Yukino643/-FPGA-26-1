@@ -54,6 +54,8 @@ module mem_mpu #(
     output reg   [ADDR_BITS-1:0]     App_rd_addr,
     input  wire                      Sdr_rd_en,
     input  wire [31:0]               Sdr_rd_dout,
+    input  wire                      Sdr_init_done,
+    input  wire                      Sdr_busy,
 
     // 写方 1（素材装载 frame_read_write）
     input  wire                      App_wr_en_u,
@@ -100,23 +102,27 @@ module mem_mpu #(
     wire b_allow = b_wants && !a_allow && !b_yield;
     wire c_allow = c_wants && !a_allow && !b_allow;
 
-    assign A_cmd_ready = (state == S_IDLE) && a_allow;
-    assign B_cmd_ready = (state == S_IDLE) && b_allow;
-    assign C_cmd_ready = (state == S_IDLE) && c_allow;
+    // 初始化或刷新期间硬核可能丢弃 App 读命令，禁止仲裁器提前接收。
+    wire mem_accept_window = (state == S_IDLE) && Sdr_init_done && !Sdr_busy;
+    assign A_cmd_ready = mem_accept_window && a_allow;
+    assign B_cmd_ready = mem_accept_window && b_allow;
+    assign C_cmd_ready = mem_accept_window && c_allow;
 
     wire [1:0] grant_now = a_allow ? G_A : b_allow ? G_B : G_C;
     wire cmd_accept = A_cmd_ready || B_cmd_ready || C_cmd_ready;
 
-    assign A_rsp_valid = (state == S_DRAIN) && (grant_sel == G_A) && Sdr_rd_en;
-    assign B_rsp_valid = (state == S_DRAIN) && (grant_sel == G_B) && Sdr_rd_en;
-    assign C_rsp_valid = (state == S_DRAIN) && (grant_sel == G_C) && Sdr_rd_en;
+    // 返回数据可能与命令拍重叠，S_CMD 期间也必须路由和计数。
+    wire rsp_window = (state == S_CMD) || (state == S_DRAIN);
+    assign A_rsp_valid = rsp_window && (grant_sel == G_A) && Sdr_rd_en;
+    assign B_rsp_valid = rsp_window && (grant_sel == G_B) && Sdr_rd_en;
+    assign C_rsp_valid = rsp_window && (grant_sel == G_C) && Sdr_rd_en;
     assign A_rsp_data  = Sdr_rd_dout;
     assign B_rsp_data  = Sdr_rd_dout;
     assign C_rsp_data  = Sdr_rd_dout;
     wire rsp_last_beat = Sdr_rd_en && (rsp_beats == cmd_len - 8'd1);
-    assign A_rsp_last  = (grant_sel == G_A) && rsp_last_beat;
-    assign B_rsp_last  = (grant_sel == G_B) && rsp_last_beat;
-    assign C_rsp_last  = (grant_sel == G_C) && rsp_last_beat;
+    assign A_rsp_last  = rsp_window && (grant_sel == G_A) && rsp_last_beat;
+    assign B_rsp_last  = rsp_window && (grant_sel == G_B) && rsp_last_beat;
+    assign C_rsp_last  = rsp_window && (grant_sel == G_C) && rsp_last_beat;
 
     // 写口二选一（协议互斥: 缩放期间装载写方必须空闲）
     assign App_wr_en   = wr2_active ? App_wr2_en_u   : App_wr_en_u;
@@ -168,6 +174,8 @@ module mem_mpu #(
                     App_rd_addr <= App_rd_addr + {{(ADDR_BITS-1){1'b0}}, 1'b1};
                     cmd_beats   <= cmd_beats + 8'd1;
                     gap_cnt     <= 4'd0;
+                    if (Sdr_rd_en)
+                        rsp_beats <= rsp_beats + 8'd1;
                     if (cmd_beats == cmd_len - 8'd1)       // 末个命令拍
                         state <= S_DRAIN;
                 end

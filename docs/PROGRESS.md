@@ -540,3 +540,19 @@
 | 最终 bit | 2026-10-01 13:46:25，643592B；SHA256 7856ccf9777873493a66052ff1b99be3e76d40182897feb3e2e733e4c65d55c8 |
 | 报告 | LUT81.78%，BRAM9K71.9%，SWNS-6.565ns，HWNS+0.019ns；setup仍按既有基线验收 |
 | 板级下一步 | 下载 D3 后拍 HDMI_A；根据状态字节决定停在除法、读源还是输出阶段 |
+
+## 8.25 2026-10-01 TF-D3 照片后的 SDRAM 链路修复
+
+| 项目 | 证据与动作 |
+|---|---|
+| D3 新照片 | UPTIME `0x49`；TF 找到3图、错误0；BMP HEAD `424D3610`；PIXELS `0x4B000`；WR/SCALE `01/4C` |
+| 状态解码 | `4C = 0100_1100`：scaler state=4(S_FDA)、busy=1、C-valid=1、C-ready=0、done=0；请求尚未被 mem_mpu 接受 |
+| 官方对照 | 安路 `frame_fifo_read` 仅在 `Sdr_init_done` 后受理帧读；工程 mem_mpu 原先不门控 SDRAM init/busy |
+| 修复 | mem_mpu ready 等待 init done 且 controller idle；`S_CMD` 与 `S_DRAIN` 均路由并累计响应拍 |
+| 写掩码 | 官方 frame writer 使用 `App_wr_dm=0`；scaler 原设 `4'hF`，按 SDRAM DQM 高有效屏蔽语义会屏蔽整字写，改为 `4'h0` |
+| 定向验证 | 新增 init/busy 等待及命令/返回重叠的 mem_mpu 测试；旧命令结束后才返回的模型不足以发现此前漏拍 |
+| 板级状态 | 新修复 bit 已完成构建，等待重新下载和上板确认 |
+| 回归与构建 | basic 28/28；full 29/29；TD 综合、布线、Hold Fix、bitgen 成功 |
+| 独立报告 | `check_reports.py` fails=0；LUT81.76%、BRAM71.9%、SWNS=-6.565ns、HWNS=+0.022ns；setup仍有负余量 |
+| 新 bit | 2026-10-01 18:23:35，643592B；SHA256 `0061a2d8b2fe6adaddd15724abde7cb1328c8103d39a53efec0c1fc4b31e65ab` |
+| 板级下一步 | 重新下载此 bit；保留 TF 卡现有 FAT32/BMP，不需格式化或改图；拍 HDMI_A 诊断和 HDMI_B 图片状态 |

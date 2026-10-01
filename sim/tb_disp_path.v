@@ -90,6 +90,7 @@ module tb_disp_path;
         .C_cmd_ready(), .C_rsp_valid(), .C_rsp_data(), .C_rsp_last(),
         .App_rd_en(App_rd_en), .App_rd_addr(App_rd_addr),
         .Sdr_rd_en(sd_vld), .Sdr_rd_dout(sd_dout),
+        .Sdr_init_done(1'b1), .Sdr_busy(1'b0),
         .App_wr_en_u(wr_en_w), .App_wr_addr_u(wr_addr_w), .App_wr_din_u(wr_data_w), .App_wr_dm_u(4'h0),
         .App_wr2_en_u(1'b0), .App_wr2_addr_u(21'd0), .App_wr2_din_u(32'd0), .App_wr2_dm_u(4'd0),
         .wr2_active(1'b0),
@@ -99,7 +100,7 @@ module tb_disp_path;
     wire sd_vld; wire [31:0] sd_dout;
     sdram_beh #(.LAT(8)) u_sd(
         .clk(clk125), .rst(rst),
-        .wr_en(wr_en_w), .wr_addr(wr_addr_w), .wr_data(wr_data_w),
+        .wr_en(wr_en_w), .wr_addr(wr_addr_w), .wr_data(wr_data_w), .wr_dm(4'h0),
         .rd_en(App_rd_en), .rd_addr(App_rd_addr),
         .rd_vld(sd_vld), .rd_dout(sd_dout)
     );

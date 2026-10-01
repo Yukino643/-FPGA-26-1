@@ -78,6 +78,7 @@ run_sim sd_card_init tb_sd_card_init.v ../rtl/sd/sd_card_sec_read_write.v
 run_sim sd_spi_sdhc tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v
 run_sim sd_spi_sdsc -Ptb_sd_spi_chain.HIGH_CAPACITY=0 tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v
 run_sim mem_mpu   tb_mem_mpu.v   ../rtl/mem/mem_mpu.v
+run_sim mem_mpu_overlap tb_mem_mpu_overlap.v ../rtl/mem/mem_mpu.v
 run_sim bmp_read_g tb_bmp_read_g.v ../rtl/sd/bmp_read_g.v
 run_sim bmp_header_official tb_bmp_header_official.v ../rtl/sd/bmp_read_g.v
 run_sim bmp_sparse -Ptb_bmp_read_g.BYTE_GAP=31 tb_bmp_read_g.v ../rtl/sd/bmp_read_g.v

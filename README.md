@@ -37,7 +37,8 @@ docs\          计划书 / 设计说明书 / 测试报告
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-10-01 TF-D3）：basic 27/27、full 28/28、独立报告 fails=0；bit 生成于 13:46:25，SHA256 `7856ccf9777873493a66052ff1b99be3e76d40182897feb3e2e733e4c65d55c8`。LUT16029/19600（81.78%）、BRAM9K46/64（71.9%），SWNS=-6.565ns、HWNS=+0.019ns。D3 在 HDMI_A 诊断页增加 scaler state、busy、C 口 valid/ready、done 状态，定位源缓存之后的停滞点；图片仍待下载 D3 实测。setup 仍有负余量；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
+- 当前构建（2026-10-01，修复 D3 照片揭示的 SDRAM 链路问题）：basic 28/28、full 29/29、独立 `check_reports.py` fails=0；bit 生成于 18:23:35，643592B，SHA256 `0061a2d8b2fe6adaddd15724abde7cb1328c8103d39a53efec0c1fc4b31e65ab`。LUT16025/19600（81.76%）、BRAM9K46/64（71.9%），SWNS=-6.565ns、HWNS=+0.022ns。setup 仍有负余量；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
+- D3 照片 `WR/SCALE=01/4C` 显示 scaler 在 S_FDA 等待 C 口命令接受。已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`。行为级测试通过；仍需下载新 bit 做板级验证。
 
 ## 回归门（每轮改动后必跑）
 

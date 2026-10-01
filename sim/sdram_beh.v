@@ -11,6 +11,7 @@ module sdram_beh #(
     input  wire        wr_en,
     input  wire [20:0] wr_addr,
     input  wire [31:0] wr_data,
+    input  wire [3:0]  wr_dm,
     // 读口
     input  wire        rd_en,
     input  wire [20:0] rd_addr,
@@ -30,7 +31,12 @@ module sdram_beh #(
             cap_n <= 0; sent <= 0; timer <= -1; en_d <= 0;
         end else begin
             en_d <= rd_en;
-            if (wr_en) mem[wr_addr] <= wr_data;
+            if (wr_en) begin
+                if (!wr_dm[0]) mem[wr_addr][7:0]   <= wr_data[7:0];
+                if (!wr_dm[1]) mem[wr_addr][15:8]  <= wr_data[15:8];
+                if (!wr_dm[2]) mem[wr_addr][23:16] <= wr_data[23:16];
+                if (!wr_dm[3]) mem[wr_addr][31:24] <= wr_data[31:24];
+            end
 
             if (rd_en) begin
                 cap[cap_n] <= rd_addr;

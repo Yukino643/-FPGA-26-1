@@ -79,7 +79,8 @@ module scaler #(
     reg        busy_r;
     assign busy = busy_r;
     assign debug_state = state;
-    assign wr_dm = 4'hF;
+    // SDRAM DQM 高电平屏蔽对应字节；整字写入时四路均须拉低。
+    assign wr_dm = 4'h0;
 
     // ---- 配置锁存 ----
     reg [10:0] src_w, src_h;
