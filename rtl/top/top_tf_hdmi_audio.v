@@ -226,13 +226,29 @@ wire        scaler_done_toggle;
 // A2: 主通道 OSD 字库同步读引入 1 拍延迟，de/vs 打 1 拍对齐（vs 宽脉冲，±1 拍无影响）
 // （监视台的 mon_de_d1/mon_vs_d1 在 mon_de 声明之后的监视台区段）
 reg de_d1, vs_d1;
+reg de_d2, de_d3, de_d4, vs_d2, vs_d3, vs_d4;
+reg [9:0] x_d1, x_d2, x_d3, x_d4;
+reg [8:0] y_d1, y_d2, y_d3, y_d4;
+reg [23:0] spectrum_q, subtitle_q;
 always @(posedge video_clk or posedge rst_video) begin
     if (rst_video) begin
         de_d1 <= 1'b0;
         vs_d1 <= 1'b0;
+        de_d2 <= 0; de_d3 <= 0; de_d4 <= 0;
+        vs_d2 <= 0; vs_d3 <= 0; vs_d4 <= 0;
+        x_d1 <= 0; x_d2 <= 0; x_d3 <= 0; x_d4 <= 0;
+        y_d1 <= 0; y_d2 <= 0; y_d3 <= 0; y_d4 <= 0;
+        spectrum_q <= 0; subtitle_q <= 0;
     end else begin
         de_d1 <= main_de_al;
         vs_d1 <= vs;
+        // 每层同拍推进 RGB、坐标和有效标志，禁止色彩寄存后沿用上一层 DE。
+        de_d2 <= de_d1; de_d3 <= de_d2; de_d4 <= de_d3;
+        vs_d2 <= vs_d1; vs_d3 <= vs_d2; vs_d4 <= vs_d3;
+        x_d1 <= main_x; x_d2 <= x_d1; x_d3 <= x_d2; x_d4 <= x_d3;
+        y_d1 <= main_y; y_d2 <= y_d1; y_d3 <= y_d2; y_d4 <= y_d3;
+        spectrum_q <= vout_spectrum;
+        subtitle_q <= vout_subtitle;
     end
 end
 
@@ -528,6 +544,8 @@ wire        scaler_wr_en;
 wire [20:0] scaler_wr_addr;
 wire [31:0] scaler_wr_din;
 wire        scaler_busy;
+wire        source_write_busy, memory_read_busy, memory_write_ready;
+wire        scaler_write_request;
 wire        sdram_wr_en;
 wire [20:0] sdram_wr_addr;
 wire [31:0] sdram_wr_din;
@@ -548,6 +566,10 @@ mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mem_mpu(
     .Sdr_rd_dout    (Sdr_rd_dout),
     .Sdr_init_done  (Sdr_init_done),
     .Sdr_busy       (Sdr_busy),
+    .source_write_busy(source_write_busy),
+    .scaler_write_request(scaler_write_request),
+    .read_busy      (memory_read_busy),
+    .write_ready    (memory_write_ready),
     .App_wr_en_u    (App_wr_en),
     .App_wr_addr_u  (App_wr_addr),
     .App_wr_din_u   (App_wr_din),
@@ -623,6 +645,22 @@ afifo_simple #(.DW(32), .AW(9)) u_fifo_b(
 // ---- 双流混合器（下溢计数供监视台 W10） ----
 wire [23:0] mix_rgb;
 wire [31:0] disp_underflow;
+reg [31:0] underflow_prev, underflow_frame;
+reg [9:0] fifo_min_work, fifo_min_frame;
+always @(posedge video_clk or posedge rst_video) begin
+    if (rst_video) begin
+        underflow_prev <= 0; underflow_frame <= 0;
+        fifo_min_work <= 10'd512; fifo_min_frame <= 0;
+    end else if (vs_rise_v) begin
+        // 帧边界锁存诊断，屏幕显示稳定值，不读取其他时钟域的水位总线。
+        underflow_frame <= disp_underflow - underflow_prev;
+        underflow_prev <= disp_underflow;
+        fifo_min_frame <= fifo_min_work;
+        fifo_min_work <= 10'd512;
+    end else if (main_de_al && fa_ru < fifo_min_work) begin
+        fifo_min_work <= fa_ru;
+    end
+end
 
 disp_mixer u_disp_mixer(
     .clk        (video_clk),
@@ -680,6 +718,8 @@ scaler #(
     .rsp_valid      (mpu_C_rv),
     .rsp_data       (mpu_C_rd),
     .rsp_last       (mpu_C_rl),
+    .write_request  (scaler_write_request),
+    .write_ready    (memory_write_ready),
     // mem_mpu 写方 2
     .wr_en          (scaler_wr_en),
     .wr_addr        (scaler_wr_addr),
@@ -720,6 +760,7 @@ wire [20:0] src_write_len  = src_word_count[20:0];
 frame_read_write #(
     // 源缓存按 BMP 文件顺序线性写入；scaler 按动态 row_words 负责垂直方向转换。
     .WRITE_V_FLIP     (0),
+    .EXTERNAL_READ    (1),
     .FRAME_WIDTH      (320),
     .FRAME_HEIGHT     (480)
 ) frame_read_write_m0(
@@ -753,6 +794,8 @@ frame_read_write #(
     .App_wr_dm         (App_wr_dm),
 
     .write_clk         (sd_card_clk),
+    .external_rd_busy   (memory_read_busy),
+    .source_write_busy  (source_write_busy),
     .write_req         (sd_card_write_req),
     .write_req_ack     (sd_card_write_req_ack),
     .write_finish      (frame_write_finish),
@@ -876,8 +919,8 @@ audio_arc_calculate #(
 video_rgb_to_axis_640x480 u_video_rgb_to_axis_640x480(
     .I_clk         (video_clk),
     .I_rst         (rst_video),
-    .I_vs          (vs_d1),
-    .I_de          (de_d1),
+    .I_vs          (vs_d4),
+    .I_de          (de_d4),
     .I_rgb         (vout_final),      // W8: 色彩调节后输出
     .O_video_user  (axis_s_user),
     .O_video_valid (axis_s_valid),
@@ -1055,8 +1098,8 @@ fft_spectrum u_fft_spectrum(
 spectrum_layer u_spectrum_layer(
     .clk     (video_clk),
     .de_in   (de_d1),
-    .x       (main_x),
-    .y       (main_y),
+    .x       (x_d1),
+    .y       (y_d1),
     .bg_rgb  (vout_osd),
     .bin_mag (spec_bin_mag),
     .rgb_out (vout_spectrum)
@@ -1065,10 +1108,10 @@ spectrum_layer u_spectrum_layer(
 // subtitle_scroll: 底部滚动字幕（W10）
 subtitle_scroll u_subtitle_scroll(
     .clk       (video_clk),
-    .de_in     (de_d1),
-    .x         (main_x),
-    .y         (main_y),
-    .bg_rgb    (vout_spectrum),
+    .de_in     (de_d2),
+    .x         (x_d2),
+    .y         (y_d2),
+    .bg_rgb    (spectrum_q),
     .vs_pulse  (vs_rise_v),
     .enable    (sw[0]),           // SW1 控制字幕开关
     .rgb_out   (vout_subtitle)
@@ -1078,8 +1121,8 @@ subtitle_scroll u_subtitle_scroll(
 color_adjust u_color_adjust(
     .clk        (video_clk),
     .rst        (rst_video),
-    .de_in      (de_d1),
-    .rgb_in     (vout_subtitle),
+    .de_in      (de_d3),
+    .rgb_in     (subtitle_q),
     .contrast   (sw[1] ? 8'd192 : 8'd128),   // SW2: 对比度增强
     .brightness (sw[2] ? 8'sd30 : 8'sd0),    // SW3: 亮度提升
     .color_temp (sw[3] ? 8'sd20 : 8'sd0),    // SW4: 色温偏暖
@@ -1107,9 +1150,9 @@ assign buzzer = ~buzzer_drv;  // 低有效
 // emergency_render: 应急模式下替换视频输出
 emergency_render u_emergency_render(
     .clk            (video_clk),
-    .de_in          (de_d1),
-    .x              (main_x),
-    .y              (main_y),
+    .de_in          (de_d4),
+    .x              (x_d4),
+    .y              (y_d4),
     .emergency_mode (emergency_mode),
     .normal_rgb     (vout_color),
     .rgb_out        (vout_final)
@@ -1180,6 +1223,8 @@ monitor_compositor u_mon_compositor(
     .I_sync_dev   (sync_dev_real),
     .I_mode       (mode_v1),
     .I_tf_diag    (tf_video_snapshot),
+    .I_disp_underflow(underflow_frame),
+    .I_fifo_a_used (fifo_min_frame),
     .O_rgb        (mon_rgb)
 );
 

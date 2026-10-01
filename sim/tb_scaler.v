@@ -32,6 +32,7 @@ module tb_scaler;
         .cmd_valid(cmd_valid), .cmd_addr(cmd_addr), .cmd_len(cmd_len),
         .cmd_ready(cmd_ready), .rsp_valid(rsp_valid), .rsp_data(rsp_data),
         .rsp_last(), .wr_en(wr_en), .wr_addr(wr_addr), .wr_din(wr_din),
+        .write_request(), .write_ready(1'b1),
         .wr_dm(), .busy(busy), .done_toggle(done_toggle)
     );
 

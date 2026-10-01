@@ -22,6 +22,7 @@ module tb_mem_mpu_overlap;
       .C_cmd_valid(c_valid),.C_cmd_addr(c_addr),.C_cmd_len(c_len),.C_cmd_ready(c_ready),.C_rsp_valid(c_rsp),.C_rsp_data(c_data),.C_rsp_last(c_last),
       .App_rd_en(rd_en),.App_rd_addr(rd_addr),.Sdr_rd_en(sdr_rd_en),.Sdr_rd_dout(sdr_rd_data),
       .Sdr_init_done(init_done),.Sdr_busy(sdr_busy),
+      .source_write_busy(1'b0),.scaler_write_request(1'b0),.read_busy(),.write_ready(),
       .App_wr_en_u(1'b0),.App_wr_addr_u(21'd0),.App_wr_din_u(32'd0),.App_wr_dm_u(4'd0),
       .App_wr2_en_u(1'b0),.App_wr2_addr_u(21'd0),.App_wr2_din_u(32'd0),.App_wr2_dm_u(4'd0),
       .wr2_active(1'b0),.App_wr_en(),.App_wr_addr(),.App_wr_din(),.App_wr_dm());

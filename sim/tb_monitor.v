@@ -32,6 +32,7 @@ module tb_monitor;
         .I_de(mon_de), .I_x(mon_x), .I_y(mon_y),
         .I_uptime_sec(uptime_sec), .I_frame_cnt(frame_cnt),
         .I_sync_dev(sync_dev), .I_mode(mode),
+        .I_disp_underflow(32'h00012345), .I_fifo_a_used(10'd256),
         .I_tf_diag({16'h1883,16'h0130,32'h00008e30,32'h00020000,16'h0000,32'h424d3610,32'h0004b000,8'h01,8'h01}),
         .O_rgb(mon_rgb)
     );

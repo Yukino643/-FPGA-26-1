@@ -17,7 +17,7 @@ module tb_disp_pixel_format;
 
     initial begin
         #12; rst=0; de=1; #1;
-        if (rgb !== 24'h12_34_56 || !a_rd_en || b_rd_en) begin
+        if (rgb !== 24'h12_34_56 || !a_rd_en || !b_rd_en) begin
             $display("FAIL RGB lane got=%h a_re=%b b_re=%b",rgb,a_rd_en,b_rd_en);
             $fatal(1);
         end

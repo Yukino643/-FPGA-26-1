@@ -45,15 +45,17 @@ module wav_read(
     localparam S_LOAD_WAIT = 4'd4;   // 等扇区数据到齐
     localparam S_LOAD_PCM  = 4'd5;   // 流式输出 PCM
     localparam S_DONE      = 4'd6;
+    localparam S_PCM_PREF  = 4'd7;
 
     reg [3:0]  state;
     reg        ready_r;
     assign ready = ready_r;
-    assign load_active = (state == S_LOAD_RD) || (state == S_LOAD_WAIT) || (state == S_LOAD_PCM);
+    assign load_active = (state == S_LOAD_RD) || (state == S_LOAD_WAIT) ||
+                         (state == S_LOAD_PCM) || (state == S_PCM_PREF);
 
     // 扇区缓冲按 32 位字组织。原先按字节动态索引 512 项数组，
     // TD 会展开成很深的多路选择器；按字预取可把关键路径缩短到 128 项。
-    reg [31:0] sec_words [0:127];
+    reg [23:0] byte_pack;
     reg [8:0]  byte_cnt;
     reg        sec_ready;      // 扇区数据到齐
 
@@ -67,7 +69,27 @@ module wav_read(
     reg [31:0] load_sec;
     reg [9:0]  pcm_idx;        // 当前样本组起始字节偏移
     reg [6:0]  pcm_word_idx;    // pcm_word 对应的扇区字索引
-    reg [31:0] pcm_word;        // 预取的 L_lo/L_hi/R_lo/R_hi
+    wire [31:0] pcm_word;       // 同步 BRAM 读出的 L_lo/L_hi/R_lo/R_hi
+    wire ram_we = sd_sec_read_data_valid && (byte_cnt[1:0] == 2'd3);
+    wire [31:0] ram_wdata = {sd_sec_read_data,byte_pack};
+`ifdef SIMULATION
+    reg [31:0] sec_words [0:127];
+    reg [31:0] ram_q;
+    always @(posedge clk) begin
+        if (ram_we) sec_words[byte_cnt[8:2]] <= ram_wdata;
+        ram_q <= sec_words[pcm_word_idx];
+    end
+    assign pcm_word = ram_q;
+`else
+    // 四字节先组整字再写 BRAM，避免 4096 个 FF 和动态读 mux 挤满 MSlice。
+    EG_LOGIC_BRAM #(.DATA_WIDTH_A(32),.DATA_WIDTH_B(32),.ADDR_WIDTH_A(7),
+        .ADDR_WIDTH_B(7),.MODE("DP"),.REGMODE_A("NOREG"),.REGMODE_B("NOREG"),
+        .RESETMODE("ASYNC"),.IMPLEMENT("9K")) u_sector_ram(
+        .dia(ram_wdata),.addra(byte_cnt[8:2]),.cea(1'b1),.ocea(1'b0),.clka(clk),
+        .wea(ram_we),.rsta(1'b0),.bea(1'b0),
+        .dib(32'd0),.addrb(pcm_word_idx),.ceb(1'b1),.oceb(1'b1),.clkb(clk),
+        .web(1'b0),.rstb(1'b0),.beb(1'b0),.doa(),.dob(pcm_word));
+`endif
 
     // 扫描
     reg [31:0] scan_sec, scan_cnt;
@@ -110,7 +132,7 @@ module wav_read(
             load_sec         <= 32'd0;
             pcm_idx          <= 10'd0;
             pcm_word_idx     <= 7'd0;
-            pcm_word         <= 32'd0;
+            byte_pack        <= 24'd0;
             scan_sec         <= 32'd0;
             scan_cnt         <= 32'd0;
             ph               <= 2'd0;
@@ -126,10 +148,10 @@ module wav_read(
                 if (sd_sec_read_data_valid) begin
                     // 4 个连续字节在同一个 32 位字中按小端序组装。
                     case (byte_cnt[1:0])
-                        2'd0: sec_words[byte_cnt[8:2]][7:0]   <= sd_sec_read_data;
-                        2'd1: sec_words[byte_cnt[8:2]][15:8]  <= sd_sec_read_data;
-                        2'd2: sec_words[byte_cnt[8:2]][23:16] <= sd_sec_read_data;
-                        2'd3: sec_words[byte_cnt[8:2]][31:24] <= sd_sec_read_data;
+                        2'd0: byte_pack[7:0]   <= sd_sec_read_data;
+                        2'd1: byte_pack[15:8]  <= sd_sec_read_data;
+                        2'd2: byte_pack[23:16] <= sd_sec_read_data;
+                        default: ;
                     endcase
                     // 仅锁存扫描和 WAV 头所需的字段，避免头检查再次遍历 RAM。
                     case (byte_cnt)
@@ -236,14 +258,12 @@ module wav_read(
                             load_pcm_bytes  <= wav_data_size;
                             pcm_idx         <= 10'd44;   // data 从偏移 44 开始
                             pcm_word_idx    <= 7'd11;
-                            pcm_word        <= sec_words[7'd11];
                         end else begin
                             // 后续扇区从字 0 开始，进入 PCM 状态前先预取。
                             pcm_idx         <= 10'd0;
                             pcm_word_idx    <= 7'd0;
-                            pcm_word        <= sec_words[7'd0];
                         end
-                        state <= S_LOAD_PCM;
+                        state <= S_PCM_PREF;
                     end else begin
                         // FIFO/仲裁背压期间保持扇区请求，保证轮到 WAV 时请求仍可见。
                         sd_sec_read <= 1'b1;
@@ -256,6 +276,9 @@ module wav_read(
                         end
                     end
                 end
+
+                // 地址登记后留一拍给同步 BRAM，phase 0 才能采样新字。
+                S_PCM_PREF: state <= S_LOAD_PCM;
 
                 S_LOAD_PCM: begin
                     if (data_bytes_left == 32'd0) begin
@@ -287,7 +310,7 @@ module wav_read(
                                 end else begin
                                     pcm_idx      <= pcm_idx + 10'd4;
                                     pcm_word_idx <= pcm_word_idx + 7'd1;
-                                    pcm_word     <= sec_words[pcm_word_idx + 7'd1];
+                                    state <= S_PCM_PREF;
                                 end
                             end
                         endcase

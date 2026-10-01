@@ -32,7 +32,9 @@ module disp_mixer(
 `include "blend_fn.vh"
 
     wire pop_a = de_al;
-    wire pop_b = de_al && tr_active;
+    // 两个引擎每帧都预取整帧；即使未混合，也必须同步排空备用页。
+    // 否则 B FIFO 残留旧帧前缀，转场时从错误地址开始消费。
+    wire pop_b = de_al;
     assign a_rd_en = pop_a;
     assign b_rd_en = pop_b;
 

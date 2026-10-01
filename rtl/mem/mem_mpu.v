@@ -56,6 +56,10 @@ module mem_mpu #(
     input  wire [31:0]               Sdr_rd_dout,
     input  wire                      Sdr_init_done,
     input  wire                      Sdr_busy,
+    input  wire                      source_write_busy,
+    input  wire                      scaler_write_request,
+    output wire                      read_busy,
+    output wire                      write_ready,
 
     // 写方 1（素材装载 frame_read_write）
     input  wire                      App_wr_en_u,
@@ -89,6 +93,7 @@ module mem_mpu #(
     reg [7:0]  rsp_beats;         // 已收数据拍
     reg [3:0]  gap_cnt;           // 距末个命令拍的静默计数
     reg [3:0]  a_run, b_run, c_run;   // 各口连续簇计数
+    reg [3:0]  write_gap;
 
     wire a_wants = A_cmd_valid;
     wire b_wants = B_cmd_valid;
@@ -103,7 +108,11 @@ module mem_mpu #(
     wire c_allow = c_wants && !a_allow && !b_allow;
 
     // 初始化或刷新期间硬核可能丢弃 App 读命令，禁止仲裁器提前接收。
-    wire mem_accept_window = (state == S_IDLE) && Sdr_init_done && !Sdr_busy;
+    // 官方接口为单端口：写方先声明占用，读方保持占用到返回和静默期结束。
+    assign read_busy = (state != S_IDLE);
+    assign write_ready = !read_busy && Sdr_init_done && !Sdr_busy &&
+                         !source_write_busy && (write_gap == 0);
+    wire mem_accept_window = write_ready && !scaler_write_request && !App_wr_en;
     assign A_cmd_ready = mem_accept_window && a_allow;
     assign B_cmd_ready = mem_accept_window && b_allow;
     assign C_cmd_ready = mem_accept_window && c_allow;
@@ -144,7 +153,10 @@ module mem_mpu #(
             c_run       <= 4'd0;
             App_rd_en   <= 1'b0;
             App_rd_addr <= {ADDR_BITS{1'b0}};
+            write_gap   <= 4'd0;
         end else begin
+            if (App_wr_en) write_gap <= GAP;
+            else if (write_gap != 0) write_gap <= write_gap - 4'd1;
             case (state)
                 S_IDLE: begin
                     App_rd_en <= 1'b0;

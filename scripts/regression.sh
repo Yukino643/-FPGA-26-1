@@ -75,6 +75,11 @@ run_sim afifo_fwft -DSIMULATION tb_afifo_fwft.v ../rtl/mem/afifo_simple.v
 run_sim disp_read_engine tb_disp_read_engine.v ../rtl/mem/disp_read_engine.v
 run_sim disp_pixel_format -I ../rtl/video tb_disp_pixel_format.v ../rtl/video/disp_mixer.v
 run_sim video_axis tb_video_axis.v ../rtl/video/video_rgb_to_axis_640x480.v
+if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_video_pipeline.py"; then
+run_sim video_pipeline -I ../rtl/video tb_video_pipeline.v ../rtl/video/osd_engine.v ../rtl/video/osd_text_rom.v ../rtl/video/font_rom_cjk.v ../rtl/ctrl/font_rom_ascii.v ../rtl/video/spectrum_layer.v ../rtl/video/subtitle_scroll.v ../rtl/video/color_adjust.v ../rtl/video/emergency_render.v ../rtl/video/video_rgb_to_axis_640x480.v
+else
+  note_fail "SIM video_pipeline 提取顶层连接失败"
+fi
 run_sim sd_arbiter tb_sd_arbiter.v ../rtl/sd/sd_arbiter.v
 run_sim tf_diag tb_tf_diag_capture.v ../rtl/ctrl/tf_diag_capture.v
 run_sim sd_card_init tb_sd_card_init.v ../rtl/sd/sd_card_sec_read_write.v
@@ -82,6 +87,7 @@ run_sim sd_spi_sdhc tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_
 run_sim sd_spi_sdsc -Ptb_sd_spi_chain.HIGH_CAPACITY=0 tb_sd_spi_chain.v ../rtl/sd/sd_card_top.v ../rtl/sd/sd_card_sec_read_write.v ../rtl/sd/sd_card_cmd.v ../rtl/sd/spi_master.v
 run_sim mem_mpu   tb_mem_mpu.v   ../rtl/mem/mem_mpu.v
 run_sim mem_mpu_overlap tb_mem_mpu_overlap.v ../rtl/mem/mem_mpu.v
+run_sim mem_mpu_rw tb_mem_mpu_rw.v ../rtl/mem/mem_mpu.v ../rtl/sd/frame_fifo_write.v
 run_sim bmp_read_g tb_bmp_read_g.v ../rtl/sd/bmp_read_g.v
 run_sim bmp_header_official tb_bmp_header_official.v ../rtl/sd/bmp_read_g.v
 run_sim bmp_sparse -Ptb_bmp_read_g.BYTE_GAP=31 tb_bmp_read_g.v ../rtl/sd/bmp_read_g.v
@@ -89,7 +95,7 @@ run_sim bmp_timeout tb_bmp_read_g_timeout.v ../rtl/sd/bmp_read_g.v
 run_sim monitor   tb_monitor.v   ../rtl/video/video_timing_gen.v ../rtl/video/monitor_compositor.v ../rtl/ctrl/font_rom_ascii.v
 run_sim osd       -I ../rtl/video tb_osd.v ../rtl/video/video_timing_gen.v ../rtl/video/pixel_pos_gen.v ../rtl/video/osd_engine.v ../rtl/video/osd_text_rom.v ../rtl/video/font_rom_cjk.v ../rtl/ctrl/font_rom_ascii.v
 run_sim src_packer tb_src_packer.v ../rtl/sd/src_packer.v
-run_sim wav_read  tb_wav_read.v  ../rtl/audio/wav_read.v
+run_sim wav_read -DSIMULATION tb_wav_read.v ../rtl/audio/wav_read.v
 run_sim audio_player -DSIMULATION tb_audio_player.v ../rtl/audio/audio_player.v ../rtl/mem/afifo_simple.v
 echo "[REG][INFO] SIM disp_path 较慢（约 5~8 分钟）..."
 run_sim disp      -DSIMULATION -I ../rtl/video tb_disp_path.v sdram_beh.v ../rtl/mem/mem_mpu.v ../rtl/mem/afifo_simple.v ../rtl/mem/disp_read_engine.v ../rtl/video/video_timing_gen.v ../rtl/video/pixel_pos_gen.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v

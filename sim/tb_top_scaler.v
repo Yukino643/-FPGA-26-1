@@ -15,6 +15,8 @@ module tb_top_scaler;
     reg mpu_C_rv = 0, mpu_C_rl = 0;
     reg [31:0] mpu_C_rd = 0;
     wire scaler_wr_en, scaler_busy, scaler_done_toggle;
+    wire scaler_write_request;
+    wire memory_write_ready = 1'b1;
     wire [20:0] scaler_wr_addr;
     wire [31:0] scaler_wr_din;
     wire [3:0] scaler_debug_state;

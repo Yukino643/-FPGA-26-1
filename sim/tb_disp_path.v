@@ -9,6 +9,28 @@ module tb_disp_path;
     localparam FRAME_WORDS = 307200;
     localparam PAGE0 = 21'h0_0000;
     localparam PAGE1 = 21'h8_0000;
+    // 地址编码像素能检出重复、丢字和跨行错位，纯灰页无法覆盖这些缺陷。
+    function [23:0] pattern_a;
+        input integer index;
+        begin pattern_a = {index[7:0], index[15:8], (index[23:16] ^ 8'h5a)}; end
+    endfunction
+    function [23:0] pattern_b;
+        input integer index;
+        begin pattern_b = {~index[7:0], (index[15:8] ^ 8'ha5), index[23:16]}; end
+    endfunction
+    function [23:0] expected_mix;
+        input integer index;
+        input [7:0] weight;
+        reg [23:0] a, b;
+        reg [7:0] r, g, bl;
+        begin
+            a = pattern_a(index); b = pattern_b(index);
+            r = (a[23:16]*(255-weight)+b[23:16]*weight+127)>>8;
+            g = (a[15:8]*(255-weight)+b[15:8]*weight+127)>>8;
+            bl = (a[7:0]*(255-weight)+b[7:0]*weight+127)>>8;
+            expected_mix = (weight==0) ? a : (weight==255) ? b : {r,g,bl};
+        end
+    endfunction
 
     reg clk25 = 0;      // video 25.175M
     reg clk125 = 0;     // mem 125M
@@ -78,7 +100,9 @@ module tb_disp_path;
     wire [31:0] A_rd, B_rd;
     wire [7:0]  A_cl, B_cl;
     wire        App_rd_en; wire [20:0] App_rd_addr;
-    wire        wr_en_w; wire [20:0] wr_addr_w; wire [31:0] wr_data_w;
+    wire wr_en_w = 1'b0;
+    wire [20:0] wr_addr_w = 21'd0;
+    wire [31:0] wr_data_w = 32'd0;
 
     mem_mpu #(.MAX_A_RUN(2)) u_mpu(
         .clk(clk125), .rst(rst),
@@ -91,6 +115,7 @@ module tb_disp_path;
         .App_rd_en(App_rd_en), .App_rd_addr(App_rd_addr),
         .Sdr_rd_en(sd_vld), .Sdr_rd_dout(sd_dout),
         .Sdr_init_done(1'b1), .Sdr_busy(1'b0),
+        .source_write_busy(1'b0), .scaler_write_request(1'b0), .read_busy(), .write_ready(),
         .App_wr_en_u(wr_en_w), .App_wr_addr_u(wr_addr_w), .App_wr_din_u(wr_data_w), .App_wr_dm_u(4'h0),
         .App_wr2_en_u(1'b0), .App_wr2_addr_u(21'd0), .App_wr2_din_u(32'd0), .App_wr2_dm_u(4'd0),
         .wr2_active(1'b0),
@@ -149,8 +174,8 @@ module tb_disp_path;
     integer i;
     initial begin
         for (i = 0; i < FRAME_WORDS; i = i + 1) begin
-            u_sd.mem[PAGE0 + i] = 32'h40404000;
-            u_sd.mem[PAGE1 + i] = 32'hC0C0C000;
+            u_sd.mem[PAGE0 + i] = {pattern_a(i),8'd0};
+            u_sd.mem[PAGE1 + i] = {pattern_b(i),8'd0};
         end
     end
 
@@ -187,12 +212,7 @@ module tb_disp_path;
                 // 帧结束时全帧比对: blend(64,192,alpha)+rounding
                 nbad = 0;
                 for (si = 0; si < 307200; si = si + 1) begin
-                    if (chk_alpha == 8'd255)
-                        exp = 24'hC0C0C0;   // 直通页B（无混合）
-                    else
-                        exp = (((64 * (8'd255 - chk_alpha) + 192 * chk_alpha + 127) >> 8) << 16)
-                            | (((64 * (8'd255 - chk_alpha) + 192 * chk_alpha + 127) >> 8) << 8)
-                            |  ((64 * (8'd255 - chk_alpha) + 192 * chk_alpha + 127) >> 8);
+                    exp = expected_mix(si, chk_alpha);
                     if (fb[si] !== exp) nbad = nbad + 1;
                 end
                 if (nbad != 0) begin

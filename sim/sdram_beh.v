@@ -30,6 +30,11 @@ module sdram_beh #(
             rd_vld <= 0; rd_dout <= 0;
             cap_n <= 0; sent <= 0; timer <= -1; en_d <= 0;
         end else begin
+            // 单端口控制器：在读命令/返回尚未收尾时写入，板上可能丢命令或破坏数据。
+            if (wr_en && (rd_en || en_d || cap_n != 0 || rd_vld)) begin
+                $display("FAIL SDRAM read/write ownership collision");
+                $fatal(1);
+            end
             en_d <= rd_en;
             if (wr_en) begin
                 if (!wr_dm[0]) mem[wr_addr][7:0]   <= wr_data[7:0];

@@ -32,6 +32,7 @@ module tb_mem_mpu;
         .App_rd_en(App_rd_en), .App_rd_addr(App_rd_addr),
         .Sdr_rd_en(Sdr_rd_en), .Sdr_rd_dout(Sdr_rd_dout),
         .Sdr_init_done(1'b1), .Sdr_busy(1'b0),
+        .source_write_busy(1'b0), .scaler_write_request(1'b0), .read_busy(), .write_ready(),
         .App_wr_en_u(1'b0), .App_wr_addr_u(21'd0), .App_wr_din_u(32'd0), .App_wr_dm_u(4'd0),
         .App_wr2_en_u(1'b0), .App_wr2_addr_u(21'd0), .App_wr2_din_u(32'd0), .App_wr2_dm_u(4'd0),
         .wr2_active(1'b0),

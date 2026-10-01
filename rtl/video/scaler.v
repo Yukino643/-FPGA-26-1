@@ -46,6 +46,9 @@ module scaler #(
     input  wire                     rsp_valid,
     input  wire [31:0]              rsp_data,
     input  wire                     rsp_last,
+    // 一整行作为不可暂停写突发；开始前等待在途读全部收尾。
+    output wire                     write_request,
+    input  wire                     write_ready,
     // mem_mpu 写方 2
     output reg                      wr_en,
     output reg  [20:0]              wr_addr,
@@ -65,6 +68,8 @@ module scaler #(
     localparam S_FDA   = 4'd4;    // 取数：收数据
     localparam S_RUN   = 4'd5;
     localparam S_DONE  = 4'd6;
+    localparam S_CHECK = 4'd7;
+    localparam S_WWAIT = 4'd8;
 
     // ---- start 同步 ----
     reg [2:0]  st_sync;
@@ -79,6 +84,7 @@ module scaler #(
     reg        busy_r;
     assign busy = busy_r;
     assign debug_state = state;
+    assign write_request = (state == S_WWAIT) || (state == S_RUN);
     // SDRAM DQM 高电平屏蔽对应字节；整字写入时四路均须拉低。
     assign wr_dm = 4'h0;
 
@@ -103,7 +109,6 @@ module scaler #(
     reg [7:0]  yf8;
     reg        row_pair_valid;
     reg [9:0]  cache_s0, cache_s1;
-    reg        pair_hit;
 
     // ---- 行 RAM 接口 ----
     reg        ram_we;
@@ -207,8 +212,9 @@ module scaler #(
     wire [7:0] out_b = mix_b[23:16];
 
     // ---- 行 RAM 例化（同拍写两份: r?a+r?b 共享写信号） ----
-    wire we_s0 = ram_we && !ram_wsel;
-    wire we_s1 = ram_we &&  ram_wsel;
+    // 上下邻行相同的边界也须填满两组缓存，不能留下未初始化的另一行。
+    wire we_s0 = ram_we && (!ram_wsel || (s0 == s1));
+    wire we_s1 = ram_we && ( ram_wsel || (s0 == s1));
 
 `ifdef SIMULATION
     reg [31:0] mem_r0a [0:511];
@@ -399,8 +405,13 @@ module scaler #(
                         s1  <= s1_w;
                         yacc <= yacc + dy;
                         out_y <= out_y + 10'd1;
-                        pair_hit = row_pair_valid && (cache_s0 == s0_w) && (cache_s1 == s1_w);
-                        if (pair_hit) begin
+                        state <= S_CHECK;
+                    end
+                end
+
+                // 先寄存行坐标再做缓存命中判断，隔断长算术到像素启动的路径。
+                S_CHECK: begin
+                        if (row_pair_valid && (cache_s0 == s0) && (cache_s1 == s1)) begin
                             // cache 命中: 重置像素坐标，直接进 S_RUN
                             px_x <= 10'd0;
                             xacc <= (dx >> 1) - (FR_FULL >> 1);
@@ -408,11 +419,10 @@ module scaler #(
                             pxv_d1  <= 1'b0;
                             pxv_d2  <= 1'b0;
                             pxv_d3  <= 1'b0;
-                            state   <= S_RUN;
+                            state   <= S_WWAIT;
                         end else begin
                             state <= S_FWR;
                         end
-                    end
                 end
 
                 S_FWR: begin
@@ -466,9 +476,13 @@ module scaler #(
                             px_x           <= 10'd0;
                             xacc           <= (dx >> 1) - (FR_FULL >> 1);
                             cmd_valid      <= 1'b0;
-                            state          <= S_RUN;
+                            state          <= S_WWAIT;
                         end
                     end
+                end
+
+                S_WWAIT: begin
+                    if (write_ready) state <= S_RUN;
                 end
 
                 S_RUN: begin

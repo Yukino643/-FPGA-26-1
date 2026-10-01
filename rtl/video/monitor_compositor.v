@@ -14,6 +14,8 @@ module monitor_compositor(
     input  wire [15:0] I_sync_dev,
     input  wire [1:0]  I_mode,     // 0:启动 1:广告 2:应急
     input  wire [191:0] I_tf_diag, // 握手快照：TF 板级只读诊断
+    input  wire [31:0] I_disp_underflow,
+    input  wire [9:0] I_fifo_a_used,
     output wire [23:0] O_rgb
 );
 
@@ -44,7 +46,7 @@ module monitor_compositor(
     wire [15:0] DEV_ABS = abs16(I_sync_dev);
 
     // ---------------- 标签字符串（定长 localparam，防左填充错位） ----------------
-    localparam [8*21-1:0] STR_TITLE = "SYS MONITOR TF-D4    ";
+    localparam [8*21-1:0] STR_TITLE = "SYS MONITOR TF-D5    ";
     localparam [8*8-1:0]  STR_UP    = "UPTIME  ";
     localparam [8*8-1:0]  STR_FRM   = "FRAMES  ";
     localparam [8*8-1:0]  STR_SYN   = "AV-SYNC ";
@@ -56,6 +58,7 @@ module monitor_compositor(
     localparam [8*8-1:0] STR_HEAD = "BMP HEAD";
     localparam [8*8-1:0] STR_PIX = "PIXELS  ";
     localparam [8*8-1:0] STR_COM = "WR/SCALE";
+    localparam [8*8-1:0] STR_DISP = "UF/FIFO ";
 
     function [7:0] label_char;
         input [3:0] ln;
@@ -73,6 +76,7 @@ module monitor_compositor(
                 4'd9: label_char = (c < 8) ? STR_HEAD[(7-c)*8 +: 8] : 8'h20;
                 4'd10: label_char = (c < 8) ? STR_PIX[(7-c)*8 +: 8] : 8'h20;
                 4'd11: label_char = (c < 8) ? STR_COM[(7-c)*8 +: 8] : 8'h20;
+                4'd12: label_char = (c < 8) ? STR_DISP[(7-c)*8 +: 8] : 8'h20;
                 default: label_char = 8'h20;
             endcase
         end
@@ -124,6 +128,14 @@ module monitor_compositor(
                     else if (c >= 12 && c < 14) value_char = hex2ascii(I_tf_diag[(13-c)*4 +: 4]);
                     else value_char = 8'hFF;
                 end
+                4'd12: begin
+                    if (c >= 9 && c < 17) value_char = hex2ascii(I_disp_underflow[(16-c)*4 +: 4]);
+                    else if (c == 17) value_char = "/";
+                    else if (c == 18) value_char = hex2ascii({2'd0,I_fifo_a_used[9:8]});
+                    else if (c == 19) value_char = hex2ascii(I_fifo_a_used[7:4]);
+                    else if (c == 20) value_char = hex2ascii(I_fifo_a_used[3:0]);
+                    else value_char = 8'hFF;
+                end
                 default: value_char = 8'hFF;
             endcase
         end
@@ -139,7 +151,8 @@ module monitor_compositor(
                      (line == 7) ? 4'd3 : (line == 9) ? 4'd4 :
                      (line == 13) ? 4'd6 : (line == 15) ? 4'd7 :
                      (line == 17) ? 4'd8 : (line == 19) ? 4'd9 :
-                     (line == 21) ? 4'd10 : (line == 23) ? 4'd11 : 4'd5;
+                     (line == 21) ? 4'd10 : (line == 23) ? 4'd11 :
+                     (line == 25) ? 4'd12 : 4'd5;
     wire is_text_line = (ln3 != 4'd5);
     wire [7:0] vch = value_char(ln3, col);
     wire [7:0] ch = !is_text_line ? 8'h20 : (vch != 8'hFF) ? vch : label_char(ln3, col);
