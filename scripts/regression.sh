@@ -71,7 +71,10 @@ check_generated
 
 # 3) 单元仿真（基础路径 + Step 3 边界用例）
 run_sim afifo_boundary -DSIMULATION tb_afifo_boundary.v ../rtl/mem/afifo_simple.v
+run_sim afifo_fwft -DSIMULATION tb_afifo_fwft.v ../rtl/mem/afifo_simple.v
 run_sim disp_read_engine tb_disp_read_engine.v ../rtl/mem/disp_read_engine.v
+run_sim disp_pixel_format -I ../rtl/video tb_disp_pixel_format.v ../rtl/video/disp_mixer.v
+run_sim video_axis tb_video_axis.v ../rtl/video/video_rgb_to_axis_640x480.v
 run_sim sd_arbiter tb_sd_arbiter.v ../rtl/sd/sd_arbiter.v
 run_sim tf_diag tb_tf_diag_capture.v ../rtl/ctrl/tf_diag_capture.v
 run_sim sd_card_init tb_sd_card_init.v ../rtl/sd/sd_card_sec_read_write.v

@@ -73,7 +73,8 @@ module tb_afifo_boundary;
         wait (!rd_empty);
         for (i = 0; i < DEPTH; i = i + 1) begin
             @(negedge rd_clk); rd_en = 1'b1;
-            @(posedge rd_clk); #1;
+            // FWFT 消费发生在上升沿；NBA 后输出已是下一队头。
+            @(posedge rd_clk);
             if (rd_data !== (32'h1000 + i)) begin
                 $display("FAIL data[%0d]: got=%h expected=%h", i, rd_data, 32'h1000 + i);
                 errors = errors + 1;

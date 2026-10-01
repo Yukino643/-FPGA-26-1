@@ -39,9 +39,9 @@ module disp_mixer(
     wire a_droppd = de_al && a_empty;
     wire b_droppd = de_al && tr_active && b_empty;
 
-    // 像素数据取 RGB24（FIFO 字低 24 位）
-    wire [23:0] pa = a_rd_data[23:0];
-    wire [23:0] pb = b_rd_data[23:0];
+    // SDRAM 页与学长的 TF→HDMI 例程一致，RGB 位于 [31:8]，低字节留空。
+    wire [23:0] pa = a_rd_data[31:8];
+    wire [23:0] pb = b_rd_data[31:8];
 
     // 滑动软边 α: 距边界 16px 内线性 0→255
     wire in_slide_x = (slide_axis == 2'd1);

@@ -145,12 +145,12 @@ module tb_disp_path;
         .rgb(mix_rgb), .underflow_cnt(ufl)
     );
 
-    // ---- 页内容: 页A 全部 0x00404040(灰64), 页B 全部 0x00C0C0C0(灰192) ----
+    // 与 scaler SDRAM 写布局一致：RGB 在 [31:8]，最低字节为 0。
     integer i;
     initial begin
         for (i = 0; i < FRAME_WORDS; i = i + 1) begin
-            u_sd.mem[PAGE0 + i] = 32'h00404040;
-            u_sd.mem[PAGE1 + i] = 32'h00C0C0C0;
+            u_sd.mem[PAGE0 + i] = 32'h40404000;
+            u_sd.mem[PAGE1 + i] = 32'hC0C0C000;
         end
     end
 
