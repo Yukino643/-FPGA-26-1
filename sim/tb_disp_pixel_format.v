@@ -12,7 +12,7 @@ module tb_disp_pixel_format;
         .clk(clk), .rst(rst), .de_al(de), .x(10'd0), .y(9'd0),
         .a_rd_en(a_rd_en), .a_rd_data(32'h12_34_56_00), .a_empty(1'b0),
         .b_rd_en(b_rd_en), .b_rd_data(32'hA1_B2_C3_00), .b_empty(1'b0),
-        .tr_active(transition), .alpha(alpha), .boundary(10'd0), .slide_axis(2'd0),
+        .tr_active(transition), .fade_black(1'b0), .alpha(alpha), .boundary(10'd0), .slide_axis(2'd0),
         .rgb(rgb), .underflow_cnt(underflow));
 
     initial begin

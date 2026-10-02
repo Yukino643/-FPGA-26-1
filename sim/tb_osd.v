@@ -1,4 +1,4 @@
-// tb_osd.v — OSD 引擎渲染仿真：合成背景 + 标题条 + 时钟条，输出整帧 PPM
+// 透明黑字整帧验证：三处文字存在，所有非文字窗口像素原样保留。
 `timescale 1ns/1ps
 module tb_osd;
 
@@ -20,6 +20,10 @@ module tb_osd;
 
     // 合成背景: 对角渐变 + 棋盘格，便于观察混合效果
     wire [23:0] bg = {px[7:0], py[7:0], 8'h60} ^ (px[3] ^ py[3] ? 24'h181818 : 24'h0);
+    function [23:0] background;
+        input integer c, r;
+        begin background={c[7:0],r[7:0],8'h60} ^ (((c>>3)^(r>>3))&1 ? 24'h181818 : 24'h0); end
+    endfunction
 
     wire [23:0] osd_rgb;
     osd_engine u_osd (
@@ -44,10 +48,10 @@ module tb_osd;
     reg [23:0] fb [0:640*480-1];
     reg vs_d2 = 0;
     integer fd, r, c, frames_done = 0;
-    integer si, nbad;
+    integer si, nbad, title_pixels, mode_pixels, clock_pixels;
+    reg [23:0] bg_expected;
 
     always @(posedge clk) begin
-        if (de_al && px != x) $display("DBG MISALIGN t=%0t timing(x=%0d,y-line) px=%0d py=%0d", $time, x, px, py);
         if (de_cap) fb[py_cap * 640 + px_cap] <= osd_rgb;
         vs_d2 <= vs;
         if (vs && !vs_d2) $display("DBG frame end: last de px = (%0d,%0d)", px, py);
@@ -60,8 +64,20 @@ module tb_osd;
                     $fwrite(fd, "%0d %0d %0d\n", fb[r*640+c][23:16], fb[r*640+c][15:8], fb[r*640+c][7:0]);
             $fclose(fd);
             nbad = 0;
-            for (si = 0; si < 640*480; si = si + 1)
-                if (fb[si] === 24'hFF00FF || fb[si] === 24'hxxxxxx) nbad = nbad + 1;
+            title_pixels=0; mode_pixels=0; clock_pixels=0;
+            for (r=0; r<480; r=r+1) begin
+                for (c=0; c<640; c=c+1) begin
+                    bg_expected=background(c,r);
+                    if(fb[r*640+c]!==bg_expected) begin
+                        if(fb[r*640+c]!==24'd0) nbad=nbad+1;
+                        else if(r>=4 && r<20 && c>=16 && c<240) title_pixels=title_pixels+1;
+                        else if(r>=4 && r<20 && c>=560 && c<624) mode_pixels=mode_pixels+1;
+                        else if(r>=456 && r<472 && c>=448 && c<624) clock_pixels=clock_pixels+1;
+                        else nbad=nbad+1;
+                    end
+                end
+            end
+            if(title_pixels==0 || mode_pixels==0 || clock_pixels==0) nbad=nbad+1;
             if (nbad == 0) $display("TB_OSD PASS");
             else $display("TB_OSD FAIL nbad=%0d", nbad);
             $finish;

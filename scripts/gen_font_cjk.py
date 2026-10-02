@@ -25,7 +25,7 @@ FONT   = "simhei.ttf"          # C:\Windows\Fonts\simhei.ttf
 
 # 固定文本窗定义: (窗口名, 字符串)
 WINDOWS = [
-    ("TITLE", "安路EG4S20多媒体播放系统"),
+    ("TITLE", "炬屏—双模HDMI多媒体系统"),
     ("MODE_AD", "广告模式"),
     ("MODE_EMG", "应急模式"),
     ("CLOCK", "运行 00:00:00"),   # 列3..10 由 osd_engine 用实时 BCD 时钟动态覆盖

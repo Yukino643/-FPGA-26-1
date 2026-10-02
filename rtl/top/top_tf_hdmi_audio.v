@@ -174,17 +174,19 @@ reset_sync u_rst_mem   (.clk(ext_mem_clk), .arst(reset_request), .rst(rst_mem));
 reset_sync u_rst_video (.clk(video_clk),   .arst(reset_request), .rst(rst_video));
 
 // W10: 物理 KEY4 短按切换转场；同一按键长按由 emergency_ctrl 触发应急。
-reg [1:0] tr_mode_reg = 2'd1;   // 默认淡入淡出
-reg       key3_sync, key3_prev;
+reg [1:0] tr_mode_reg = 2'd0;   // 默认帧边界直切；KEY4短按可循环切换效果
+reg       key3_meta, key3_sync, key3_prev;
 reg [19:0] key3_cnt;
 always @(posedge sd_card_clk or posedge rst_sd) begin
     if (rst_sd) begin
+        key3_meta <= 1'b1;
         key3_sync <= 1'b1;
         key3_prev <= 1'b1;
         key3_cnt  <= 20'd0;
-        tr_mode_reg <= 2'd1;
+        tr_mode_reg <= 2'd0;
     end else begin
-        key3_sync <= key3;
+        key3_meta <= key3;
+        key3_sync <= key3_meta;
         if (key3_sync != key3_prev) begin
             if (key3_cnt >= 20'd999_999) begin
                 key3_prev <= key3_sync;
@@ -206,8 +208,7 @@ wire [8:0] main_y;
 wire [31:0] main_fc;
 wire       tr_hold_load;    // 转场期间暂缓装载
 wire [23:0] vout_osd;       // OSD 输出
-wire [23:0] vout_spectrum;  // W8: 频谱图层输出
-wire [23:0] vout_subtitle;  // W10: 字幕图层输出
+wire [23:0] vout_waveform;  // 老师第十二讲：PCM 时域波形图层输出
 wire [23:0] vout_color;     // W8: 色彩调节后输出
 wire [23:0] vout_final;     // W9: 应急渲染后输出（最终）
 
@@ -221,49 +222,62 @@ wire [15:0] sync_dev_real;
 wire        audio_valid_final;
 wire [23:0] audio_left_final;
 wire [23:0] audio_right_final;
-wire [255:0] spec_bin_mag;
 wire        scaler_done_toggle;
 // A2: 主通道 OSD 字库同步读引入 1 拍延迟，de/vs 打 1 拍对齐（vs 宽脉冲，±1 拍无影响）
 // （监视台的 mon_de_d1/mon_vs_d1 在 mon_de 声明之后的监视台区段）
 reg de_d1, vs_d1;
-reg de_d2, de_d3, de_d4, vs_d2, vs_d3, vs_d4;
-reg [9:0] x_d1, x_d2, x_d3, x_d4;
-reg [8:0] y_d1, y_d2, y_d3, y_d4;
-reg [23:0] spectrum_q, subtitle_q;
+reg de_d2, de_d3, vs_d2, vs_d3;
+reg [9:0] x_d1, x_d2, x_d3;
+reg [8:0] y_d1, y_d2, y_d3;
+reg [23:0] waveform_q;
 always @(posedge video_clk or posedge rst_video) begin
     if (rst_video) begin
-        de_d1 <= 1'b0;
-        vs_d1 <= 1'b0;
-        de_d2 <= 0; de_d3 <= 0; de_d4 <= 0;
-        vs_d2 <= 0; vs_d3 <= 0; vs_d4 <= 0;
-        x_d1 <= 0; x_d2 <= 0; x_d3 <= 0; x_d4 <= 0;
-        y_d1 <= 0; y_d2 <= 0; y_d3 <= 0; y_d4 <= 0;
-        spectrum_q <= 0; subtitle_q <= 0;
+        de_d1 <= 0; de_d2 <= 0; de_d3 <= 0;
+        vs_d1 <= 0; vs_d2 <= 0; vs_d3 <= 0;
+        x_d1 <= 0; x_d2 <= 0; x_d3 <= 0;
+        y_d1 <= 0; y_d2 <= 0; y_d3 <= 0;
+        waveform_q <= 0;
     end else begin
-        de_d1 <= main_de_al;
-        vs_d1 <= vs;
-        // 每层同拍推进 RGB、坐标和有效标志，禁止色彩寄存后沿用上一层 DE。
-        de_d2 <= de_d1; de_d3 <= de_d2; de_d4 <= de_d3;
-        vs_d2 <= vs_d1; vs_d3 <= vs_d2; vs_d4 <= vs_d3;
-        x_d1 <= main_x; x_d2 <= x_d1; x_d3 <= x_d2; x_d4 <= x_d3;
-        y_d1 <= main_y; y_d2 <= y_d1; y_d3 <= y_d2; y_d4 <= y_d3;
-        spectrum_q <= vout_spectrum;
-        subtitle_q <= vout_subtitle;
+        // 颜色调整、波形、字库各一拍；RGB、坐标和 DE 必须同拍推进。
+        de_d1 <= main_de_al; de_d2 <= de_d1; de_d3 <= de_d2;
+        vs_d1 <= vs; vs_d2 <= vs_d1; vs_d3 <= vs_d2;
+        x_d1 <= main_x; x_d2 <= x_d1; x_d3 <= x_d2;
+        y_d1 <= main_y; y_d2 <= y_d1; y_d3 <= y_d2;
+        waveform_q <= vout_waveform;
     end
 end
 
 // 缩放完成 toggle → video 域 2FF（供转场控制器提交）。
 // 源缓存写完只允许启动 scaler，不能提前提交显示页。
 reg [2:0] commit_sync;
+reg [1:0] commit_buf_sync1, commit_buf_sync2;
+reg [1:0] tr_mode_sync1_v, tr_mode_sync2_v;
 always @(posedge video_clk or posedge rst_video) begin
-    if (rst_video) commit_sync <= 3'b000;
-    else         commit_sync <= {commit_sync[1:0], scaler_done_toggle};
+    if (rst_video) begin
+        commit_sync <= 3'b000;
+        commit_buf_sync1 <= 2'd0;
+        commit_buf_sync2 <= 2'd0;
+        tr_mode_sync1_v <= 2'd0;
+        tr_mode_sync2_v <= 2'd0;
+    end else begin
+        commit_sync <= {commit_sync[1:0], scaler_done_toggle};
+        commit_buf_sync1 <= write_buf_idx;
+        commit_buf_sync2 <= commit_buf_sync1;
+        tr_mode_sync1_v <= tr_mode_reg;
+        tr_mode_sync2_v <= tr_mode_sync1_v;
+    end
 end
 wire commit_toggle_v = commit_sync[1] ^ commit_sync[2];
 reg [1:0] commit_buf_v;
+reg commit_pulse_v;
 always @(posedge video_clk or posedge rst_video) begin
-    if (rst_video) commit_buf_v <= 2'd0;
-    else if (commit_toggle_v) commit_buf_v <= write_buf_idx;   // 准静态总线采样
+    if (rst_video) begin
+        commit_buf_v <= 2'd0;
+        commit_pulse_v <= 1'b0;
+    end else begin
+        commit_pulse_v <= commit_toggle_v;
+        if (commit_toggle_v) commit_buf_v <= commit_buf_sync2;
+    end
 end
 // vs_rise toggle（帧同步给读引擎）
 reg vs_toggle_r;
@@ -322,6 +336,37 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
 end
 wire scaler_commit_toggle = scaler_done_sync[1];
 
+// 显示提交握手：scaler完成后先阻止下一次装载，视频完成换页/转场才释放。
+// 只同步持久电平和 toggle；不跨域传递单拍脉冲。
+reg display_submit_pending_sd;
+reg [1:0] tr_hold_sync_sd;
+reg tr_hold_prev_v, display_release_toggle_v;
+reg [2:0] display_release_sync_sd;
+always @(posedge video_clk or posedge rst_video) begin
+    if (rst_video) begin
+        tr_hold_prev_v <= 0;
+        display_release_toggle_v <= 0;
+    end else begin
+        tr_hold_prev_v <= tr_hold_load;
+        if (tr_hold_prev_v && !tr_hold_load)
+            display_release_toggle_v <= ~display_release_toggle_v;
+    end
+end
+always @(posedge sd_card_clk or posedge rst_sd) begin
+    if (rst_sd) begin
+        display_submit_pending_sd <= 0;
+        tr_hold_sync_sd <= 0;
+        display_release_sync_sd <= 0;
+    end else begin
+        tr_hold_sync_sd <= {tr_hold_sync_sd[0], tr_hold_load};
+        display_release_sync_sd <= {display_release_sync_sd[1:0], display_release_toggle_v};
+        if (scaler_done_sync[2] ^ scaler_done_sync[1])
+            display_submit_pending_sd <= 1;
+        else if (display_release_sync_sd[2] ^ display_release_sync_sd[1])
+            display_submit_pending_sd <= 0;
+    end
+end
+
 // ===================== TF 多图扫描与缓存（双缓冲，W3 泛化版: 8 图 + 任意分辨率） =====================
 wire [31:0] tf_bmp_debug;
 wire [191:0] tf_video_snapshot;
@@ -349,7 +394,7 @@ sd_card_bmp_g #(
     .rst               (rst_sd),
     .key_next          (key1),
     .key_auto          (key2),
-    .hold_load         (tr_hold_load),
+    .hold_load         (display_submit_pending_sd | tr_hold_sync_sd[1]),
     .state_code        (state_code),
     .debug_status      (tf_bmp_debug),
     .img_count         (img_count),
@@ -495,6 +540,7 @@ end
 
 // ---- 转场控制（video 域） ----
 wire        tr_active;           // tr_hold_load 已在 L128 声明
+wire        tr_fade_black;
 wire [7:0]  tr_alpha;
 wire [9:0]  tr_boundary;
 wire [1:0]  tr_slide_axis;
@@ -510,10 +556,11 @@ transition_ctrl #(
     .vs_rise       (vs_rise_v),
     .x             (main_x),
     .y             (main_y),
-    .commit_toggle (commit_toggle_v),
+    .commit_toggle (commit_pulse_v),
     .commit_buf    (commit_buf_v),
-    .tr_mode       (tr_mode_reg),     // W10: KEY3 循环切换
+    .tr_mode       (tr_mode_sync2_v), // KEY4配置在提交时锁存，转场途中不可变
     .tr_active     (tr_active),
+    .fade_black    (tr_fade_black),
     .alpha         (tr_alpha),
     .boundary      (tr_boundary),
     .slide_axis    (tr_slide_axis),
@@ -593,11 +640,22 @@ wire [31:0] fa_dd, fb_dd;
 wire        fa_e, fb_e;
 wire [9:0]  fa_ru, fb_ru;    // A1
 
+reg [20:0] page_a_sync1_mem, page_a_sync2_mem, page_b_sync1_mem, page_b_sync2_mem;
+always @(posedge ext_mem_clk or posedge rst_mem) begin
+    if (rst_mem) begin
+        page_a_sync1_mem <= 0; page_a_sync2_mem <= 0;
+        page_b_sync1_mem <= 21'h8_0000; page_b_sync2_mem <= 21'h8_0000;
+    end else begin
+        page_a_sync1_mem <= page_a_base; page_a_sync2_mem <= page_a_sync1_mem;
+        page_b_sync1_mem <= page_b_base; page_b_sync2_mem <= page_b_sync1_mem;
+    end
+end
+
 disp_read_engine u_eng_a(
     .clk         (ext_mem_clk),
     .rst         (rst_mem),
     .vs_toggle   (vs_toggle_r),
-    .page_base   (page_a_base),
+    .page_base   (page_a_sync2_mem),
     .fifo_we     (fa_we),
     .fifo_wdata  (fa_wd),
     .fifo_wusedw (fa_wu),
@@ -613,7 +671,7 @@ disp_read_engine u_eng_b(
     .clk         (ext_mem_clk),
     .rst         (rst_mem),
     .vs_toggle   (vs_toggle_r),
-    .page_base   (page_b_base),
+    .page_base   (page_b_sync2_mem),
     .fifo_we     (fb_we),
     .fifo_wdata  (fb_wd),
     .fifo_wusedw (fb_wu),
@@ -674,6 +732,7 @@ disp_mixer u_disp_mixer(
     .b_rd_data  (fb_dd),
     .b_empty    (fb_e),
     .tr_active  (tr_active),
+    .fade_black (tr_fade_black),
     .alpha      (tr_alpha),
     .boundary   (tr_boundary),
     .slide_axis (tr_slide_axis),
@@ -682,7 +741,16 @@ disp_mixer u_disp_mixer(
 );
 
 // 首图提交前黑屏；提交后显示转场混合器输出
-assign vout_data = display_valid ? mix_rgb : 24'd0;
+reg [1:0] display_valid_sync_v;
+reg display_visible_v;
+always @(posedge video_clk or posedge rst_video) begin
+    if (rst_video) begin display_valid_sync_v <= 0; display_visible_v <= 0; end
+    else begin
+        display_valid_sync_v <= {display_valid_sync_v[0], display_valid};
+        if (vs_rise_v) display_visible_v <= display_valid_sync_v[1];
+    end
+end
+assign vout_data = display_visible_v ? mix_rgb : 24'd0;
 
 // ===================== W6: 缩放引擎 =====================
 // 从 SRC_BUF 读 RGB565 源图，双线性插值缩放到 640×480，写入目标 DISP_BUF
@@ -918,8 +986,8 @@ audio_arc_calculate #(
 video_rgb_to_axis_640x480 u_video_rgb_to_axis_640x480(
     .I_clk         (video_clk),
     .I_rst         (rst_video),
-    .I_vs          (vs_d4),
-    .I_de          (de_d4),
+    .I_vs          (vs_d3),
+    .I_de          (de_d3),
     .I_rgb         (vout_final),      // W8: 色彩调节后输出
     .O_video_user  (axis_s_user),
     .O_video_valid (axis_s_valid),
@@ -1071,57 +1139,40 @@ pixel_pos_gen u_main_pos(
 
 osd_engine u_osd(
     .I_clk        (video_clk),
-    .I_x          (main_x),
-    .I_y          (main_y),
-    .I_bg_rgb     (vout_data),
+    .I_x          (x_d2),
+    .I_y          (y_d2),
+    .I_bg_rgb     (waveform_q),
     .I_uptime_bcd ({clk_hh, clk_mm, clk_ss}),
     .I_mode       (mode_v1),
     .O_rgb        (vout_osd)
 );
 
-// ===================== W8: FFT 频谱 + 色彩调节 =====================
-// fft_spectrum: audio_player 输出 → 32 bin 幅度（已在顶部前向声明）
-wire        spec_ready;
-
-fft_spectrum u_fft_spectrum(
+// ===================== 老师第十二讲：PCM 时域波形 =====================
+// 每 12 个 PCM 样本抽取一个，32 点写入 ping-pong 缓冲；只在 VS 边界
+// 发布完整采样组，避免波形读写同一 bank 造成撕裂。
+promax_audio_waveform #(
+    .WAVE_X      (64), .WAVE_Y(384), .WAVE_WIDTH(512), .WAVE_HEIGHT(64), .DECIMATE(12)
+) u_promax_audio_waveform(
     .clk           (video_clk),
     .rst           (rst_video),
-    .audio_valid   (audio_valid),
-    .audio_left    (audio_left_data),
-    .audio_right   (audio_right_data),
-    .bin_magnitude (spec_bin_mag),
-    .spectrum_ready(spec_ready)
-);
-
-// spectrum_layer: 底部 32 条条形图，叠加在 OSD 输出之上
-spectrum_layer u_spectrum_layer(
-    .clk     (video_clk),
-    .de_in   (de_d1),
-    .x       (x_d1),
-    .y       (y_d1),
-    .bg_rgb  (vout_osd),
-    .bin_mag (spec_bin_mag),
-    .rgb_out (vout_spectrum)
-);
-
-// subtitle_scroll: 底部滚动字幕（W10）
-subtitle_scroll u_subtitle_scroll(
-    .clk       (video_clk),
-    .de_in     (de_d2),
-    .x         (x_d2),
-    .y         (y_d2),
-    .bg_rgb    (spectrum_q),
-    .vs_pulse  (vs_rise_v),
-    .enable    (sw[0]),           // SW1 控制字幕开关
-    .rgb_out   (vout_subtitle)
+    .vs_pulse      (vs_rise_v),
+    .de            (de_d1),
+    .pixel_x       (x_d1),
+    .pixel_y       (y_d1),
+    .rgb_in        (vout_color),
+    .enable        (1'b1),
+    .pcm_tap_valid (audio_valid_final),
+    .pcm_tap_left  (audio_left_final[23:8]),
+    .rgb_out       (vout_waveform),
+    .waveform_active()
 );
 
 // color_adjust: 亮度/对比度/色温（SW2-4 调节）
 color_adjust u_color_adjust(
     .clk        (video_clk),
     .rst        (rst_video),
-    .de_in      (de_d3),
-    .rgb_in     (subtitle_q),
+    .de_in      (main_de_al),
+    .rgb_in     (vout_data),
     .contrast   (sw[1] ? 8'd192 : 8'd128),   // SW2: 对比度增强
     .brightness (sw[2] ? 8'sd30 : 8'sd0),    // SW3: 亮度提升
     .color_temp (sw[3] ? 8'sd20 : 8'sd0),    // SW4: 色温偏暖
@@ -1149,11 +1200,11 @@ assign buzzer = ~buzzer_drv;  // 低有效
 // emergency_render: 应急模式下替换视频输出
 emergency_render u_emergency_render(
     .clk            (video_clk),
-    .de_in          (de_d4),
-    .x              (x_d4),
-    .y              (y_d4),
+    .de_in          (de_d3),
+    .x              (x_d3),
+    .y              (y_d3),
     .emergency_mode (emergency_mode),
-    .normal_rgb     (vout_color),
+    .normal_rgb     (vout_osd),
     .rgb_out        (vout_final)
 );
 

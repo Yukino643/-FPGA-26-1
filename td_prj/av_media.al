@@ -469,7 +469,7 @@
                     <Attr Name="CompileOrder" Val="57"/>
                 </FileInfo>
             </File>
-            <File Path="../rtl/video/spectrum_layer.v">
+            <File Path="../rtl/video/promax_audio_waveform.v">
                 <FileInfo>
                     <Attr Name="UsedInSyn" Val="true"/>
                     <Attr Name="UsedInP&R" Val="true"/>

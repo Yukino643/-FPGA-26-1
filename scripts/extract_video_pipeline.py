@@ -7,8 +7,7 @@ start = text.index("reg de_d1, vs_d1;")
 end = text.index("// 缩放完成 toggle", start)
 blocks = [text[start:end]]
 for marker in (
-    "osd_engine u_osd(", "spectrum_layer u_spectrum_layer(",
-    "subtitle_scroll u_subtitle_scroll(", "color_adjust u_color_adjust(",
+    "osd_engine u_osd(", "promax_audio_waveform #(", "color_adjust u_color_adjust(",
     "emergency_render u_emergency_render(",
     "video_rgb_to_axis_640x480 u_video_rgb_to_axis_640x480(",
 ):

@@ -72,9 +72,9 @@ module disp_read_engine #(
                 word_cnt  <= 32'd0;
                 frame_act <= 1'b1;
                 go_pend   <= 1'b0;
-            end
-
-            if (!frame_act) begin
+                // 重启和请求旧页互斥，不能用本拍更新前的 base_r 发首突发。
+                cmd_valid <= 1'b0;
+            end else if (!frame_act) begin
                 cmd_valid <= 1'b0;
             end else if (frame_done && !in_burst) begin
                 frame_act <= 1'b0;                    // 本帧读完，等下一帧

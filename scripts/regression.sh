@@ -76,7 +76,7 @@ run_sim disp_read_engine tb_disp_read_engine.v ../rtl/mem/disp_read_engine.v
 run_sim disp_pixel_format -I ../rtl/video tb_disp_pixel_format.v ../rtl/video/disp_mixer.v
 run_sim video_axis tb_video_axis.v ../rtl/video/video_rgb_to_axis_640x480.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_video_pipeline.py"; then
-run_sim video_pipeline -I ../rtl/video tb_video_pipeline.v ../rtl/video/osd_engine.v ../rtl/video/osd_text_rom.v ../rtl/video/font_rom_cjk.v ../rtl/ctrl/font_rom_ascii.v ../rtl/video/spectrum_layer.v ../rtl/video/subtitle_scroll.v ../rtl/video/color_adjust.v ../rtl/video/emergency_render.v ../rtl/video/video_rgb_to_axis_640x480.v
+run_sim video_pipeline -I ../rtl/video tb_video_pipeline.v ../rtl/video/osd_engine.v ../rtl/video/osd_text_rom.v ../rtl/video/font_rom_cjk.v ../rtl/ctrl/font_rom_ascii.v ../rtl/video/promax_audio_waveform.v ../rtl/video/color_adjust.v ../rtl/video/emergency_render.v ../rtl/video/video_rgb_to_axis_640x480.v
 else
   note_fail "SIM video_pipeline 提取顶层连接失败"
 fi
@@ -99,6 +99,13 @@ run_sim osd       -I ../rtl/video tb_osd.v ../rtl/video/video_timing_gen.v ../rt
 run_sim src_packer tb_src_packer.v ../rtl/sd/src_packer.v
 run_sim wav_read -DSIMULATION tb_wav_read.v ../rtl/audio/wav_read.v
 run_sim audio_player -DSIMULATION tb_audio_player.v ../rtl/audio/audio_player.v ../rtl/mem/afifo_simple.v
+run_sim waveform tb_audio_waveform.v ../rtl/video/promax_audio_waveform.v
+run_sim transition -I ../rtl/video tb_transition_ctrl.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v
+if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_display_commit.py"; then
+run_sim display_commit tb_display_commit.v ../rtl/video/transition_ctrl.v
+else
+  note_fail "SIM display_commit 提取顶层连接失败"
+fi
 echo "[REG][INFO] SIM disp_path 较慢（约 5~8 分钟）..."
 run_sim disp      -DSIMULATION -I ../rtl/video tb_disp_path.v sdram_beh.v ../rtl/mem/mem_mpu.v ../rtl/mem/afifo_simple.v ../rtl/mem/disp_read_engine.v ../rtl/video/video_timing_gen.v ../rtl/video/pixel_pos_gen.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v
 echo "[REG][INFO] SIM scaler 较慢（约 2~3 分钟）..."
