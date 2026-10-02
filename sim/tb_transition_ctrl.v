@@ -1,5 +1,5 @@
 `timescale 1ns/1ps
-// 仅 VS 更新可见状态；覆盖直切、黑帧换页、饱和淡入和两轴揭示。
+// 仅 VS 更新可见状态；覆盖无黑场交叉淡化、横向接缝和两页交接。
 module tb_transition_ctrl;
     reg clk=0, rst=1, vs=0, commit=0, de=1, b_empty=0;
     reg [1:0] buf_idx=1, mode=0;
@@ -27,15 +27,16 @@ module tb_transition_ctrl;
         .b_rd_en(b_re), .b_rd_data({pb,8'd0}), .b_empty(b_empty),
         .tr_active(tr), .fade_black(fade), .alpha(alpha), .boundary(boundary),
         .slide_axis(axis), .rgb(rgb), .underflow_cnt(underflow));
-    function [23:0] faded;
-        input [23:0] pixel;
+    function [23:0] mixed;
+        input [23:0] foreground;
+        input [23:0] background;
         input integer weight;
         reg [7:0] r,g,b;
         begin
-            r=(pixel[23:16]*weight+127)>>8;
-            g=(pixel[15:8]*weight+127)>>8;
-            b=(pixel[7:0]*weight+127)>>8;
-            faded=weight==255 ? pixel : weight==0 ? 24'd0 : {r,g,b};
+            r=(foreground[23:16]*weight+background[23:16]*(255-weight)+127)>>8;
+            g=(foreground[15:8]*weight+background[15:8]*(255-weight)+127)>>8;
+            b=(foreground[7:0]*weight+background[7:0]*(255-weight)+127)>>8;
+            mixed=weight==255 ? foreground : weight==0 ? background : {r,g,b};
         end
     endfunction
     task frame_boundary;
@@ -66,29 +67,23 @@ module tb_transition_ctrl;
                 $fatal(1,"FAIL direct cut %0d",k);
         end
         submit(1,1); frame_boundary;
-        if(!tr || !fade || alpha!=255) $fatal(1,"FAIL fade start");
-        // 淡出到黑不依赖 B FIFO，且输入模式改动不影响已接受的事务。
-        b_empty=1; mode=3; previous=255; frames=0;
+        if(!tr || fade || alpha!=0 || page_a!=0) $fatal(1,"FAIL crossfade start");
+        // B 权重为零时无需 B 数据；输入模式改动不能影响已锁存事务。
+        b_empty=1; mode=3; #1;
+        if(rgb!==pa) $fatal(1,"FAIL unused B FIFO caused black pixel");
+        b_empty=0; previous=0; frames=0;
         while(dut.state==1) begin
             frame_boundary; frames=frames+1;
-            if(alpha>=previous || frames>32 || rgb!==faded(pa,alpha))
-                $fatal(1,"FAIL fade-out monotonic alpha=%0d previous=%0d",alpha,previous);
-            if(alpha!=0 && page_a!=0) $fatal(1,"FAIL page changed before black");
+            if(alpha<=previous || frames>32 || fade || rgb!==mixed(pb,pa,alpha) || rgb==0)
+                $fatal(1,"FAIL crossfade monotonic alpha=%0d previous=%0d",alpha,previous);
+            if(alpha!=255 && page_a!=0) $fatal(1,"FAIL old page changed during blend");
             previous=alpha;
         end
-        if(alpha!=0 || rgb!=0 || page_a!=21'h80000 || !hold_load)
-            $fatal(1,"FAIL black page switch");
+        if(alpha!=255 || rgb!==pb || page_a!=21'h80000 || !hold_load)
+            $fatal(1,"FAIL crossfade settle");
         frame_boundary;
-        if(alpha!=0 || !fade) $fatal(1,"FAIL black dwell");
-        previous=0; frames=0;
-        while(tr) begin
-            frame_boundary; frames=frames+1;
-            if(alpha<=previous || frames>32 || rgb!==faded(pa,alpha))
-                $fatal(1,"FAIL fade-in saturation alpha=%0d previous=%0d",alpha,previous);
-            previous=alpha;
-        end
-        if(alpha!=255 || hold_load || underflow!=0) $fatal(1,"FAIL fade completion");
-        repeat(3) begin frame_boundary; if(rgb!==pa) $fatal(1,"FAIL fade flashed after complete"); end
+        if(tr || alpha!=255 || hold_load || underflow!=0) $fatal(1,"FAIL crossfade completion");
+        repeat(3) begin frame_boundary; if(rgb!==pa) $fatal(1,"FAIL crossfade flashed after complete"); end
         b_empty=0;
         for(k=2;k<=3;k=k+1) begin
             submit(k==2 ? 0 : 1,k); frame_boundary;
@@ -96,19 +91,24 @@ module tb_transition_ctrl;
                 $fatal(1,"FAIL reveal start");
             frame_boundary;
             x=0; y=0; #1;
-            if(rgb!==pb) $fatal(1,"FAIL reveal leading pixels");
-            x=100; y=100; #1;
-            if(rgb!==pa) $fatal(1,"FAIL reveal trailing pixels");
+            if(rgb!==pa) $fatal(1,"FAIL slide leading pixels");
+            x=639; y=479; #1;
+            if(rgb!==pb) $fatal(1,"FAIL slide inserted pixels");
+            x=640-boundary-1; y=480-boundary-1; #1;
+            if(rgb!==pa) $fatal(1,"FAIL old side of seam");
+            x=640-boundary; y=480-boundary; #1;
+            if(rgb!==pb) $fatal(1,"FAIL new side of seam");
             frames=1;
-            while(dut.state==4) begin
+            while(dut.state==2) begin
                 frame_boundary; frames=frames+1;
-                if(frames>20) $fatal(1,"FAIL reveal timeout");
+                if(frames>40 || fade || rgb==0) $fatal(1,"FAIL slide timeout/black");
             end
             if(rgb!==pb || alpha!=255 || axis!=0 || !hold_load)
                 $fatal(1,"FAIL reveal settle frame");
             frame_boundary;
             if(tr || hold_load || rgb!==pa || pa!==pb) $fatal(1,"FAIL reveal completion");
         end
+        // 交接时 alpha=255 完全依赖 B；空 A 不能产生误报或黑像素。
         de=0; #1;
         if(rgb!=0 || a_re || b_re) $fatal(1,"FAIL blanking");
         $display("TB_TRANSITION_CTRL PASS"); $finish;

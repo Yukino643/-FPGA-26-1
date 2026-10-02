@@ -1,9 +1,9 @@
 // disp_mixer.v — 双页显示混合器（video_clk 域，计划书 5.2.4）
 // 消费两路行预取 FIFO；DE 期间每拍必出一像素：
 //   非转场: 直通 A
-//   淡入淡出: A 页乘亮度，中间黑帧换页
-//   滑动: 边界前取 B，边界前 16px 软边渐变
-// 下溢检测: de 期间 FIFO 空则计黑并累加 underflow_cnt（供监视台 W10）
+//   淡入淡出: A/B 页交叉混合（不经过黑帧）
+//   推移: 两流逐行循环位移后，左侧旧图、右侧新图无缝拼接
+// 下溢仍显式计数；不能用错误源列掩盖读流丢拍。
 module disp_mixer(
     input  wire        clk,
     input  wire        rst,
@@ -22,8 +22,8 @@ module disp_mixer(
 
     // 转场控制（transition_ctrl）
     input  wire        tr_active,
-    input  wire        fade_black,    // 淡出到黑/淡入：只使用 A 页亮度
-    input  wire [7:0]  alpha,          // 淡出到黑时为 A 亮度；揭示沉降帧为 B 权重
+    input  wire        fade_black,    // 兼容旧模式；当前默认转场不使用黑场
+    input  wire [7:0]  alpha,          // 淡变模式中 B 页权重
     input  wire [9:0]  boundary,       // SLIDE: 边界
     input  wire [1:0]  slide_axis,     // 0 无 1 左(按x) 2 上(按y)
 
@@ -39,39 +39,33 @@ module disp_mixer(
     assign a_rd_en = pop_a;
     assign b_rd_en = pop_b;
 
-    wire a_droppd = de_al && a_empty;
-    wire b_droppd = de_al && tr_active && !fade_black && b_empty;
-
     // SDRAM 页与学长的 TF→HDMI 例程一致，RGB 位于 [31:8]，低字节留空。
     wire [23:0] pa = a_rd_data[31:8];
     wire [23:0] pb = b_rd_data[31:8];
 
-    // 滑动软边 α: 距边界 16px 内线性 0→255
-    wire in_slide_x = (slide_axis == 2'd1);
-    wire in_slide_y = (slide_axis == 2'd2);
-    wire [9:0] pos   = in_slide_y ? {1'b0, y} : x;
-    wire [9:0] dist = (pos < boundary) ? (boundary - pos) : 10'd0;
-    wire [8:0] alpha_slide = (dist >= 10'd16) ? 9'd256 :
-                             {1'b0, dist[3:0], 4'b0000};
-
-    wire [7:0] a_eff = (slide_axis != 2'd0) ? (alpha_slide[8] ? 8'd255 : alpha_slide[7:0])
-                                          : alpha;
-
-    wire use_b   = tr_active && !a_droppd && !b_droppd;
+    wire horizontal = (slide_axis == 2'd1);
+    wire vertical = (slide_axis == 2'd2);
+    // 接缝两边来自两图不同源列，禁止用软边混合制造重影。
+    wire select_b = horizontal ? ({1'b0,x} >= 11'd640 - {1'b0,boundary}) :
+                    vertical ? ({2'b0,y} >= 11'd480 - {1'b0,boundary}) : 1'b0;
+    wire [7:0] a_eff = (horizontal || vertical) ? (select_b ? 8'd255 : 8'd0) : alpha;
+    wire need_a = !tr_active || fade_black || a_eff != 255;
+    wire need_b = tr_active && !fade_black && a_eff != 0;
+    wire missing = de_al && ((need_a && a_empty) || (need_b && b_empty));
     // α=0/255 快速直通: 免乘法且结果精确（255 混合有 (fg*255+127)>>8 的 -1 舍入）
     wire [23:0] blended = (a_eff == 8'd255) ? pb :
                           (a_eff == 8'd0)   ? pa :
                           blend_pix(pb, pa, a_eff);
     wire [23:0] faded = (alpha == 8'd255) ? pa :
                         (alpha == 8'd0) ? 24'd0 : blend_pix(pa, 24'd0, alpha);
-    wire [23:0] mixed = fade_black ? faded : (use_b ? blended : pa);
-    wire [23:0] out_c = (a_droppd || (tr_active && b_droppd)) ? 24'd0 : mixed;
+    wire [23:0] mixed = fade_black ? faded : (tr_active ? blended : pa);
+    wire [23:0] out_c = missing ? 24'd0 : mixed;
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             underflow_cnt <= 32'd0;
         end else begin
-            if (a_droppd || (tr_active && b_droppd))
+            if (missing)
                 underflow_cnt <= underflow_cnt + 32'd1;
         end
     end

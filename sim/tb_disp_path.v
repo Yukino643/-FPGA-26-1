@@ -1,12 +1,21 @@
 // tb_disp_path.v — W5 显示读出全路径仿真
 // 链路: sdram_beh → mem_mpu → 2×disp_read_engine → 2×afifo_simple → disp_mixer
 //       ← transition_ctrl ← 视频时序(video_timing_gen+pixel_pos_gen)
-// 检查: 页0→页1→页0→页1直切，每次换页第一帧全像素及地址顺序必须正确。
-// 端点饱和及黑帧淡入淡出由 tb_transition_ctrl 单独覆盖。
+// 检查直切、实际横向位移和交叉淡化；参考地址模型逐像素检查页交接与欠载。
 `timescale 1ns/1ps
-module tb_disp_path;
+module tb_disp_path #(
+    parameter TEST_ANIMATION = 0,
+    parameter ANIM_SLIDE_STEP = 128
+);
 
-    localparam FRAME_WORDS = 307200;
+    // 动画集成用例保留真实 640 列及 45 行消隐，减少活动行以加速多帧交接检查。
+    localparam ACTIVE_ROWS = TEST_ANIMATION ? 8 : 480;
+    localparam FRAME_WORDS = 640*ACTIVE_ROWS;
+    localparam SLIDE_FRAMES = (640+ANIM_SLIDE_STEP-1)/ANIM_SLIDE_STEP;
+    localparam BLEND_FRAMES = 4;
+    localparam SLIDE_SPAN = SLIDE_FRAMES+3;
+    localparam BLEND_SPAN = BLEND_FRAMES+3;
+    localparam FINAL_FRAME = TEST_ANIMATION ? 2+2*SLIDE_SPAN+2*BLEND_SPAN : 8;
     localparam PAGE0 = 21'h0_0000;
     localparam PAGE1 = 21'h8_0000;
     // 地址编码像素能检出重复、丢字和跨行错位，纯灰页无法覆盖这些缺陷。
@@ -42,7 +51,7 @@ module tb_disp_path;
     wire hs, vs, de_t;
     wire [9:0] tx; wire [8:0] ty;
     video_timing_gen #(.HTOTAL(800),.HSA(96),.HFP(16),.HBP(48),.HACTIVE(640),
-                       .VTOTAL(525),.VSA(2),.VFP(10),.VBP(33),.VACTIVE(480))
+                       .VTOTAL(ACTIVE_ROWS+45),.VSA(2),.VFP(10),.VBP(33),.VACTIVE(ACTIVE_ROWS))
     u_timing(.I_clk(clk25), .I_rst(rst), .O_hs(hs), .O_vs(vs), .O_de(de_t), .O_x(tx), .O_y(ty));
 
     wire de_al; wire [9:0] px; wire [8:0] py; wire [31:0] fc;
@@ -56,20 +65,22 @@ module tb_disp_path;
     // ---- 转场控制 ----
     reg         commit_toggle = 0;
     reg  [1:0]  commit_buf = 2'd1;
+    reg  [1:0]  mode = 0;
     wire        tr_active, fade_black, page_upd_a, page_upd_b, hold_load;
     wire [7:0]  alpha;
     wire [9:0]  boundary;
     wire [1:0]  slide_axis;
     wire [20:0] page_a_base, page_b_base;
+    wire [9:0]  display_scroll_x = (slide_axis == 2'd1) ? boundary : 10'd0;
 
-    localparam ALPHA_STEP = 8'd32;   // 快单元测试另行覆盖淡入淡出
+    localparam ALPHA_STEP = 8'd64;
 
     transition_ctrl #(
-        .PAGE0_BASE(PAGE0), .PAGE1_BASE(PAGE1), .ALPHA_STEP(ALPHA_STEP)
+        .PAGE0_BASE(PAGE0), .PAGE1_BASE(PAGE1), .ALPHA_STEP(ALPHA_STEP), .SLIDE_STEP(ANIM_SLIDE_STEP)
     ) u_tr(
         .clk(clk25), .rst(rst), .vs_rise(vs_rise), .x(px), .y(py),
         .commit_toggle(commit_toggle), .commit_buf(commit_buf),
-        .tr_mode(2'd0),
+        .tr_mode(mode),
         .tr_active(tr_active), .fade_black(fade_black), .alpha(alpha), .boundary(boundary),
         .slide_axis(slide_axis),
         .page_a_base(page_a_base), .page_b_base(page_b_base),
@@ -104,7 +115,7 @@ module tb_disp_path;
     wire [20:0] wr_addr_w = 21'd0;
     wire [31:0] wr_data_w = 32'd0;
 
-    mem_mpu #(.MAX_A_RUN(2)) u_mpu(
+    mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mpu(
         .clk(clk125), .rst(rst),
         .A_cmd_valid(A_cv), .A_cmd_addr(A_ca), .A_cmd_len(A_cl), .A_cmd_ready(A_cr),
         .A_rsp_valid(A_rv), .A_rsp_data(A_rd), .A_rsp_last(A_rl),
@@ -145,16 +156,18 @@ module tb_disp_path;
         .rd_clk(clk25), .rd_rst(rst), .rd_en(b_re), .rd_data(b_dd), .rd_empty(b_e), .rd_usedw(b_ru)
     );
 
-    disp_read_engine #(.HIGH_WATER(256)) u_eng_a(
+    disp_read_engine #(.HIGH_WATER(256), .FRAME_WORDS(FRAME_WORDS), .ENABLE_SCROLL(1)) u_eng_a(
         .clk(clk125), .rst(rst),
         .vs_toggle(go_toggle), .page_base(base_a_sync2),
+        .scroll_x(display_scroll_x),
         .fifo_we(a_we), .fifo_wdata(a_wd), .fifo_wusedw(a_wu),
         .cmd_valid(A_cv), .cmd_addr(A_ca), .cmd_len(A_cl), .cmd_ready(A_cr),
         .rsp_valid(A_rv), .rsp_data(A_rd), .rsp_last(A_rl)
     );
-    disp_read_engine #(.HIGH_WATER(256)) u_eng_b(
+    disp_read_engine #(.HIGH_WATER(256), .FRAME_WORDS(FRAME_WORDS), .ENABLE_SCROLL(1)) u_eng_b(
         .clk(clk125), .rst(rst),
         .vs_toggle(go_toggle), .page_base(base_b_sync2),
+        .scroll_x(display_scroll_x),
         .fifo_we(b_we), .fifo_wdata(b_wd), .fifo_wusedw(b_wu),
         .cmd_valid(B_cv), .cmd_addr(B_ca), .cmd_len(B_cl), .cmd_ready(B_cr),
         .rsp_valid(B_rv), .rsp_data(B_rd), .rsp_last(B_rl)
@@ -183,9 +196,20 @@ module tb_disp_path;
     integer frames_seen=0, checked_pixels=0, checked_frames=0, err=0;
     reg expected_page=0, next_page=0, request_pending=0;
     reg [23:0] expected;
+    integer ref_phase=0, ref_progress=0, source_index, ref_weight;
+    reg ref_old=0, ref_new=1;
     always @(posedge clk25) begin
         if(de_al && frames_seen>0) begin
-            expected=expected_page ? pattern_b(py*640+px) : pattern_a(py*640+px);
+            if (TEST_ANIMATION) begin
+                source_index=py*640+((px+((mode==2 && ref_phase==1) ? ref_progress : 0))%640);
+                if(ref_phase==1 && mode==2)
+                    expected=(px>=640-ref_progress ? ref_new : ref_old) ? pattern_b(source_index) : pattern_a(source_index);
+                else if(ref_phase==1 && mode==1) begin
+                    ref_weight=ref_old ? 255-ref_progress : ref_progress;
+                    expected=expected_mix(source_index,ref_weight);
+                end else
+                    expected=expected_page ? pattern_b(source_index) : pattern_a(source_index);
+            end else expected=expected_page ? pattern_b(py*640+px) : pattern_a(py*640+px);
             if(mix_rgb !== expected) begin
                 if(err<8) $display("FAIL pixel frame=%0d x=%0d y=%0d got=%h expected=%h page=%0d",
                     frames_seen,px,py,mix_rgb,expected,expected_page);
@@ -200,7 +224,18 @@ module tb_disp_path;
                 $display("CHK frame %0d page=%0d pixels=%0d",frames_seen,expected_page,checked_pixels);
             end
             checked_pixels=0;
-            if(request_pending) begin expected_page=next_page; request_pending=0; end
+            // 参考模型按外部请求推进，禁止从 DUT 页基址/alpha 反推结果。
+            if(TEST_ANIMATION) begin
+                if(request_pending) begin
+                    ref_old=expected_page; ref_new=next_page;
+                    ref_phase=1; ref_progress=0; request_pending=0;
+                end else if(ref_phase==1) begin
+                    ref_progress=ref_progress+((mode==2) ? ANIM_SLIDE_STEP : 64);
+                    if(ref_progress>=((mode==2) ? 640 : 255)) begin
+                        ref_progress=255; expected_page=ref_new; ref_phase=2;
+                    end
+                end else if(ref_phase==2) ref_phase=0;
+            end else if(request_pending) begin expected_page=next_page; request_pending=0; end
             frames_seen=frames_seen+1;
         end
     end
@@ -219,15 +254,23 @@ module tb_disp_path;
     initial begin
         #200; @(negedge clk25); rst=0;
         wait(frames_seen==2);
-        submit_page(1); wait(frames_seen==4);
-        submit_page(0); wait(frames_seen==6);
-        submit_page(1); wait(frames_seen==8);
+        if(TEST_ANIMATION) begin
+            mode=2; submit_page(1); wait(frames_seen==2+SLIDE_SPAN);
+            mode=2; submit_page(0); wait(frames_seen==2+2*SLIDE_SPAN);
+            mode=1; submit_page(1); wait(frames_seen==2+2*SLIDE_SPAN+BLEND_SPAN);
+            mode=1; submit_page(0); wait(frames_seen==FINAL_FRAME);
+        end else begin
+            submit_page(1); wait(frames_seen==4);
+            submit_page(0); wait(frames_seen==6);
+            submit_page(1); wait(frames_seen==8);
+        end
         #1000;
         // 只豁免启动时尚无 VS 预取的第一帧，此后不允许增加下溢。
         if(ufl!=FRAME_WORDS) $fatal(1,"FAIL underflow=%0d expected=%0d",ufl,FRAME_WORDS);
-        if(err!=0 || checked_frames!=7) $fatal(1,"FAIL frames=%0d pixel_errors=%0d",checked_frames,err);
+        if(err!=0 || checked_frames!=FINAL_FRAME-1) $fatal(1,"FAIL frames=%0d pixel_errors=%0d",checked_frames,err);
         $display("TB_DISP_PATH PASS frames=%0d exact_pixels=%0d",checked_frames,checked_frames*FRAME_WORDS);
         $finish;
     end
-    initial begin #150000000; $fatal(1,"FAIL display path timeout"); end
+    // 默认 16px 步进需要 40 帧；超时随测试帧数扩展，保留四帧收尾余量。
+    initial begin #((FINAL_FRAME+4)*800*(ACTIVE_ROWS+45)*40); $fatal(1,"FAIL display path timeout"); end
 endmodule

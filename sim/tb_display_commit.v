@@ -30,7 +30,7 @@ module tb_display_commit;
     initial begin
         repeat(4) @(negedge video_clk); rst_video=0; rst_sd=0;
         for(k=0;k<8;k=k+1) begin
-            @(negedge sd_card_clk); write_buf_idx=k%2; tr_mode_reg=(k==3) ? 0 : 1;
+            @(negedge sd_card_clk); write_buf_idx=k%2; tr_mode_reg=k%4;
             // 页号从装载开始到视频确认一直稳定。
             repeat(8) @(negedge video_clk);
             #7; scaler_done_toggle=~scaler_done_toggle;

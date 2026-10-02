@@ -176,7 +176,7 @@ reset_sync u_rst_mem   (.clk(ext_mem_clk), .arst(reset_request), .rst(rst_mem));
 reset_sync u_rst_video (.clk(video_clk),   .arst(reset_request), .rst(rst_video));
 
 // W10: 物理 KEY4 短按切换转场；同一按键长按由 emergency_ctrl 触发应急。
-reg [1:0] tr_mode_reg = 2'd1;   // 默认课程淡入淡出；KEY4短按可循环切换效果
+reg [1:0] tr_mode_reg = 2'd2;   // 默认旧图左移、新图从右进入；KEY4短按循环效果
 reg       key3_meta, key3_sync, key3_prev;
 reg [19:0] key3_cnt;
 always @(posedge sd_card_clk or posedge rst_sd) begin
@@ -185,7 +185,7 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
         key3_sync <= 1'b1;
         key3_prev <= 1'b1;
         key3_cnt  <= 20'd0;
-        tr_mode_reg <= 2'd1;
+        tr_mode_reg <= 2'd2;
     end else begin
         key3_meta <= key3;
         key3_sync <= key3_meta;
@@ -547,11 +547,13 @@ wire [7:0]  tr_alpha;
 wire [9:0]  tr_boundary;
 wire [1:0]  tr_slide_axis;
 wire [20:0] page_a_base, page_b_base;
+wire [9:0]  display_scroll_x = (tr_slide_axis == 2'd1) ? tr_boundary : 10'd0;
 
 transition_ctrl #(
     .PAGE0_BASE (21'h0_0000),
     .PAGE1_BASE (21'h8_0000),
-    .ALPHA_STEP (8'd16)
+    .ALPHA_STEP (8'd8),
+    .SLIDE_STEP (10'd16)
 ) u_transition(
     .clk           (video_clk),
     .rst           (rst_video),
@@ -653,11 +655,12 @@ always @(posedge ext_mem_clk or posedge rst_mem) begin
     end
 end
 
-disp_read_engine u_eng_a(
+disp_read_engine #(.ENABLE_SCROLL(1)) u_eng_a(
     .clk         (ext_mem_clk),
     .rst         (rst_mem),
     .vs_toggle   (vs_toggle_r),
     .page_base   (page_a_sync2_mem),
+    .scroll_x    (display_scroll_x),
     .fifo_we     (fa_we),
     .fifo_wdata  (fa_wd),
     .fifo_wusedw (fa_wu),
@@ -669,11 +672,12 @@ disp_read_engine u_eng_a(
     .rsp_data    (mpu_A_rd),
     .rsp_last    (mpu_A_rl)
 );
-disp_read_engine u_eng_b(
+disp_read_engine #(.ENABLE_SCROLL(1)) u_eng_b(
     .clk         (ext_mem_clk),
     .rst         (rst_mem),
     .vs_toggle   (vs_toggle_r),
     .page_base   (page_b_sync2_mem),
+    .scroll_x    (display_scroll_x),
     .fifo_we     (fb_we),
     .fifo_wdata  (fb_wd),
     .fifo_wusedw (fb_wu),

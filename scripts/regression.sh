@@ -73,6 +73,7 @@ check_generated
 run_sim afifo_boundary -DSIMULATION tb_afifo_boundary.v ../rtl/mem/afifo_simple.v
 run_sim afifo_fwft -DSIMULATION tb_afifo_fwft.v ../rtl/mem/afifo_simple.v
 run_sim disp_read_engine tb_disp_read_engine.v ../rtl/mem/disp_read_engine.v
+run_sim disp_scroll tb_disp_scroll.v ../rtl/mem/disp_read_engine.v
 run_sim disp_pixel_format -I ../rtl/video tb_disp_pixel_format.v ../rtl/video/disp_mixer.v
 run_sim video_axis tb_video_axis.v ../rtl/video/video_rgb_to_axis_640x480.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_video_pipeline.py"; then
@@ -108,6 +109,7 @@ else
 fi
 echo "[REG][INFO] SIM disp_path 较慢（约 5~8 分钟）..."
 run_sim disp      -DSIMULATION -I ../rtl/video tb_disp_path.v sdram_beh.v ../rtl/mem/mem_mpu.v ../rtl/mem/afifo_simple.v ../rtl/mem/disp_read_engine.v ../rtl/video/video_timing_gen.v ../rtl/video/pixel_pos_gen.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v
+run_sim disp_animation -DSIMULATION -Ptb_disp_path.TEST_ANIMATION=1 -I ../rtl/video tb_disp_path.v sdram_beh.v ../rtl/mem/mem_mpu.v ../rtl/mem/afifo_simple.v ../rtl/mem/disp_read_engine.v ../rtl/video/video_timing_gen.v ../rtl/video/pixel_pos_gen.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v
 echo "[REG][INFO] SIM scaler 较慢（约 2~3 分钟）..."
 run_sim scaler    -DSIMULATION tb_scaler.v ../rtl/video/scaler.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_scaler_block.py"; then

@@ -3,6 +3,7 @@
 数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 伪双端口帧缓存 → 多图层 alpha 合成 → 双 HDMI 异显（主通道广告内容 / 副通道监视台），并提供 WAV/警笛音频、Goertzel 频谱和帧边界应急切换。
 
 - 平台：HX4S20C 开发板（EG4S20BG256，TD 6.2.1）
+- 当前显示：连续 PCM 曲线；默认旧图左移、新图从右侧进入，可选双页交叉淡化，详见 [2026-10-03 改进记录](docs/连续波形与无黑场转场-20261003.md)。
 - 实施计划：[docs/计划书-基于EG4S20的HDMI多媒体播放系统.md](docs/计划书-基于EG4S20的HDMI多媒体播放系统.md)
 - 参考工程：`D:\FPGA\ref\lab_ex5_i2s`（官方赛题样例，自 `D:\FPGA\HX4S20_Contest_202606\7_lab_ex_2026_nosoft` 解压）
 
@@ -37,8 +38,8 @@ docs\          计划书 / 设计说明书 / 测试报告
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-10-01，修复 D3 照片揭示的 SDRAM 链路问题）：basic 28/28、full 29/29、独立 `check_reports.py` fails=0；bit 生成于 18:23:35，643592B，SHA256 `0061a2d8b2fe6adaddd15724abde7cb1328c8103d39a53efec0c1fc4b31e65ab`。LUT16025/19600（81.76%）、BRAM9K46/64（71.9%），SWNS=-6.565ns、HWNS=+0.022ns。setup 仍有负余量；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
-- D3 照片 `WR/SCALE=01/4C` 显示 scaler 在 S_FDA 等待 C 口命令接受。已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`。行为级测试通过；仍需下载新 bit 做板级验证。
+- 当前构建（2026-10-03）：连续 PCM 曲线、默认双页横向推移、可选无黑场交叉淡化；完整验证、bit 哈希、资源和时序见 [PROGRESS 8.30](docs/PROGRESS.md#830-2026-10-03-连续-pcm-曲线与无黑场双页转场)。setup 仍有负余量，板级效果需下载本轮 bit 确认。
+- 历史修复（2026-10-01）：D3 照片 `WR/SCALE=01/4C` 对应 scaler 等待 C 口命令接受，已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
 
 ## 回归门（每轮改动后必跑）
 
@@ -47,7 +48,7 @@ bash scripts/regression.sh          # 模块/通路仿真 + 生成物同步 + �
 bash scripts/regression.sh --full   # 上述 + 从当前源码重新全编译出 bit
 ```
 
-检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和真实顶层缩放连接仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前完整回归为 27/27 PASS。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
+检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和真实顶层缩放连接仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前基础/完整回归结果以最新 [PROGRESS](docs/PROGRESS.md) 及构建清单为准。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
 
 ## 状态
 
@@ -79,7 +80,7 @@ bash scripts/regression.sh --full   # 上述 + 从当前源码重新全编译出
 - [x] W5 转场引擎（纯软件完成）：
   - `rtl/mem/afifo_simple.v` — 自研异步 FIFO（Cummings 灰码指针；注意: 空/满判定必须用未门控使能的 next 指针，否则构成组合环，TD 优化器直接终止综合）
   - `rtl/mem/disp_read_engine.v` — 帧门控行预取引擎 ×2（mem_mpu 的 A/B 请求方；帧同步走"挂起-突发收尾后应用"，绝不打断突发）
-  - `rtl/video/transition_ctrl.v` — 转场状态机：淡入淡出(32帧)/滑动左/滑动上 + **沉降期**（完成后再以 α=255 混一帧，消除提交边界残留旧页数据带）
+  - `rtl/video/transition_ctrl.v` — 当前转场：双页交叉淡化(32步)/横向推移(40步)/纵向揭示 + **沉降期**（完成后目标 B 输出一帧，再交回已预取的 A）
   - `rtl/video/disp_mixer.v` — 双流混合器（α=0/255 快速直通精确无舍入；下溢计数供监视台）
   - 顶层：主通道读出路径整体切换为新管线；显示双缓冲钉 bank0/bank1（`BUF1=0x80000`）；装载器加 `hold_load` 转场互斥
   - `sim/tb_disp_path.v` — **全路径仿真**（行为级 SDRAM 带存储）：直通帧/中点混合帧/转场后帧三帧 307,200 像素逐位精确 PASS
