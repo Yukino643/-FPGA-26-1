@@ -3,7 +3,7 @@
 module transition_ctrl #(
     parameter [20:0] PAGE0_BASE = 21'h0_0000,
     parameter [20:0] PAGE1_BASE = 21'h8_0000,
-    parameter [7:0] ALPHA_STEP = 8'd8,
+    parameter [7:0] ALPHA_STEP = 8'd16,
     parameter [9:0] SOFT_EDGE = 10'd16
 )(
     input wire clk, rst, vs_rise,

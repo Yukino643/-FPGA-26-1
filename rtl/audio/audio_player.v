@@ -13,6 +13,7 @@ module audio_player #(
     input  wire [15:0] pcm_right,
     input  wire        vs_pulse,
     output reg         audio_valid,
+    output reg         sample_data_valid,
     output reg  [23:0] audio_left,
     output reg  [23:0] audio_right,
     output reg signed [15:0] sync_dev,
@@ -64,10 +65,12 @@ module audio_player #(
             frame_cnt        <= 32'd0;
             sync_dev         <= 16'sd0;
             audio_valid      <= 1'b0;
+            sample_data_valid <= 1'b0;
             audio_left       <= 24'd0;
             audio_right      <= 24'd0;
         end else begin
             audio_valid <= 1'b0;
+            sample_data_valid <= 1'b0;
 
             if (vs_pulse) begin
                 frame_cnt        <= frame_cnt + 32'd1;
@@ -80,6 +83,7 @@ module audio_player #(
                 sample_cnt       <= sample_cnt + 32'd1;
                 samples_in_frame <= samples_in_frame + 16'd1;
                 if (!fifo_rd_empty) begin
+                    sample_data_valid <= 1'b1;
                     audio_left  <= {fifo_rd_data[15:0], 8'd0};
                     audio_right <= {fifo_rd_data[31:16], 8'd0};
                 end else begin

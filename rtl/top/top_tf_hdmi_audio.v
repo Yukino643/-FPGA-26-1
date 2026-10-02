@@ -95,6 +95,8 @@ wire de_0;
 wire        sys_pll_lock;
 wire        video_pll_lock;
 wire        audio_valid;
+wire        audio_sample_data_valid;
+wire        waveform_pcm_valid;
 wire [23:0] audio_left_data;
 wire [23:0] audio_right_data;
 wire        acr_valid;
@@ -174,7 +176,7 @@ reset_sync u_rst_mem   (.clk(ext_mem_clk), .arst(reset_request), .rst(rst_mem));
 reset_sync u_rst_video (.clk(video_clk),   .arst(reset_request), .rst(rst_video));
 
 // W10: 物理 KEY4 短按切换转场；同一按键长按由 emergency_ctrl 触发应急。
-reg [1:0] tr_mode_reg = 2'd0;   // 默认帧边界直切；KEY4短按可循环切换效果
+reg [1:0] tr_mode_reg = 2'd1;   // 默认课程淡入淡出；KEY4短按可循环切换效果
 reg       key3_meta, key3_sync, key3_prev;
 reg [19:0] key3_cnt;
 always @(posedge sd_card_clk or posedge rst_sd) begin
@@ -183,7 +185,7 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
         key3_sync <= 1'b1;
         key3_prev <= 1'b1;
         key3_cnt  <= 20'd0;
-        tr_mode_reg <= 2'd0;
+        tr_mode_reg <= 2'd1;
     end else begin
         key3_meta <= key3;
         key3_sync <= key3_meta;
@@ -549,7 +551,7 @@ wire [20:0] page_a_base, page_b_base;
 transition_ctrl #(
     .PAGE0_BASE (21'h0_0000),
     .PAGE1_BASE (21'h8_0000),
-    .ALPHA_STEP (8'd8)
+    .ALPHA_STEP (8'd16)
 ) u_transition(
     .clk           (video_clk),
     .rst           (rst_video),
@@ -961,6 +963,7 @@ audio_player u_audio_player(
     .pcm_right    (wav_pcm_right),
     .vs_pulse     (vs_rise_v),
     .audio_valid  (audio_valid),
+    .sample_data_valid (audio_sample_data_valid),
     .audio_left   (audio_left_data),
     .audio_right  (audio_right_data),
     .sync_dev     (sync_dev_real),   // W10: 接监视台
@@ -1148,10 +1151,10 @@ osd_engine u_osd(
 );
 
 // ===================== 老师第十二讲：PCM 时域波形 =====================
-// 每 12 个 PCM 样本抽取一个，32 点写入 ping-pong 缓冲；只在 VS 边界
-// 发布完整采样组，避免波形读写同一 bank 造成撕裂。
+// 每 120 个 PCM 样本抽取一个，32 点覆盖约 80 ms 音频；采集可跨帧继续，
+// 只在 VS 边界发布完整采样组，避免波形读写同一 bank 造成撕裂。
 promax_audio_waveform #(
-    .WAVE_X      (64), .WAVE_Y(384), .WAVE_WIDTH(512), .WAVE_HEIGHT(64), .DECIMATE(12)
+    .WAVE_X      (64), .WAVE_Y(376), .WAVE_WIDTH(512), .WAVE_HEIGHT(72), .DECIMATE(120)
 ) u_promax_audio_waveform(
     .clk           (video_clk),
     .rst           (rst_video),
@@ -1161,7 +1164,7 @@ promax_audio_waveform #(
     .pixel_y       (y_d1),
     .rgb_in        (vout_color),
     .enable        (1'b1),
-    .pcm_tap_valid (audio_valid_final),
+    .pcm_tap_valid (waveform_pcm_valid),
     .pcm_tap_left  (audio_left_final[23:8]),
     .rgb_out       (vout_waveform),
     .waveform_active()
@@ -1226,6 +1229,8 @@ siren_gen u_siren_gen(
 assign audio_valid_final = emergency_mode ? siren_valid : audio_valid;
 assign audio_left_final  = emergency_mode ? siren_left  : audio_left_data;
 assign audio_right_final = emergency_mode ? siren_right : audio_right_data;
+// HDMI 包节拍包含 FIFO 空时的静音；波形采集只接受真实 PCM 样本事件。
+assign waveform_pcm_valid = emergency_mode ? siren_valid : audio_sample_data_valid;
 
 wire mon_hs, mon_vs, mon_de;
 wire [9:0]  mon_x;

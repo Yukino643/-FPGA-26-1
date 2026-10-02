@@ -14,6 +14,7 @@ module tb_video_pipeline;
     wire [1:0] mode_v1=1;
     wire audio_valid_final=0;
     wire [23:0] audio_left_final=0;
+    wire waveform_pcm_valid=0;
     wire vs_rise_v=0, emergency_mode=0;
     wire [3:0] sw=0;
     `include "reg_video_pipeline.vh"

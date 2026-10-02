@@ -1,4 +1,5 @@
 // 参考老师第十二讲 promax_audio_waveform.v：抽取、32点双缓冲、帧边界交换。
+// 采集窗口跨视频帧保持，避免 32 点只覆盖几毫秒导致波形快速扫动。
 // 适配当前链路的正极性 VS 事件和显式 y 坐标；每个样本保持一段水平线。
 module promax_audio_waveform #(
     parameter integer WAVE_X = 64,
@@ -36,19 +37,18 @@ module promax_audio_waveform #(
             capture_count <= 0; decimate_count <= 0;
             peak_bank0 <= 0; peak_bank1 <= 0; display_peak <= 0;
         end else if (vs_pulse) begin
-            // 沿用老师例程：仅完整的 32 点采样组可在帧边界发布。
+            // 仅完整的 32 点采样组可在帧边界发布；未采满时保留采集状态跨帧继续。
             if (capture_count == SAMPLE_COUNT) begin
                 display_bank <= write_bank;
                 display_valid <= 1;
                 display_peak <= write_bank ? peak_bank1 : peak_bank0;
                 write_bank <= ~write_bank;
+                capture_count <= 0;
+                decimate_count <= 0;
+                // 清理下一组将写入 bank 的峰值累积器。
+                if (write_bank) peak_bank0 <= 0;
+                else peak_bank1 <= 0;
             end
-            // 每帧重新开始采集；未完成的部分组丢弃，显示 bank 保持不变。
-            capture_count <= 0;
-            decimate_count <= 0;
-            // 清理下一帧将写入 bank 的峰值累积器。
-            if (write_bank) peak_bank0 <= 0;
-            else peak_bank1 <= 0;
         end else if (pcm_tap_valid && capture_count < SAMPLE_COUNT) begin
             if (decimate_count == 0) begin
                 if (write_bank) sample_bank1[capture_count[4:0]] <= pcm_tap_left[15:8];
@@ -72,7 +72,8 @@ module promax_audio_waveform #(
                                         display_bank ? sample_bank1[sample_index] : sample_bank0[sample_index];
     wire signed [SAMPLE_BITS-1:0] sample_ext = {{2{selected_sample[7]}}, selected_sample};
     // 和老师例程一样使用有符号除法；负值向零取整，不用算术移位改变曲线偏置。
-    wire signed [SAMPLE_BITS-1:0] offset_raw = sample_ext / 4;
+    // 提高显示增益；输出窗口保留两像素边距并对超范围样本饱和裁剪。
+    wire signed [SAMPLE_BITS-1:0] offset_raw = sample_ext / 2;
     // 负满幅 -128 也保留两像素边距，避免曲线越出窗口盖住右下时钟。
     wire signed [SAMPLE_BITS-1:0] offset_clipped = (offset_raw > MAX_OFFSET) ? MAX_OFFSET :
                                         (offset_raw < -MAX_OFFSET) ? -MAX_OFFSET : offset_raw;

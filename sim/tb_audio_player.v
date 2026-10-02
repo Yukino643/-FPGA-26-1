@@ -11,7 +11,7 @@ module tb_audio_player;
     reg         pcm_valid = 0;
     reg  [15:0] pcm_left = 0, pcm_right = 0;
     reg         vs_pulse = 0;
-    wire        audio_valid;
+    wire        audio_valid, sample_data_valid;
     wire [23:0] audio_left, audio_right;
     wire signed [15:0] sync_dev;
     wire [31:0] sample_cnt, frame_cnt;
@@ -23,7 +23,8 @@ module tb_audio_player;
         .rst_sd(rst_sd), .rst_video(rst_video),
         .pcm_valid(pcm_valid), .pcm_left(pcm_left), .pcm_right(pcm_right),
         .vs_pulse(vs_pulse),
-        .audio_valid(audio_valid), .audio_left(audio_left), .audio_right(audio_right),
+        .audio_valid(audio_valid), .sample_data_valid(sample_data_valid),
+        .audio_left(audio_left), .audio_right(audio_right),
         .sync_dev(sync_dev), .sample_cnt(sample_cnt), .frame_cnt(frame_cnt),
         .sample_tick(sample_tick),
         .fifo_empty(fifo_empty), .fifo_full(fifo_full)
@@ -31,9 +32,11 @@ module tb_audio_player;
 
     integer errors = 0;
     integer audio_count = 0;
+    integer sample_data_count = 0;
 
     always @(posedge clk_video) begin
         if (audio_valid) audio_count = audio_count + 1;
+        if (sample_data_valid) sample_data_count = sample_data_count + 1;
     end
 
     // vs_pulse: 每 2000 video_clk 周期（简化，实际应 ~13225）
@@ -63,24 +66,37 @@ module tb_audio_player;
         @(negedge clk_video); rst_video = 0;
         #200;
 
+        // FIFO 为空时仍输出 HDMI 静音包节拍，但不能冒充有效 PCM。
+        audio_count = 0;
+        sample_data_count = 0;
+        #60000;
+        if (audio_count < 2 || sample_data_count != 0 || audio_left != 0 || audio_right != 0) begin
+            $display("TEST0 FAIL: HDMI ticks=%0d PCM ticks=%0d L=%h R=%h",
+                     audio_count, sample_data_count, audio_left, audio_right);
+            errors = errors + 1;
+        end else $display("TEST0 PASS: empty FIFO keeps HDMI cadence without fake PCM");
+
         // Test 1: 写 50 样本，等输出
         $display("TEST1: write 50 samples");
         audio_count = 0;
+        sample_data_count = 0;
         for (integer i = 0; i < 50; i = i + 1)
             write_pcm(16'h1000 + i, 16'h2000 + i);
-        #100000;  // 100µs 等待
-        $display("audio_count=%0d", audio_count);
-        if (audio_count > 0) $display("TEST1 PASS");
+        #1200000;  // 等待样本播完并观察 FIFO 排空后的静音节拍
+        $display("audio_count=%0d sample_data_count=%0d", audio_count, sample_data_count);
+        if (audio_count > sample_data_count && sample_data_count == 50 &&
+            audio_left == 0 && audio_right == 0) $display("TEST1 PASS");
         else begin $display("TEST1 FAIL"); errors = errors + 1; end
 
         // Test 2: 写 500 样本（超 1 帧 800），看同步
         $display("TEST2: AV sync");
         audio_count = 0;
+        sample_data_count = 0;
         for (integer i = 0; i < 500; i = i + 1)
             write_pcm(16'h3000 + i, 16'h4000 + i);
         #500000;  // 500µs
         $display("audio_count=%0d frame_cnt=%0d sync_dev=%0d", audio_count, frame_cnt, sync_dev);
-        if (frame_cnt > 0) $display("TEST2 PASS");
+        if (frame_cnt > 0 && sample_data_count > 0) $display("TEST2 PASS");
         else begin $display("TEST2 FAIL"); errors = errors + 1; end
 
         if (errors == 0) $display("TB_AUDIO_PLAYER PASS");

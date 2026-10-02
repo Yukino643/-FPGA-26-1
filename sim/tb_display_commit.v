@@ -3,7 +3,7 @@
 module tb_display_commit;
     reg video_clk=0, sd_card_clk=0, rst_video=1, rst_sd=1;
     reg scaler_done_toggle=0, vs_rise_v=0;
-    reg [1:0] write_buf_idx=0, tr_mode_reg=0;
+    reg [1:0] write_buf_idx=0, tr_mode_reg=1;
     wire [9:0] main_x=0;
     wire [8:0] main_y=0;
     wire tr_hold_load, tr_active, tr_fade_black;
@@ -30,7 +30,7 @@ module tb_display_commit;
     initial begin
         repeat(4) @(negedge video_clk); rst_video=0; rst_sd=0;
         for(k=0;k<8;k=k+1) begin
-            @(negedge sd_card_clk); write_buf_idx=k%2; tr_mode_reg=(k==3) ? 1 : 0;
+            @(negedge sd_card_clk); write_buf_idx=k%2; tr_mode_reg=(k==3) ? 0 : 1;
             // 页号从装载开始到视频确认一直稳定。
             repeat(8) @(negedge video_clk);
             #7; scaler_done_toggle=~scaler_done_toggle;
