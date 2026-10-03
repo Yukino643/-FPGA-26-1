@@ -13,3 +13,7 @@ for first, last in (
     blocks.append(source[start:source.index(last, start)])
 (root / "sim/reg_display_commit.vh").write_text("\n".join(blocks), encoding="utf-8")
 print("Extracted actual top display commit handshake")
+
+start = source.index("source_scaler_gate u_source_scaler_gate (")
+end = source.index("\n);", start) + len("\n);")
+(root / "sim/reg_source_scaler_gate.vh").write_text(source[start:end], encoding="utf-8")

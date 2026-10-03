@@ -20,6 +20,9 @@ module sd_card_bmp_g #(
     output wire        load_done,
     output wire [15:0] load_img_w,
     output wire [15:0] load_img_h,
+    output reg         display_commit_toggle, // 仅成功事务翻转，供视频域同步
+    output wire        display_commit_pulse,  // SD同域成功事件，立即锁住装载
+    output wire        source_restart, // 新事务或错误时清空像素打包残留
     output wire [31:0] debug_status,  // 只读状态总线，供板级诊断使用
 
     input  wire        write_finish_toggle,
@@ -38,6 +41,8 @@ module sd_card_bmp_g #(
     input  wire        sd_sec_read_data_valid,
     input  wire        sd_sec_read_end
 );
+
+    assign source_restart = load_start_pulse | bmp_load_error;
 
     wire key_next_press;
     wire key_auto_press;
@@ -98,9 +103,10 @@ module sd_card_bmp_g #(
     reg [31:0]       img_cluster4, img_cluster5, img_cluster6, img_cluster7;
     reg [31:0]       img_size0, img_size1, img_size2, img_size3;
     reg [31:0]       img_size4, img_size5, img_size6, img_size7;
-    reg              next_req_pending;
+    reg [7:0]        next_req_count;     // KEY2 待处理请求计数，饱和避免连续按键丢失
     reg              load_busy;
     reg              source_done_seen;
+    reg              write_finish_seen;
     reg              load_retry_used;
     reg              load_fault;
     reg [7:0]        failed_mask;        // 已重试仍失败的图片，避免轮播反复卡在坏图
@@ -143,7 +149,15 @@ module sd_card_bmp_g #(
     assign next_from_current = next_good_index(img_idx, img_found_count, failed_mask);
     assign first_good_image  = first_good_index(img_found_count, failed_mask);
     assign any_good_image    = has_good_image(img_found_count, failed_mask);
+    // 手动切图事件独立于装载/转场状态；请求先入饱和计数器，空闲时逐个消费。
+    wire manual_next_press = key_next_press && scan_done && (img_found_count > 4'd0);
+    wire manual_next_start = scan_done && bmp_ready && display_valid && !load_busy
+                           && (next_req_count != 8'd0)
+                           && (img_found_count != 4'd0) && any_good_image && !hold_load;
     assign write_finish_pulse = wrfin_tgl_sync[2] ^ wrfin_tgl_sync[1];
+    assign display_commit_pulse = sd_init_done && scan_kicked && load_busy && !bmp_load_error
+                                  && (source_done_seen || load_done)
+                                  && (write_finish_seen || write_finish_pulse);
 
     key_press_debounce #(
         .CLK_FREQ_HZ (CLK_FREQ_HZ),
@@ -183,7 +197,8 @@ module sd_card_bmp_g #(
         input [3:0] count;
         input [7:0] bad;
         begin
-            next_good_index = 4'd0;
+            // 没有其他好图时保留当前有效图，禁止回退到被屏蔽的0号图。
+            next_good_index = first_good_index(count, bad);
             case (cur)
                 4'd0: begin
                     if ((count > 4'd1) && !bad[1]) next_good_index = 4'd1;
@@ -343,6 +358,7 @@ module sd_card_bmp_g #(
             load_file_size        <= 32'd0;
             scan_kicked           <= 1'b0;
             first_image_committed <= 1'b0;
+            display_commit_toggle <= 1'b0;
             auto_play_en          <= 1'b0;
             auto_cnt              <= 32'd0;
             img_found_count       <= 4'd0;
@@ -362,9 +378,10 @@ module sd_card_bmp_g #(
             img_count             <= 4'd0;
             cur_img_w             <= 16'd0;
             cur_img_h             <= 16'd0;
-            next_req_pending      <= 1'b0;
+            next_req_count        <= 8'd0;
             load_busy             <= 1'b0;
             source_done_seen      <= 1'b0;
+            write_finish_seen <= 1'b0;
             load_retry_used       <= 1'b0;
             load_fault            <= 1'b0;
             failed_mask           <= 8'd0;
@@ -388,9 +405,10 @@ module sd_card_bmp_g #(
                 img_count             <= 4'd0;
                 cur_img_w             <= 16'd0;
                 cur_img_h             <= 16'd0;
-                next_req_pending      <= 1'b0;
+                next_req_count        <= 8'd0;
                 load_busy             <= 1'b0;
                 source_done_seen      <= 1'b0;
+                write_finish_seen <= 1'b0;
                 load_retry_used       <= 1'b0;
                 load_fault            <= 1'b0;
                 failed_mask           <= 8'd0;
@@ -414,6 +432,7 @@ module sd_card_bmp_g #(
                 // 错误事务必须有界：自动重试一次，仍失败则放弃本次装载并保留当前显示。
                 if (load_busy && bmp_load_error) begin
                     source_done_seen <= 1'b0;
+                    write_finish_seen <= 1'b0;
                     if (!load_retry_used) begin
                         load_retry_used  <= 1'b1;
                         load_start_pulse <= 1'b1;
@@ -424,18 +443,23 @@ module sd_card_bmp_g #(
                         failed_mask[load_idx] <= 1'b1;
                         // 失败事务不提交目标页；下一拍自动寻找下一张可用图片，
                         // 若当前正处于转场则由 hold_load 暂挂该请求。
-                        next_req_pending <= 1'b1;
+                        if (next_req_count == 8'd0) next_req_count <= 8'd1;
                     end
                 end
 
                 // 只锁存本次装载的真实完成事件；ready 只是空闲状态，不能替代事务完成。
-                if (load_busy && load_done)
+                if (load_busy && !bmp_load_error && load_done)
                     source_done_seen <= 1'b1;
+                if (load_busy && !bmp_load_error && write_finish_pulse)
+                    write_finish_seen <= 1'b1;
 
                 // 收到 write_finish_toggle 脉冲才提交新图并切换显示缓冲
-                if (load_busy && source_done_seen && write_finish_pulse) begin
+                // 两端完成事件均锁存，容许先后或同拍；错误不得提交半成品页。
+                if (display_commit_pulse) begin
+                    display_commit_toggle <= ~display_commit_toggle;
                     load_busy             <= 1'b0;
                     source_done_seen      <= 1'b0;
+                    write_finish_seen <= 1'b0;
                     disp_buf_idx          <= pending_buf_idx;
                     img_idx               <= load_idx;
                     cur_img_w             <= load_img_w;
@@ -461,16 +485,24 @@ module sd_card_bmp_g #(
                     pending_buf_idx       <= 2'd0;
                     write_buf_idx         <= 2'd0;
                     disp_buf_idx          <= 2'd0;
-                    next_req_pending      <= 1'b0;
+                    next_req_count        <= 8'd0;
                     display_valid         <= 1'b0;
                     load_busy             <= 1'b0;
                     source_done_seen      <= 1'b0;
+                    write_finish_seen <= 1'b0;
                     load_retry_used       <= 1'b0;
                     load_fault            <= 1'b0;
                     failed_mask           <= 8'd0;
                 end else begin
-                    if (key_next_press && scan_done && (img_found_count > 4'd0))
-                        next_req_pending <= 1'b1;
+                    // 即使正在读卡、缩放或转场，也缓存按键请求（最多积压255次，累计切图次数不限）。
+                    // manual_next_start 分支在本拍消费一个请求，因此同拍按键已单独合并处理。
+                    if (manual_next_press && !manual_next_start && (next_req_count < 8'd255))
+                        next_req_count <= next_req_count + 8'd1;
+
+                    // 全部图片被本轮错误屏蔽后，新的手动按键开启一次有界重试。
+                    // 自动积压请求不清屏蔽，避免无卡/坏图导致无限自动重读。
+                    if (manual_next_press && !load_busy && !any_good_image)
+                        failed_mask <= 8'd0;
 
                     if (key_auto_press && scan_done && (img_found_count > 4'd1)) begin
                         auto_play_en <= ~auto_play_en;
@@ -497,13 +529,13 @@ module sd_card_bmp_g #(
                         load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
+                        write_finish_seen <= 1'b0;
                         load_retry_used  <= 1'b0;
-                        next_req_pending <= 1'b0;
+                        // 首图装载期间仍允许缓存 KEY2 请求，不能在这里清空计数。
                         auto_cnt         <= 32'd0;
                         img_count        <= img_found_count;
                     end
-                    else if (scan_done && bmp_ready && display_valid && !load_busy && next_req_pending
-                             && (img_found_count != 4'd0) && any_good_image && !hold_load) begin
+                    else if (manual_next_start) begin
                         load_idx         <= next_from_current;
                         load_sector      <= 32'd0;
                         load_cluster     <= cluster_lut(next_from_current);
@@ -513,8 +545,13 @@ module sd_card_bmp_g #(
                         load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
+                        write_finish_seen <= 1'b0;
                         load_retry_used  <= 1'b0;
-                        next_req_pending <= 1'b0;
+                        // 本次启动消费一个请求；同拍的新按键与消费合并，计数不回退。
+                        if (!manual_next_press)
+                            next_req_count <= next_req_count - 8'd1;
+                        else if (next_req_count < 8'd255)
+                            next_req_count <= next_req_count;
                         auto_cnt         <= 32'd0;
                     end
                     else if (scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
@@ -528,6 +565,7 @@ module sd_card_bmp_g #(
                         load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
+                        write_finish_seen <= 1'b0;
                         load_retry_used  <= 1'b0;
                         auto_cnt         <= 32'd0;
                     end

@@ -9,12 +9,13 @@ module tb_src_packer;
     reg         px_valid = 0;
     reg  [23:0] px_rgb = 0;
     reg         load_done = 0;
+    reg         frame_restart = 0;
     reg  [15:0] row_width = 16'd4;
     wire        out_valid;
     wire [31:0] out_data;
 
     src_packer u_packer(
-        .clk(clk), .rst(rst),
+        .clk(clk), .rst(rst), .frame_restart(frame_restart),
         .px_valid(px_valid), .px_rgb(px_rgb),
         .row_width(row_width),
         .load_done(load_done),
@@ -175,6 +176,18 @@ module tb_src_packer;
             $display("TEST5 PASS");
         end
 
+        // 失败留下半像素时，新事务不能与其配对。
+        row_width = 4; out_count = 0;
+        send_px(24'hff0000);
+        @(negedge clk); frame_restart = 1;
+        @(negedge clk); frame_restart = 0;
+        send_px(24'h00ff00); send_px(24'h0000ff);
+        send_px(24'hffffff); send_px(24'h000000);
+        #100;
+        if (out_count != 2 || captured[0] !== {ref_565(24'h0000ff), ref_565(24'h00ff00)} ||
+            captured[1] !== {ref_565(24'h000000), ref_565(24'hffffff)}) begin
+            $display("FAIL retry stale half pixel"); errors = errors+1;
+        end
         if (errors == 0) $display("TB_SRC_PACKER PASS");
         else $display("TB_SRC_PACKER FAIL errors=%0d", errors);
         $finish;

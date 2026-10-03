@@ -635,3 +635,25 @@
 | 审查 | 未发现确定的RTL错误；修正任务文档中旧16帧/黑场策略描述。源码、测试及文档范围 `git diff --check` 通过；TD生成报告保持工具原格式 |
 | 恢复点 | 修改前tag `backup/pre-continuous-slide-20261003` 指向 `c40dadc`；完整bundle已验证，旧bit备份位于D:/FPGA，详见 [改进记录](连续波形与无黑场转场-20261003.md) |
 | 板级待验 | 下载本轮bit，用物理KEY2循环三张图；检查非128倍数位移时的接缝、错行、黑闪、末帧和连续按键；复核音频、连续曲线、HDMI_A及应急。行为SDRAM模型未覆盖真实刷新/写争用，加密IP及物理效果仍需上板确认 |
+
+
+## 8.31 2026-10-03 圆润波形与 KEY2 请求及事务隔离
+
+| 项目 | 当前源码结果 |
+|---|---|
+| 波形 | 严格沿用老师第十二讲真实PCM、32点双bank、完整组VS发布；Q4节点每帧误差1/4收敛，统一三次B样条抑制尖峰；消隐流水预计算、同步BRAM查表替代原waveform_q拍，RGB/DE/坐标保持相位 |
+| 老师转场 | 第十讲双页/VS边界策略保持；现有左推与双页交叉淡化继续，转场保持两页只读到完整交接 |
+| KEY2请求 | 8位计数最多积压255个尚未启动请求；启动减1，同拍按下/消费净0；图号独立循环，累计次数不限，不能到上限清零丢请求 |
+| 事务提交 | 解析完成/目标写完分别sticky，任意先后及同拍齐才提交；错误优先。视频只接受manager成功toggle，同拍锁SD pending防下一拍抢先装载 |
+| 缩放隔离 | 新source_scaler_gate以本次源write_req/ACK建立边界；旧ACK回低、新ACK前旧writer完成忽略；两源完成齐才启动scaler，错误源不启动；SD deinit保留toggle历史 |
+| 恢复边界 | 全坏图的新手动请求可有界重试；唯一好图正确回退；source_restart清packer半字；writer尾突发按实际剩余字数终止（640×480不触发此尾部问题） |
+| 定向证据 | 678次切换、20次消抖物理按键模型、255饱和/排空后复用；独立B样条数学参考5920列；gate三种顺序/延迟ACK/旧完成隔离；11成功提交及11次启动、失败0提交、2重试；3次完整目标缩放 |
+| 基础回归 | `bash scripts/regression.sh` 44/44，退出0 |
+| 全量回归 | 基础通过后 `bash scripts/regression.sh --full` 45/45，退出0；当前源码重新综合、布线、hold修复和bitgen |
+| 独立报告 | 全量结束后 `python -X utf8 scripts/check_reports.py`，fails=0；RTL、canonical .al、工程快照、manifest和bit一致 |
+| 最终bit | 2026-10-03 16:24:20，643592字节；SHA-256 `b874b41ebc302b72b0fd8c24f1cde372d61a36117e9fbb6705f3f5fa14f60de7` |
+| 资源/时序 | LUT15781/19600=80.52%；BRAM9K49/64=76.56%；DSP20/29；SWNS=-6.565ns、STNS=-1009.509ns、HWNS=+0.022ns、HTNS=0；setup仍未完全闭合，按既有基线通过 |
+| 审查 | 两项P1均关闭，历史反例保留；源码/脚本/测试/文档diff检查通过，TD报告保持工具原格式 |
+| 恢复 | tag `backup/pre-smooth-key-20261003`指向bcece2b7；D:/FPGA/backups/pre-smooth-key-20261003保存旧bit/.al、恢复说明及完整bundle |
+| 证据 | [改进文档](波形平滑与KEY2循环修复-20261003.md)、[basic](validation/smooth-key-20261003/basic.log)、[full](validation/smooth-key-20261003/full.log)、[report](validation/smooth-key-20261003/reports.log)、[review](validation/smooth-key-20261003/review.md) |
+| 板级待验 | 下载本轮bit，KEY2逐次40次以上及转场中连按5次；检查曲线圆润/流畅、三图循环、音频、两路HDMI和应急。当前板测根因尚未由现场状态确认，只证明已修复的RTL反例；行为模型不替代物理IP/刷新/突发断卡验证 |

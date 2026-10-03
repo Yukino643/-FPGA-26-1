@@ -437,6 +437,14 @@
                     <Attr Name="CompileOrder" Val="53"/>
                 </FileInfo>
             </File>
+            <File Path="../rtl/sd/source_scaler_gate.v">
+                <FileInfo>
+                    <Attr Name="UsedInSyn" Val="true"/>
+                    <Attr Name="UsedInP&R" Val="true"/>
+                    <Attr Name="BelongTo" Val="design_1"/>
+                    <Attr Name="CompileOrder" Val="71"/>
+                </FileInfo>
+            </File>
             <File Path="../rtl/audio/wav_read.v">
                 <FileInfo>
                     <Attr Name="UsedInSyn" Val="true"/>

@@ -3,6 +3,7 @@
 module tb_display_commit;
     reg video_clk=0, sd_card_clk=0, rst_video=1, rst_sd=1;
     reg scaler_done_toggle=0, vs_rise_v=0;
+    reg bmp_display_commit_toggle=0, bmp_display_commit_pulse=0;
     reg [1:0] write_buf_idx=0, tr_mode_reg=1;
     wire [9:0] main_x=0;
     wire [8:0] main_y=0;
@@ -13,6 +14,8 @@ module tb_display_commit;
     wire [20:0] page_a_base, page_b_base;
     wire loader_hold=display_submit_pending_sd | tr_hold_sync_sd[1];
     integer k, frames, pulse_count=0;
+    always @(posedge sd_card_clk)
+        if (bmp_display_commit_pulse) bmp_display_commit_toggle <= ~bmp_display_commit_toggle;
     always #20 video_clk=~video_clk;
     always #5 sd_card_clk=~sd_card_clk;
     `include "reg_display_commit.vh"
@@ -33,9 +36,10 @@ module tb_display_commit;
             @(negedge sd_card_clk); write_buf_idx=k%2; tr_mode_reg=k%4;
             // 页号从装载开始到视频确认一直稳定。
             repeat(8) @(negedge video_clk);
-            #7; scaler_done_toggle=~scaler_done_toggle;
+            @(negedge sd_card_clk); bmp_display_commit_pulse=1;
+            @(negedge sd_card_clk); bmp_display_commit_pulse=0;
             repeat(5) @(negedge sd_card_clk);
-            if(!loader_hold) $fatal(1,"FAIL scaler completion not held in SD domain");
+            if(!loader_hold) $fatal(1,"FAIL successful commit not held in SD domain");
             repeat(5) @(negedge video_clk);
             if(!tr_hold_load || !loader_hold) $fatal(1,"FAIL missing video hold");
             frame_boundary;

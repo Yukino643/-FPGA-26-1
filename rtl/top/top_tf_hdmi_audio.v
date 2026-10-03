@@ -231,26 +231,26 @@ reg de_d1, vs_d1;
 reg de_d2, de_d3, vs_d2, vs_d3;
 reg [9:0] x_d1, x_d2, x_d3;
 reg [8:0] y_d1, y_d2, y_d3;
-reg [23:0] waveform_q;
+// 波形模块的同步查表已经包含一拍，直接交给下一拍字库层。
+wire [23:0] waveform_q = vout_waveform;
 always @(posedge video_clk or posedge rst_video) begin
     if (rst_video) begin
         de_d1 <= 0; de_d2 <= 0; de_d3 <= 0;
         vs_d1 <= 0; vs_d2 <= 0; vs_d3 <= 0;
         x_d1 <= 0; x_d2 <= 0; x_d3 <= 0;
         y_d1 <= 0; y_d2 <= 0; y_d3 <= 0;
-        waveform_q <= 0;
     end else begin
         // 颜色调整、波形、字库各一拍；RGB、坐标和 DE 必须同拍推进。
         de_d1 <= main_de_al; de_d2 <= de_d1; de_d3 <= de_d2;
         vs_d1 <= vs; vs_d2 <= vs_d1; vs_d3 <= vs_d2;
         x_d1 <= main_x; x_d2 <= x_d1; x_d3 <= x_d2;
         y_d1 <= main_y; y_d2 <= y_d1; y_d3 <= y_d2;
-        waveform_q <= vout_waveform;
     end
 end
 
 // 缩放完成 toggle → video 域 2FF（供转场控制器提交）。
 // 源缓存写完只允许启动 scaler，不能提前提交显示页。
+wire bmp_display_commit_toggle, bmp_display_commit_pulse;
 reg [2:0] commit_sync;
 reg [1:0] commit_buf_sync1, commit_buf_sync2;
 reg [1:0] tr_mode_sync1_v, tr_mode_sync2_v;
@@ -262,7 +262,7 @@ always @(posedge video_clk or posedge rst_video) begin
         tr_mode_sync1_v <= 2'd0;
         tr_mode_sync2_v <= 2'd0;
     end else begin
-        commit_sync <= {commit_sync[1:0], scaler_done_toggle};
+        commit_sync <= {commit_sync[1:0], bmp_display_commit_toggle};
         commit_buf_sync1 <= write_buf_idx;
         commit_buf_sync2 <= commit_buf_sync1;
         tr_mode_sync1_v <= tr_mode_reg;
@@ -338,7 +338,7 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
 end
 wire scaler_commit_toggle = scaler_done_sync[1];
 
-// 显示提交握手：scaler完成后先阻止下一次装载，视频完成换页/转场才释放。
+// 显示提交握手：源与目标均成功完成才锁住下一次装载，视频完成转场才释放。
 // 只同步持久电平和 toggle；不跨域传递单拍脉冲。
 reg display_submit_pending_sd;
 reg [1:0] tr_hold_sync_sd;
@@ -362,7 +362,7 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
     end else begin
         tr_hold_sync_sd <= {tr_hold_sync_sd[0], tr_hold_load};
         display_release_sync_sd <= {display_release_sync_sd[1:0], display_release_toggle_v};
-        if (scaler_done_sync[2] ^ scaler_done_sync[1])
+        if (bmp_display_commit_pulse)
             display_submit_pending_sd <= 1;
         else if (display_release_sync_sd[2] ^ display_release_sync_sd[1])
             display_submit_pending_sd <= 0;
@@ -388,6 +388,13 @@ wire [23:0] bmp_wr_data;
 wire        packed_wr_en;
 wire [31:0] packed_wr_data;
 
+wire bmp_source_restart;
+// 同一稳定ACK同时供解析器接收握手；raw ACK仍送gate内部相同两级同步。
+reg [1:0] source_write_ack_sync_sd;
+always @(posedge sd_card_clk or posedge rst_sd) begin
+    if (rst_sd) source_write_ack_sync_sd <= 0;
+    else source_write_ack_sync_sd <= {source_write_ack_sync_sd[0], sd_card_write_req_ack};
+end
 sd_card_bmp_g #(
     .CLK_FREQ_HZ       (100_000_000),
     .SCAN_TARGET_COUNT (4'd8)
@@ -403,6 +410,9 @@ sd_card_bmp_g #(
     .cur_img_w         (cur_img_w),
     .cur_img_h         (cur_img_h),
     .display_valid     (display_valid),
+    .display_commit_toggle(bmp_display_commit_toggle),
+    .display_commit_pulse (bmp_display_commit_pulse),
+    .source_restart    (bmp_source_restart),
     .load_done         (bmp_load_done),
     .load_img_w        (bmp_load_img_w),
     .load_img_h        (bmp_load_img_h),
@@ -412,7 +422,7 @@ sd_card_bmp_g #(
     .disp_buf_idx      (disp_buf_idx),
 
     .write_req         (sd_card_write_req),
-    .write_req_ack     (sd_card_write_req_ack),
+    .write_req_ack     (source_write_ack_sync_sd[1]),
     .write_en          (bmp_wr_en),           // W6: 改接 src_packer
     .write_data        (bmp_wr_data),         // W6: 24bit RGB
     .sd_init_done      (sd_init_done),
@@ -471,6 +481,7 @@ tf_diag_capture u_tf_diag (
 src_packer u_src_packer(
     .clk       (sd_card_clk),
     .rst       (rst_sd),
+    .frame_restart (bmp_source_restart),
     .px_valid  (bmp_wr_en),
     .px_rgb    (bmp_wr_data),
     .row_width (bmp_load_img_w),
@@ -760,12 +771,15 @@ assign vout_data = display_visible_v ? mix_rgb : 24'd0;
 
 // ===================== W6: 缩放引擎 =====================
 // 从 SRC_BUF 读 RGB565 源图，双线性插值缩放到 640×480，写入目标 DISP_BUF
-// 触发: BMP 写 SRC_BUF 完成（frame_write_finish_pulse）→ 翻转 start_toggle
-reg scaler_start_tgl;
-always @(posedge sd_card_clk or posedge rst_sd) begin
-    if (rst_sd) scaler_start_tgl <= 1'b0;
-    else if (frame_write_finish_pulse) scaler_start_tgl <= ~scaler_start_tgl;
-end
+// 触发: 本次新写请求应答后，BMP成功与SRC_BUF写完均到达，再翻转start_toggle。
+wire scaler_start_tgl;
+source_scaler_gate u_source_scaler_gate (
+    .clk(sd_card_clk), .rst(rst_sd), .sd_init_done(sd_init_done),
+    .source_restart(bmp_source_restart), .source_done(bmp_load_done),
+    .write_req(sd_card_write_req), .write_req_ack(sd_card_write_req_ack),
+    .frame_write_finish_pulse(frame_write_finish_pulse),
+    .scaler_start_toggle(scaler_start_tgl), .scaler_start_pulse()
+);
 // 缩放器内部已经完成持久 toggle 的跨时钟域同步和边沿检测。
 // 配置在同一个启动事件被锁存，必须使用本次装载的尺寸和写页。
 // 装载管理器在缩放完成前保持 busy，宽高和写页在启动同步期间保持稳定。
@@ -1156,7 +1170,7 @@ osd_engine u_osd(
 
 // ===================== 老师第十二讲：PCM 时域波形 =====================
 // 每 120 个 PCM 样本抽取一个，32 点覆盖约 80 ms 音频；采集可跨帧继续，
-// 只在 VS 边界发布完整采样组，避免波形读写同一 bank 造成撕裂。
+// 只在 VS 边界发布完整采样组，并逐帧平滑、消隐期预计算曲线。
 promax_audio_waveform #(
     .WAVE_X      (64), .WAVE_Y(376), .WAVE_WIDTH(512), .WAVE_HEIGHT(72), .DECIMATE(120)
 ) u_promax_audio_waveform(

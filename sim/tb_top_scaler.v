@@ -6,6 +6,8 @@ module tb_top_scaler;
     always #4 ext_mem_clk = ~ext_mem_clk;
     reg rst_sd = 1, rst_mem = 1;
     reg frame_write_finish_pulse = 0;
+    reg sd_init_done=1, bmp_source_restart=0, bmp_load_done=0;
+    reg sd_card_write_req=0, sd_card_write_req_ack=0;
     reg [15:0] bmp_load_img_w = 640, bmp_load_img_h = 480;
     reg [15:0] cur_img_w = 0, cur_img_h = 0;
     reg [1:0] write_buf_idx = 0, disp_buf_idx = 0;
@@ -117,7 +119,15 @@ module tb_top_scaler;
             bmp_load_img_w = width; bmp_load_img_h = height;
             write_buf_idx = page;
             expected_base = page == 0 ? 21'h0_0000 : 21'h8_0000;
-            // 模拟 BMP 头先锁存，像素写完后才翻转启动事件。
+            // 模拟新事务和写请求应答；源成功、源缓存写完才允许缩放。
+            bmp_source_restart=1;
+            @(negedge sd_card_clk); bmp_source_restart=0;
+            // 对应真实 BMP 重读文件头：请求先保持低，清除前次 ACK 上下文。
+            repeat(3) @(negedge sd_card_clk); sd_card_write_req=1;
+            repeat(6) @(negedge sd_card_clk); sd_card_write_req_ack=1;
+            repeat(6) @(negedge sd_card_clk); sd_card_write_req=0;
+            repeat(6) @(negedge sd_card_clk); sd_card_write_req_ack=0;
+            bmp_load_done=1; @(negedge sd_card_clk);bmp_load_done=0;
             repeat (10) @(negedge sd_card_clk);
             frame_write_finish_pulse = 1;
             @(negedge sd_card_clk); frame_write_finish_pulse = 0;

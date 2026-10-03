@@ -8,7 +8,7 @@ args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 top = args.top or root / "rtl/top/top_tf_hdmi_audio.v"
 text = top.read_text(encoding="utf-8")
-start = text.index("reg scaler_start_tgl;")
+start = text.index("wire scaler_start_tgl;")
 end = text.index("wire video_read_en_unused;", start)
 block = text[start:end]
 if block.count("u_scaler (") != 1:

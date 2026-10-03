@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # regression.sh — 一键回归门（每轮改动后必跑）
-#   bash scripts/regression.sh          # 单元仿真 ×4 + 生成物同步检查 + 报告门限检查
+#   bash scripts/regression.sh          # 模块/通路仿真 + 生成物同步检查 + 报告门限检查
 #   bash scripts/regression.sh --full   # 上述全部 + 重新全编译（综合→布线→bitgen）
 set -u
 if [ -d /mnt/d ]; then
@@ -77,7 +77,7 @@ run_sim disp_scroll tb_disp_scroll.v ../rtl/mem/disp_read_engine.v
 run_sim disp_pixel_format -I ../rtl/video tb_disp_pixel_format.v ../rtl/video/disp_mixer.v
 run_sim video_axis tb_video_axis.v ../rtl/video/video_rgb_to_axis_640x480.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_video_pipeline.py"; then
-run_sim video_pipeline -I ../rtl/video tb_video_pipeline.v ../rtl/video/osd_engine.v ../rtl/video/osd_text_rom.v ../rtl/video/font_rom_cjk.v ../rtl/ctrl/font_rom_ascii.v ../rtl/video/promax_audio_waveform.v ../rtl/video/color_adjust.v ../rtl/video/emergency_render.v ../rtl/video/video_rgb_to_axis_640x480.v
+run_sim video_pipeline -DSIMULATION -I ../rtl/video tb_video_pipeline.v ../rtl/video/osd_engine.v ../rtl/video/osd_text_rom.v ../rtl/video/font_rom_cjk.v ../rtl/ctrl/font_rom_ascii.v ../rtl/video/promax_audio_waveform.v ../rtl/video/color_adjust.v ../rtl/video/emergency_render.v ../rtl/video/video_rgb_to_axis_640x480.v
 else
   note_fail "SIM video_pipeline 提取顶层连接失败"
 fi
@@ -91,6 +91,9 @@ run_sim fat32_mapper tb_fat32_file_sector_mapper.v ../rtl/sd/fat32_file_sector_m
 run_sim mem_mpu   tb_mem_mpu.v   ../rtl/mem/mem_mpu.v
 run_sim mem_mpu_overlap tb_mem_mpu_overlap.v ../rtl/mem/mem_mpu.v
 run_sim mem_mpu_rw tb_mem_mpu_rw.v ../rtl/mem/mem_mpu.v ../rtl/sd/frame_fifo_write.v
+run_sim image_requests -s tb_image_requests tb_image_requests.v ../rtl/sd/sd_card_bmp_g.v ../rtl/sd/sd_card_bmp.v ../rtl/sd/bmp_read.v ../rtl/sd/bmp_read_g.v ../rtl/sd/fat32_bmp_index.v ../rtl/sd/fat32_file_sector_mapper.v
+run_sim source_scaler_gate tb_source_scaler_gate.v ../rtl/sd/source_scaler_gate.v
+run_sim frame_writer_tail tb_frame_writer_tail.v ../rtl/sd/frame_fifo_write.v
 run_sim bmp_read_g tb_bmp_read_g.v ../rtl/sd/bmp_read_g.v
 run_sim bmp_header_official tb_bmp_header_official.v ../rtl/sd/bmp_read_g.v
 run_sim bmp_sparse -Ptb_bmp_read_g.BYTE_GAP=31 tb_bmp_read_g.v ../rtl/sd/bmp_read_g.v
@@ -100,10 +103,11 @@ run_sim osd       -I ../rtl/video tb_osd.v ../rtl/video/video_timing_gen.v ../rt
 run_sim src_packer tb_src_packer.v ../rtl/sd/src_packer.v
 run_sim wav_read -DSIMULATION tb_wav_read.v ../rtl/audio/wav_read.v
 run_sim audio_player -DSIMULATION tb_audio_player.v ../rtl/audio/audio_player.v ../rtl/mem/afifo_simple.v
-run_sim waveform tb_audio_waveform.v ../rtl/video/promax_audio_waveform.v
+run_sim waveform -DSIMULATION tb_audio_waveform.v ../rtl/video/promax_audio_waveform.v
 run_sim transition -I ../rtl/video tb_transition_ctrl.v ../rtl/video/transition_ctrl.v ../rtl/video/disp_mixer.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_display_commit.py"; then
 run_sim display_commit tb_display_commit.v ../rtl/video/transition_ctrl.v
+run_sim top_commit_order -s tb_top_commit_order tb_top_commit_order.v ../rtl/sd/source_scaler_gate.v ../rtl/video/transition_ctrl.v ../rtl/sd/sd_card_bmp_g.v ../rtl/sd/sd_card_bmp.v ../rtl/sd/bmp_read.v ../rtl/sd/bmp_read_g.v ../rtl/sd/fat32_bmp_index.v ../rtl/sd/fat32_file_sector_mapper.v
 else
   note_fail "SIM display_commit 提取顶层连接失败"
 fi
@@ -113,7 +117,7 @@ run_sim disp_animation -DSIMULATION -Ptb_disp_path.TEST_ANIMATION=1 -I ../rtl/vi
 echo "[REG][INFO] SIM scaler 较慢（约 2~3 分钟）..."
 run_sim scaler    -DSIMULATION tb_scaler.v ../rtl/video/scaler.v
 if "$PYTHON_BIN" -X utf8 "$PY_ROOT/scripts/extract_scaler_block.py"; then
-run_sim top_scaler -DSIMULATION tb_top_scaler.v ../rtl/video/scaler.v
+run_sim top_scaler -DSIMULATION tb_top_scaler.v ../rtl/video/scaler.v ../rtl/sd/source_scaler_gate.v
 run_sim scaler_mpu -DSIMULATION tb_scaler_mpu.v ../rtl/video/scaler.v ../rtl/mem/mem_mpu.v sdram_beh.v
 else
   note_fail "SIM top_scaler 提取顶层连接失败"
@@ -123,7 +127,7 @@ fi
 cd "$ROOT/sim" || true
 "$PYTHON_BIN" -X utf8 - << 'PYEOF' || note_fail "PNG 渲染"
 from PIL import Image
-for n in ("monitor_frame", "osd_frame"):
+for n in ("monitor_frame", "osd_frame", "waveform_continuous"):
     Image.open(n + ".ppm").save(n + ".png")
 print("[REG][PASS] PNG refreshed")
 PYEOF
