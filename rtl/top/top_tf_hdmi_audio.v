@@ -4,7 +4,7 @@ module top(
     input                       rst_n,
     input                       key1,           // 物理 KEY2：手动下一张
     input                       key2,           // 物理 KEY3：自动播放 开/关
-    input                       key3,           // 物理 KEY4：短按转场，长按应急
+    input                       key3,           // 物理 KEY4：长按进入/退出应急
     input  [3:0]                sw,             // 物理 SW1-SW4：参数调节/图层开关
     output                      buzzer,         // W9: 蜂鸣器（低有效）
 
@@ -21,7 +21,7 @@ module top(
     output                      HDMI_DDC_SCL,
     inout                       HDMI_DDC_SDA,
 
-    // HDMI_A TMDS（副通道监视台，W2 新增）
+    // HDMI_A TMDS（720p首版暂停）
     output                      HDMI_A_CLK_P,
     output                      HDMI_A_D2_P,
     output                      HDMI_A_D1_P,
@@ -41,7 +41,7 @@ module top(
 parameter MEM_DATA_BITS = 32;
 parameter ADDR_BITS     = 21;
 parameter BUSRT_BITS    = 10;
-parameter FRAME_PIXELS  = 21'd307200;   // 640*480，SDRAM 字地址
+parameter FRAME_PIXELS  = 21'd460800;   // 1280*720/2，RGB565双像素字
 parameter BUF0_ADDR     = 21'd0;
 parameter BUF1_ADDR     = 21'd524288;   // mem_map: bank1 起点 0x80000（转场双流读零 bank 冲突）
 
@@ -175,38 +175,12 @@ reset_sync u_rst_sd    (.clk(sd_card_clk), .arst(reset_request), .rst(rst_sd));
 reset_sync u_rst_mem   (.clk(ext_mem_clk), .arst(reset_request), .rst(rst_mem));
 reset_sync u_rst_video (.clk(video_clk),   .arst(reset_request), .rst(rst_video));
 
-// W10: 物理 KEY4 短按切换转场；同一按键长按由 emergency_ctrl 触发应急。
-reg [1:0] tr_mode_reg = 2'd1;   // 默认双页交叉淡化，不改变逐行 SDRAM 读地址
-reg       key3_meta, key3_sync, key3_prev;
-reg [19:0] key3_cnt;
-always @(posedge sd_card_clk or posedge rst_sd) begin
-    if (rst_sd) begin
-        key3_meta <= 1'b1;
-        key3_sync <= 1'b1;
-        key3_prev <= 1'b1;
-        key3_cnt  <= 20'd0;
-        tr_mode_reg <= 2'd1;
-    end else begin
-        key3_meta <= key3;
-        key3_sync <= key3_meta;
-        if (key3_sync != key3_prev) begin
-            if (key3_cnt >= 20'd999_999) begin
-                key3_prev <= key3_sync;
-                key3_cnt  <= 20'd0;
-                // 下降沿（按下）→ 切换转场模式
-                if (key3_prev && !key3_sync)
-                    tr_mode_reg <= tr_mode_reg + 2'd1;
-            end else
-                key3_cnt <= key3_cnt + 20'd1;
-        end else
-            key3_cnt <= 20'd0;
-    end
-end
-
+// 720p首版固定交叉淡化；KEY4长按仍由emergency_ctrl处理。
+wire [1:0] tr_mode_reg=2'd1;
 // W5/W4 主通道像素坐标（供转场/OSD）
 wire       main_de_al;
-wire [9:0] main_x;
-wire [8:0] main_y;
+wire [10:0] main_x;
+wire [9:0] main_y;
 wire [31:0] main_fc;
 wire       tr_hold_load;    // 转场期间暂缓装载
 wire [23:0] vout_osd;       // OSD 输出
@@ -224,13 +198,13 @@ wire [15:0] sync_dev_real;
 wire        audio_valid_final;
 wire [23:0] audio_left_final;
 wire [23:0] audio_right_final;
-wire        scaler_done_toggle;
+// direct writer gate完成事件同属SD域。
 // A2: 主通道 OSD 字库同步读引入 1 拍延迟，de/vs 打 1 拍对齐（vs 宽脉冲，±1 拍无影响）
 // （监视台的 mon_de_d1/mon_vs_d1 在 mon_de 声明之后的监视台区段）
 reg de_d1, vs_d1;
 reg de_d2, de_d3, vs_d2, vs_d3;
-reg [9:0] x_d1, x_d2, x_d3;
-reg [8:0] y_d1, y_d2, y_d3;
+reg [10:0] x_d1, x_d2, x_d3;
+reg [9:0] y_d1, y_d2, y_d3;
 // 波形模块的同步查表已经包含一拍，直接交给下一拍字库层。
 wire [23:0] waveform_q = vout_waveform;
 always @(posedge video_clk or posedge rst_video) begin
@@ -240,16 +214,16 @@ always @(posedge video_clk or posedge rst_video) begin
         x_d1 <= 0; x_d2 <= 0; x_d3 <= 0;
         y_d1 <= 0; y_d2 <= 0; y_d3 <= 0;
     end else begin
-        // 颜色调整、波形、字库各一拍；RGB、坐标和 DE 必须同拍推进。
-        de_d1 <= main_de_al; de_d2 <= de_d1; de_d3 <= de_d2;
-        vs_d1 <= vs; vs_d2 <= vs_d1; vs_d3 <= vs_d2;
-        x_d1 <= main_x; x_d2 <= x_d1; x_d3 <= x_d2;
-        y_d1 <= main_y; y_d2 <= y_d1; y_d3 <= y_d2;
+        // 两拍混合器之后：颜色、波形、字库各一拍；RGB/坐标/DE同拍推进。
+        de_d1 <= mix_de; de_d2 <= de_d1; de_d3 <= de_d2;
+        vs_d1 <= mix_vs; vs_d2 <= vs_d1; vs_d3 <= vs_d2;
+        x_d1 <= mix_x; x_d2 <= x_d1; x_d3 <= x_d2;
+        y_d1 <= mix_y; y_d2 <= y_d1; y_d3 <= y_d2;
     end
 end
 
-// 缩放完成 toggle → video 域 2FF（供转场控制器提交）。
-// 源缓存写完只允许启动 scaler，不能提前提交显示页。
+// 缩放完成 toggle接口已替换为管理器完整页提交；video域同步事件与稳定页号。
+// 只有解析和writer均成功的事务可发布，不能绕过隔离门。
 wire bmp_display_commit_toggle, bmp_display_commit_pulse;
 reg [2:0] commit_sync;
 reg [1:0] commit_buf_sync1, commit_buf_sync2;
@@ -295,7 +269,7 @@ always @(posedge video_clk or posedge rst_video) begin
     end
 end
 
-// 保持你原来的 TF / SDRAM / video 时钟
+// TF/SDRAM时钟沿用基线，视频改为准确74.25MHz级联PLL。
 sys_pll sys_pll_m0(
     .refclk     (clk),
     .clk0_out   (sd_card_clk),
@@ -305,12 +279,26 @@ sys_pll sys_pll_m0(
     .reset      (~rst_n)
 );
 
+// 50→27参考级联：第一PLL锁定后稳定100us，再释放像素PLL。
+wire ref27_clk, ref27_lock;
+reg [1:0] ref_lock_sync=0;
+reg [12:0] ref_stable_count=0;
+wire pixel_pll_reset=~rst_n | ~ref27_lock | (ref_stable_count != 13'd5000);
+always @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin ref_lock_sync<=0; ref_stable_count<=0; end
+    else begin
+        ref_lock_sync<={ref_lock_sync[0],ref27_lock};
+        if (!ref_lock_sync[1]) ref_stable_count<=0;
+        else if (ref_stable_count != 5000) ref_stable_count<=ref_stable_count+1'b1;
+    end
+end
+ref27_pll u_ref27(.refclk(clk),.reset(~rst_n),.clk0_out(ref27_clk),.extlock(ref27_lock));
 video_pll video_pll_m0(
-    .refclk     (clk),
+    .refclk     (ref27_clk),
     .clk0_out   (video_clk),
     .clk1_out   (hdmi_5x_clk),
     .extlock    (video_pll_lock),
-    .reset      (~rst_n)
+    .reset      (pixel_pll_reset)
 );
 
 // mem_clk 域把 write_finish 单拍转成 toggle，供 sd_card_clk 域可靠同步
@@ -321,7 +309,7 @@ always @(posedge ext_mem_clk or posedge rst_mem) begin
         frame_write_toggle_mem <= ~frame_write_toggle_mem;
 end
 
-// W6: frame_write_finish → sd_card_clk 域脉冲（src_packer 排空 + scaler 触发）
+// writer完成toggle转SD域单拍，送完整页事务隔离门。
 reg [2:0] fw_tgl_sync;
 always @(posedge sd_card_clk or posedge rst_sd) begin
     if (rst_sd) fw_tgl_sync <= 3'b000;
@@ -329,14 +317,9 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
 end
 wire frame_write_finish_pulse = fw_tgl_sync[2] ^ fw_tgl_sync[1];
 
-// W6: scaler 完成 toggle → sd_card_clk 域 → 作为 write_finish_toggle 给 sd_card_bmp_g。
-// 输入是持久 toggle，sd_card_bmp_g 内部再做边沿检测，确保只提交一次。
-reg [2:0] scaler_done_sync;
-always @(posedge sd_card_clk or posedge rst_sd) begin
-    if (rst_sd) scaler_done_sync <= 3'b000;
-    else         scaler_done_sync <= {scaler_done_sync[1:0], scaler_done_toggle};
-end
-wire scaler_commit_toggle = scaler_done_sync[1];
+// direct writer必须解析成功且写完成，并经过新请求ACK隔离门。
+wire scaler_start_tgl;
+wire scaler_commit_toggle=scaler_start_tgl;
 
 // 显示提交握手：源与目标均成功完成才锁住下一次装载，视频完成转场才释放。
 // 只同步持久电平和 toggle；不跨域传递单拍脉冲。
@@ -369,20 +352,15 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
     end
 end
 
-// ===================== TF 多图扫描与缓存（双缓冲，W3 泛化版: 8 图 + 任意分辨率） =====================
+// ===================== TF多图扫描与缓存（最多8张，1280×720 BMP24） =====================
 wire [31:0] tf_bmp_debug;
 wire [191:0] tf_video_snapshot;
-wire [3:0]  scaler_debug_state;
-reg  [3:0]  scaler_state_sd;
-reg         scaler_busy_sd, scaler_cmd_valid_sd, scaler_cmd_ready_sd, scaler_done_sd;
-wire [7:0]  scaler_debug_status = {scaler_state_sd, scaler_busy_sd,
-                                    scaler_cmd_valid_sd, scaler_cmd_ready_sd,
-                                    scaler_done_sd};
+wire [7:0] scaler_debug_status=8'd0;
 wire [3:0]  img_count;
 wire [15:0] cur_img_w, cur_img_h;
 
-// W6: src_packer 插在 bmp_read_g 输出与 frame_read_write 之间
-// bmp_read_g 输出 24bit 像素流 → src_packer 打包 RGB565 → frame_read_write 写 SRC_BUF
+// src_packer连接解析器与显示页writer
+// BMP24 → RGB565双像素打包 → frame_read_write写空闲显示页
 wire        bmp_wr_en;
 wire [23:0] bmp_wr_data;
 wire        packed_wr_en;
@@ -397,7 +375,8 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
 end
 sd_card_bmp_g #(
     .CLK_FREQ_HZ       (100_000_000),
-    .SCAN_TARGET_COUNT (4'd8)
+    .SCAN_TARGET_COUNT (4'd8),
+    .EXACT_WIDTH(1280), .EXACT_HEIGHT(720)
 ) sd_card_bmp_g_m0(
     .clk               (sd_card_clk),
     .rst               (rst_sd),
@@ -417,7 +396,7 @@ sd_card_bmp_g #(
     .load_img_w        (bmp_load_img_w),
     .load_img_h        (bmp_load_img_h),
 
-    .write_finish_toggle(scaler_commit_toggle),  // W6: scaler 完成后才 commit
+    .write_finish_toggle(scaler_commit_toggle),  // direct writer两端完成后才commit
     .write_buf_idx     (write_buf_idx),
     .disp_buf_idx      (disp_buf_idx),
 
@@ -511,15 +490,10 @@ seg_scan #(.CLK_FREQ(100_000_000)) seg_scan_m0(
 // ===================== W5 显示读出路径重构 =====================
 // 官方整帧 FIFO 流读出 → mem_mpu 多主仲裁 + 双行预取引擎 + 双异步 FIFO + 转场混合器
 // 装载写路径保持官方 frame_read_write（其读端口闲置: read_req 恒 0）
-video_timing_data video_timing_data_m0(
-    .video_clk         (video_clk),
-    .rst               (rst_video),
-    .read_req          (),              // W5: 读时序由 disp_read_engine 自管
-    .read_req_ack      (video_read_req_ack),
-    .hs                (hs_0),
-    .vs                (vs_0),
-    .de                (de_0)
-);
+video_timing_gen #(
+    .HTOTAL(1650),.HSA(40),.HFP(110),.HBP(220),.HACTIVE(1280),
+    .VTOTAL(750),.VSA(5),.VFP(5),.VBP(20),.VACTIVE(720),.X_BITS(11),.Y_BITS(10)
+) u_timing_720(.I_clk(video_clk),.I_rst(rst_video),.O_hs(hs_0),.O_vs(vs_0),.O_de(de_0),.O_x(),.O_y());
 
 assign hs = hs_0;
 assign vs = vs_0;
@@ -565,7 +539,7 @@ transition_ctrl #(
     .PAGE0_BASE (21'h0_0000),
     .PAGE1_BASE (21'h8_0000),
     .ALPHA_STEP (8'd8),
-    .SLIDE_STEP (10'd16)
+    .SLIDE_STEP (10'd16), .X_BITS(11), .Y_BITS(10)
 ) u_transition(
     .clk           (video_clk),
     .rst           (rst_video),
@@ -596,22 +570,12 @@ wire        mpu_B_cv, mpu_B_cr, mpu_B_rv, mpu_B_rl;
 wire [20:0] mpu_B_ca;
 wire [31:0] mpu_B_rd;
 wire [7:0]  mpu_B_cl;
-// W6: C 口（缩放引擎读 SRC_BUF）
-wire        mpu_C_cv, mpu_C_cr, mpu_C_rv, mpu_C_rl;
-wire [20:0] mpu_C_ca;
-wire [31:0] mpu_C_rd;
-wire [7:0]  mpu_C_cl;
-// W6: 写口 2（缩放引擎写 DISP_BUF）
-wire        scaler_wr_en;
-wire [20:0] scaler_wr_addr;
-wire [31:0] scaler_wr_din;
-wire        scaler_busy;
-wire        source_write_busy, memory_read_busy, memory_write_ready;
-wire        scaler_write_request;
-wire        sdram_wr_en;
+// 720p直接写空闲显示页；C和第二写口关闭。
+wire source_write_busy, memory_read_busy, memory_write_ready;
+wire sdram_wr_en;
 wire [20:0] sdram_wr_addr;
 wire [31:0] sdram_wr_din;
-wire [3:0]  sdram_wr_dm;
+wire [3:0] sdram_wr_dm;
 
 mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mem_mpu(
     .clk            (ext_mem_clk),
@@ -620,8 +584,8 @@ mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mem_mpu(
     .A_cmd_ready    (mpu_A_cr), .A_rsp_valid(mpu_A_rv), .A_rsp_data(mpu_A_rd), .A_rsp_last(mpu_A_rl),
     .B_cmd_valid    (mpu_B_cv), .B_cmd_addr(mpu_B_ca), .B_cmd_len(mpu_B_cl),
     .B_cmd_ready    (mpu_B_cr), .B_rsp_valid(mpu_B_rv), .B_rsp_data(mpu_B_rd), .B_rsp_last(mpu_B_rl),
-    .C_cmd_valid    (mpu_C_cv), .C_cmd_addr(mpu_C_ca), .C_cmd_len(mpu_C_cl),
-    .C_cmd_ready    (mpu_C_cr), .C_rsp_valid(mpu_C_rv), .C_rsp_data(mpu_C_rd), .C_rsp_last(mpu_C_rl),
+    .C_cmd_valid    (1'b0), .C_cmd_addr(21'd0), .C_cmd_len(8'd1),
+    .C_cmd_ready    (), .C_rsp_valid(), .C_rsp_data(), .C_rsp_last(),
     .App_rd_en      (App_rd_en),
     .App_rd_addr    (App_rd_addr),
     .Sdr_rd_en      (Sdr_rd_en),
@@ -629,133 +593,40 @@ mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mem_mpu(
     .Sdr_init_done  (Sdr_init_done),
     .Sdr_busy       (Sdr_busy),
     .source_write_busy(source_write_busy),
-    .scaler_write_request(scaler_write_request),
+    .scaler_write_request(1'b0),
     .read_busy      (memory_read_busy),
     .write_ready    (memory_write_ready),
     .App_wr_en_u    (App_wr_en),
     .App_wr_addr_u  (App_wr_addr),
     .App_wr_din_u   (App_wr_din),
     .App_wr_dm_u    (App_wr_dm),
-    .App_wr2_en_u   (scaler_wr_en),
-    .App_wr2_addr_u (scaler_wr_addr),
-    .App_wr2_din_u  (scaler_wr_din),
+    .App_wr2_en_u   (1'b0),
+    .App_wr2_addr_u (21'd0),
+    .App_wr2_din_u  (32'd0),
     .App_wr2_dm_u   (4'h0),
-    .wr2_active     (scaler_busy),
+    .wr2_active     (1'b0),
     .App_wr_en      (sdram_wr_en),
     .App_wr_addr    (sdram_wr_addr),
     .App_wr_din     (sdram_wr_din),
     .App_wr_dm      (sdram_wr_dm)
 );
 
-// ---- 双行预取引擎 + 双异步 FIFO ----
-wire        fa_we, fb_we;
-wire [31:0] fa_wd, fb_wd;
-wire [9:0]  fa_wu, fb_wu;    // A1: 深度 512 → usedw 10 位
-wire        fa_re, fb_re;
-wire [31:0] fa_dd, fb_dd;
-wire        fa_e, fb_e;
-wire [9:0]  fa_ru, fb_ru;    // A1
-
-reg [20:0] page_a_sync1_mem, page_a_sync2_mem, page_b_sync1_mem, page_b_sync2_mem;
-always @(posedge ext_mem_clk or posedge rst_mem) begin
-    if (rst_mem) begin
-        page_a_sync1_mem <= 0; page_a_sync2_mem <= 0;
-        page_b_sync1_mem <= 21'h8_0000; page_b_sync2_mem <= 21'h8_0000;
-    end else begin
-        page_a_sync1_mem <= page_a_base; page_a_sync2_mem <= page_a_sync1_mem;
-        page_b_sync1_mem <= page_b_base; page_b_sync2_mem <= page_b_sync1_mem;
-    end
-end
-
-disp_read_engine #(.ENABLE_SCROLL(1)) u_eng_a(
-    .clk         (ext_mem_clk),
-    .rst         (rst_mem),
-    .vs_toggle   (vs_toggle_r),
-    .page_base   (page_a_sync2_mem),
-    .scroll_x    (display_scroll_x),
-    .fifo_we     (fa_we),
-    .fifo_wdata  (fa_wd),
-    .fifo_wusedw (fa_wu),
-    .cmd_valid   (mpu_A_cv),
-    .cmd_addr    (mpu_A_ca),
-    .cmd_len     (mpu_A_cl),
-    .cmd_ready   (mpu_A_cr),
-    .rsp_valid   (mpu_A_rv),
-    .rsp_data    (mpu_A_rd),
-    .rsp_last    (mpu_A_rl)
-);
-disp_read_engine #(.ENABLE_SCROLL(1)) u_eng_b(
-    .clk         (ext_mem_clk),
-    .rst         (rst_mem),
-    .vs_toggle   (vs_toggle_r),
-    .page_base   (page_b_sync2_mem),
-    .scroll_x    (display_scroll_x),
-    .fifo_we     (fb_we),
-    .fifo_wdata  (fb_wd),
-    .fifo_wusedw (fb_wu),
-    .cmd_valid   (mpu_B_cv),
-    .cmd_addr    (mpu_B_ca),
-    .cmd_len     (mpu_B_cl),
-    .cmd_ready   (mpu_B_cr),
-    .rsp_valid   (mpu_B_rv),
-    .rsp_data    (mpu_B_rd),
-    .rsp_last    (mpu_B_rl)
-);
-
-// A1 回退方案B: afifo_simple AW=9（深度512）+ 同步读 + (* ram_style="block" *)
-// 官方 wfifo_32_32_512 在 TD 6.2.168116 下存储推断失败（26K LUT/30K FF），已验证弃用
-afifo_simple #(.DW(32), .AW(9)) u_fifo_a(
-    .wr_clk(ext_mem_clk), .wr_rst(rst_mem), .wr_en(fa_we), .wr_data(fa_wd),
-    .wr_full(), .wr_usedw(fa_wu),
-    .rd_clk(video_clk), .rd_rst(rst_video), .rd_en(fa_re), .rd_data(fa_dd),
-    .rd_empty(fa_e), .rd_usedw(fa_ru)
-);
-afifo_simple #(.DW(32), .AW(9)) u_fifo_b(
-    .wr_clk(ext_mem_clk), .wr_rst(rst_mem), .wr_en(fb_we), .wr_data(fb_wd),
-    .wr_full(), .wr_usedw(fb_wu),
-    .rd_clk(video_clk), .rd_rst(rst_video), .rd_en(fb_re), .rd_data(fb_dd),
-    .rd_empty(fb_e), .rd_usedw(fb_ru)
-);
-
-// ---- 双流混合器（下溢计数供监视台 W10） ----
+// ---- RGB565双页预取与两拍混合流水 ----
 wire [23:0] mix_rgb;
+wire mix_de,mix_vs;
+wire [10:0] mix_x;
+wire [9:0] mix_y;
 wire [31:0] disp_underflow;
-reg [31:0] underflow_prev, underflow_frame;
-reg [9:0] fifo_min_work, fifo_min_frame;
-always @(posedge video_clk or posedge rst_video) begin
-    if (rst_video) begin
-        underflow_prev <= 0; underflow_frame <= 0;
-        fifo_min_work <= 10'd512; fifo_min_frame <= 0;
-    end else if (vs_rise_v) begin
-        // 帧边界锁存诊断，屏幕显示稳定值，不读取其他时钟域的水位总线。
-        underflow_frame <= disp_underflow - underflow_prev;
-        underflow_prev <= disp_underflow;
-        fifo_min_frame <= fifo_min_work;
-        fifo_min_work <= 10'd512;
-    end else if (main_de_al && fa_ru < fifo_min_work) begin
-        fifo_min_work <= fa_ru;
-    end
-end
-
-disp_mixer u_disp_mixer(
-    .clk        (video_clk),
-    .rst        (rst_video),
-    .de_al      (main_de_al),
-    .x          (main_x),
-    .y          (main_y),
-    .a_rd_en    (fa_re),
-    .a_rd_data  (fa_dd),
-    .a_empty    (fa_e),
-    .b_rd_en    (fb_re),
-    .b_rd_data  (fb_dd),
-    .b_empty    (fb_e),
-    .tr_active  (tr_active),
-    .fade_black (tr_fade_black),
-    .alpha      (tr_alpha),
-    .boundary   (tr_boundary),
-    .slide_axis (tr_slide_axis),
-    .rgb        (mix_rgb),
-    .underflow_cnt (disp_underflow)
+display_stream_720 u_display_stream(
+    .mem_clk(ext_mem_clk),.mem_rst(rst_mem),.video_clk(video_clk),.video_rst(rst_video),
+    .vs_toggle(vs_toggle_r),.de_in(main_de_al),.vs_in(vs),.x(main_x),.y(main_y),
+    .tr_active(tr_active),.alpha(tr_alpha),.page_a_base(page_a_base),.page_b_base(page_b_base),
+    .a_cmd_valid(mpu_A_cv),.a_cmd_addr(mpu_A_ca),.a_cmd_len(mpu_A_cl),.a_cmd_ready(mpu_A_cr),
+    .a_rsp_valid(mpu_A_rv),.a_rsp_data(mpu_A_rd),.a_rsp_last(mpu_A_rl),
+    .b_cmd_valid(mpu_B_cv),.b_cmd_addr(mpu_B_ca),.b_cmd_len(mpu_B_cl),.b_cmd_ready(mpu_B_cr),
+    .b_rsp_valid(mpu_B_rv),.b_rsp_data(mpu_B_rd),.b_rsp_last(mpu_B_rl),
+    .rgb_out(mix_rgb),.de_out(mix_de),.vs_out(mix_vs),.x_out(mix_x),.y_out(mix_y),
+    .underflow_cnt(disp_underflow)
 );
 
 // 首图提交前黑屏；提交后显示转场混合器输出
@@ -770,10 +641,7 @@ always @(posedge video_clk or posedge rst_video) begin
 end
 assign vout_data = display_visible_v ? mix_rgb : 24'd0;
 
-// ===================== W6: 缩放引擎 =====================
-// 从 SRC_BUF 读 RGB565 源图，双线性插值缩放到 640×480，写入目标 DISP_BUF
-// 触发: 本次新写请求应答后，BMP成功与SRC_BUF写完均到达，再翻转start_toggle。
-wire scaler_start_tgl;
+// 完整页发布隔离门沿用已验证的事务契约；不再启动scaler。
 source_scaler_gate u_source_scaler_gate (
     .clk(sd_card_clk), .rst(rst_sd), .sd_init_done(sd_init_done),
     .source_restart(bmp_source_restart), .source_done(bmp_load_done),
@@ -781,76 +649,18 @@ source_scaler_gate u_source_scaler_gate (
     .frame_write_finish_pulse(frame_write_finish_pulse),
     .scaler_start_toggle(scaler_start_tgl), .scaler_start_pulse()
 );
-// 缩放器内部已经完成持久 toggle 的跨时钟域同步和边沿检测。
-// 配置在同一个启动事件被锁存，必须使用本次装载的尺寸和写页。
-// 装载管理器在缩放完成前保持 busy，宽高和写页在启动同步期间保持稳定。
-// pending_buf_idx 与 write_buf_idx 在装载启动时同步更新，完成提交时也使用同一页。
-wire [20:0] scaler_dst_base = (write_buf_idx == 2'd0) ? 21'h0_0000 : 21'h8_0000;
 
-scaler #(
-    .OUT_W(640),
-    .OUT_H(480)
-) u_scaler (
-    .clk            (ext_mem_clk),
-    .rst            (rst_mem),
-    .start_toggle   (scaler_start_tgl),
-    .cfg_w          (bmp_load_img_w[10:0]),
-    .cfg_h          (bmp_load_img_h[10:0]),
-    .cfg_src_base   (21'hC_B000),        // MEM_BUF_SRC_BASE
-    .cfg_dst_base   (scaler_dst_base),   // 首图与后续图均写入本次待提交页
-    // mem_mpu 请求方 C
-    .cmd_valid      (mpu_C_cv),
-    .cmd_addr       (mpu_C_ca),
-    .cmd_len        (mpu_C_cl),
-    .cmd_ready      (mpu_C_cr),
-    .rsp_valid      (mpu_C_rv),
-    .rsp_data       (mpu_C_rd),
-    .rsp_last       (mpu_C_rl),
-    .write_request  (scaler_write_request),
-    .write_ready    (memory_write_ready),
-    // mem_mpu 写方 2
-    .wr_en          (scaler_wr_en),
-    .wr_addr        (scaler_wr_addr),
-    .wr_din         (scaler_wr_din),
-    .wr_dm          (),
-    .busy           (scaler_busy),
-    .done_toggle    (scaler_done_toggle),
-    .debug_state    (scaler_debug_state)
-);
-
-// TF-D3：将 scaler 状态和 C 口握手同步到 SD 诊断域。
-always @(posedge sd_card_clk or posedge rst_sd) begin
-    if (rst_sd) begin
-        scaler_state_sd <= 4'd0;
-        scaler_busy_sd <= 1'b0;
-        scaler_cmd_valid_sd <= 1'b0;
-        scaler_cmd_ready_sd <= 1'b0;
-        scaler_done_sd <= 1'b0;
-    end else begin
-        scaler_state_sd <= scaler_debug_state;
-        scaler_busy_sd <= scaler_busy;
-        scaler_cmd_valid_sd <= mpu_C_cv;
-        scaler_cmd_ready_sd <= mpu_C_cr;
-        scaler_done_sd <= scaler_done_toggle;
-    end
-end
-
-// ---- W6: 装载写路径 → SRC_BUF（RGB565 打包，scaler 读取源） ----
+// ---- RGB565直接显示页写入；BMP垂直方向由writer转换 ----
 wire video_read_en_unused;
 wire [31:0] video_read_data_unused;
 
-// SRC_BUF 写入长度：ceil(W/2)*H 个 32bit 字；奇数宽必须逐行补齐，不能整帧取整。
-// frame_fifo_write 会在接受本次 write_req 时锁存该长度。
-wire [31:0] src_row_words  = ({16'd0, bmp_load_img_w} + 32'd1) >> 1;
-wire [31:0] src_word_count = src_row_words * {16'd0, bmp_load_img_h};
-wire [20:0] src_write_len  = src_word_count[20:0];
-
+// 两像素/字，640字×720行；写地址反转抵消BMP底向上行序。
 frame_read_write #(
-    // 源缓存按 BMP 文件顺序线性写入；scaler 按动态 row_words 负责垂直方向转换。
-    .WRITE_V_FLIP     (0),
+    // 按640字/行翻转垂直地址；解析器已经拒绝非1280×720素材。
+    .WRITE_V_FLIP     (1),
     .EXTERNAL_READ    (1),
-    .FRAME_WIDTH      (320),
-    .FRAME_HEIGHT     (480)
+    .FRAME_WIDTH      (640),
+    .FRAME_HEIGHT     (720)
 ) frame_read_write_m0(
     .mem_clk           (ext_mem_clk),
     .rst               (rst_mem),
@@ -887,13 +697,13 @@ frame_read_write #(
     .write_req         (sd_card_write_req),
     .write_req_ack     (sd_card_write_req_ack),
     .write_finish      (frame_write_finish),
-    // W6: 写入 SRC_BUF（固定地址，不交替）
-    .write_addr_0      (21'hC_B000),      // MEM_BUF_SRC_BASE
-    .write_addr_1      (21'hC_B000),
-    .write_addr_2      (21'hC_B000),
-    .write_addr_3      (21'hC_B000),
-    .write_addr_index  (2'd0),            // 固定用 addr_0
-    .write_len         (src_write_len),
+    // RGB565直接写本次空闲显示页
+    .write_addr_0      (BUF0_ADDR),      // RGB565显示页
+    .write_addr_1      (BUF1_ADDR),
+    .write_addr_2      (21'd0),
+    .write_addr_3      (21'd0),
+    .write_addr_index  (write_buf_idx),            // 本次装载目标页
+    .write_len         (FRAME_PIXELS),
     .write_en          (packed_wr_en),    // W6: 来自 src_packer
     .write_data        (packed_wr_data)   // W6: RGB565 打包
 );
@@ -972,7 +782,7 @@ wav_read u_wav_read(
     .pcm_ready             (!wav_fifo_full)
 );
 
-audio_player u_audio_player(
+audio_player #(.VIDEO_CLK_HZ(74_250_000),.NOMINAL_SAMPLES_PER_FRAME(800)) u_audio_player(
     .clk_sd       (sd_card_clk),
     .clk_video    (video_clk),
     .rst_sd       (rst_sd),
@@ -1005,7 +815,7 @@ audio_arc_calculate #(
 );
 
 // ===================== RGB/DE 转 AXIS 视频 =====================
-video_rgb_to_axis_640x480 u_video_rgb_to_axis_640x480(
+video_rgb_to_axis_640x480 #(.ACTIVE_WIDTH(1280)) u_video_rgb_to_axis_640x480(
     .I_clk         (video_clk),
     .I_rst         (rst_video),
     .I_vs          (vs_d3),
@@ -1029,17 +839,17 @@ startup_pulse #(
 // ===================== 带音频的 HDMI 1.4b 发射 =====================
 hdmi_1_4b_transmitter_core_wrapper #(
     .DEVICE                 ( "EG"       ),
-    .HTOTAL                 ( 800        ),
-    .HSA                    ( 96         ),
-    .HFP                    ( 16         ),
-    .HBP                    ( 48         ),
-    .HACTIVE                ( 640        ),
-    .VTOTAL                 ( 525        ),
-    .VSA                    ( 2          ),
-    .VFP                    ( 10         ),
-    .VBP                    ( 33         ),
-    .VACTIVE                ( 480        ),
-    .VIDEO_VIC              ( 1          ),
+    .HTOTAL(1650),
+    .HSA(40),
+    .HFP(110),
+    .HBP(220),
+    .HACTIVE(1280),
+    .VTOTAL(750),
+    .VSA(5),
+    .VFP(5),
+    .VBP(20),
+    .VACTIVE(720),
+    .VIDEO_VIC(4),
     .VIDEO_TPG              ( "Disable"  ),
     .VIDEO_FORMAT           ( "RGB"      ),
     .AUDIO_SAMPLE_RATE      ( "48K"      ),
@@ -1091,31 +901,14 @@ hdmi_phy_wrapper #(
 );
 
 // ===================== W2: 副通道监视台（HDMI_A） =====================
-// 运行状态计数（video_clk 域，主通道帧边界计数）
-reg  [31:0] frame_cnt;
-reg  [5:0]  sec_frames;
-reg  [31:0] uptime_sec;
-reg         vs_d;
-wire        vs_edge = vs & ~vs_d;
-
+// 运行计时采用准确像素时钟分频，不依赖首个VS或帧计数相位。
+reg [26:0] second_div;
+reg [31:0] uptime_sec;
+wire sec_tick=(second_div==27'd74249999);
 always @(posedge video_clk or posedge rst_video) begin
-    if (rst_video) begin
-        frame_cnt  <= 32'd0;
-        sec_frames <= 6'd0;
-        uptime_sec <= 32'd0;
-        vs_d       <= 1'b0;
-    end else begin
-        vs_d <= vs;
-        if (vs_edge) begin
-            frame_cnt <= frame_cnt + 32'd1;
-            if (sec_frames == 6'd59) begin
-                sec_frames <= 6'd0;
-                uptime_sec <= uptime_sec + 32'd1;
-            end else begin
-                sec_frames <= sec_frames + 6'd1;
-            end
-        end
-    end
+    if (rst_video) begin second_div<=0; uptime_sec<=0; end
+    else if (sec_tick) begin second_div<=0; uptime_sec<=uptime_sec+1'b1; end
+    else second_div<=second_div+1'b1;
 end
 
 // W10: 接入真实同步偏差与模式（已在顶部前向声明）
@@ -1123,7 +916,7 @@ wire [1:0]  mode_v1 = emergency_mode ? 2'd2 : 2'd1;  // 0:启动 1:广告 2:应�
 
 // OSD 实时时钟（BCD）：HH/MM/SS 级联进位
 reg [7:0] clk_ss, clk_mm, clk_hh;   // 各两位 BCD
-wire      sec_tick = vs_edge && (sec_frames == 6'd0);
+// sec_tick由准确时钟分频提供。
 always @(posedge video_clk or posedge rst_video) begin
     if (rst_video) begin
         clk_ss <= 8'd0; clk_mm <= 8'd0; clk_hh <= 8'd0;
@@ -1148,7 +941,7 @@ always @(posedge video_clk or posedge rst_video) begin
 end
 
 // ---- W4: 主通道 OSD 合成 ----
-pixel_pos_gen u_main_pos(
+pixel_pos_gen #(.X_BITS(11),.Y_BITS(10)) u_main_pos(
     .I_clk       (video_clk),
     .I_rst       (rst_video),
     .I_vs        (vs),
@@ -1159,7 +952,7 @@ pixel_pos_gen u_main_pos(
     .O_frame_cnt (main_fc)
 );
 
-osd_engine u_osd(
+osd_engine_720 u_osd(
     .I_clk        (video_clk),
     .I_x          (x_d2),
     .I_y          (y_d2),
@@ -1173,7 +966,8 @@ osd_engine u_osd(
 // 每 120 个 PCM 样本抽取一个，32 点覆盖约 80 ms 音频；采集可跨帧继续，
 // 只在 VS 边界发布完整采样组，并逐帧平滑、消隐期预计算曲线。
 promax_audio_waveform #(
-    .WAVE_X      (64), .WAVE_Y(376), .WAVE_WIDTH(512), .WAVE_HEIGHT(72), .DECIMATE(120)
+    .WAVE_X(128),.WAVE_Y(576),.WAVE_WIDTH(1024),.WAVE_HEIGHT(96),.DECIMATE(120),
+    .VIDEO_WIDTH(1280),.VIDEO_HEIGHT(720),.X_BITS(11),.Y_BITS(10),.PIPELINED_GEOMETRY(1)
 ) u_promax_audio_waveform(
     .clk           (video_clk),
     .rst           (rst_video),
@@ -1193,7 +987,7 @@ promax_audio_waveform #(
 color_adjust u_color_adjust(
     .clk        (video_clk),
     .rst        (rst_video),
-    .de_in      (main_de_al),
+    .de_in      (mix_de),
     .rgb_in     (vout_data),
     .contrast   (sw[1] ? 8'd192 : 8'd128),   // SW2: 对比度增强
     .brightness (sw[2] ? 8'sd30 : 8'sd0),    // SW3: 亮度提升
@@ -1220,7 +1014,7 @@ emergency_ctrl #(
 assign buzzer = ~buzzer_drv;  // 低有效
 
 // emergency_render: 应急模式下替换视频输出
-emergency_render u_emergency_render(
+emergency_render #(.X_BITS(11),.Y_BITS(10)) u_emergency_render(
     .clk            (video_clk),
     .de_in          (de_d3),
     .x              (x_d3),
@@ -1251,138 +1045,12 @@ assign audio_right_final = emergency_mode ? siren_right : audio_right_data;
 // HDMI 包节拍包含 FIFO 空时的静音；波形采集只接受真实 PCM 样本事件。
 assign waveform_pcm_valid = emergency_mode ? siren_valid : audio_sample_data_valid;
 
-wire mon_hs, mon_vs, mon_de;
-wire [9:0]  mon_x;
-wire [8:0]  mon_y;
-wire [23:0] mon_rgb;
-wire        mon_axis_user;
-wire        mon_axis_valid;
-wire        mon_axis_last;
-wire [23:0] mon_axis_data;
-// A2: 监视台字库同步读 1 拍延迟对齐
-reg mon_de_d1, mon_vs_d1;
-always @(posedge video_clk or posedge rst_video) begin
-    if (rst_video) begin
-        mon_de_d1 <= 1'b0;
-        mon_vs_d1 <= 1'b0;
-    end else begin
-        mon_de_d1 <= mon_de;
-        mon_vs_d1 <= mon_vs;
-    end
-end
-wire [9:0] mon_tmds_ch0, mon_tmds_ch1, mon_tmds_ch2, mon_tmds_clk;
-wire       mon_edid_trig, mon_edid_valid;
-wire [7:0] mon_edid_data;
-
-video_timing_gen #(
-    .HTOTAL(800), .HSA(96), .HFP(16), .HBP(48), .HACTIVE(640),
-    .VTOTAL(525), .VSA(2),  .VFP(10), .VBP(33), .VACTIVE(480)
-) u_mon_timing_gen(
-    .I_clk (video_clk),
-    .I_rst (rst_video),
-    .O_hs  (mon_hs),
-    .O_vs  (mon_vs),
-    .O_de  (mon_de),
-    .O_x   (mon_x),
-    .O_y   (mon_y)
-);
-
-monitor_compositor u_mon_compositor(
-    .I_clk        (video_clk),
-    .I_de         (mon_de),
-    .I_x          (mon_x),
-    .I_y          (mon_y),
-    .I_uptime_sec (uptime_sec),
-    .I_frame_cnt  (frame_cnt),
-    .I_sync_dev   (sync_dev_real),
-    .I_mode       (mode_v1),
-    .I_tf_diag    (tf_video_snapshot),
-    .I_disp_underflow(underflow_frame),
-    .I_fifo_a_used (fifo_min_frame),
-    .O_rgb        (mon_rgb)
-);
-
-video_rgb_to_axis_640x480 u_mon_rgb_to_axis(
-    .I_clk         (video_clk),
-    .I_rst         (rst_video),
-    .I_vs          (mon_vs_d1),
-    .I_de          (mon_de_d1),
-    .I_rgb         (mon_rgb),
-    .O_video_user  (mon_axis_user),
-    .O_video_valid (mon_axis_valid),
-    .O_video_last  (mon_axis_last),
-    .O_video_data  (mon_axis_data)
-);
-
-startup_pulse #(
-    .CNT_MAX(20'd200000)
-) u_mon_startup_pulse (
-    .I_clk   (video_clk),
-    .I_rst   (rst_video),
-    .O_pulse (mon_edid_trig)
-);
-
-hdmi_1_4b_transmitter_core_wrapper #(
-    .DEVICE                 ( "EG"       ),
-    .HTOTAL                 ( 800        ),
-    .HSA                    ( 96         ),
-    .HFP                    ( 16         ),
-    .HBP                    ( 48         ),
-    .HACTIVE                ( 640        ),
-    .VTOTAL                 ( 525        ),
-    .VSA                    ( 2          ),
-    .VFP                    ( 10         ),
-    .VBP                    ( 33         ),
-    .VACTIVE                ( 480        ),
-    .VIDEO_VIC              ( 1          ),
-    .VIDEO_TPG              ( "Disable"  ),
-    .VIDEO_FORMAT           ( "RGB"      ),
-    .AUDIO_SAMPLE_RATE      ( "48K"      ),
-    .IIC_SCL_DIV            ( 250        )
-) u_hdmi_core_mon(
-    .I_pixel_clk        (video_clk),
-    .I_rst              (rst_video),
-    .I_edid_read_trig   (mon_edid_trig),
-    .O_edid_read_valid  (mon_edid_valid),
-    .O_edid_read_data   (mon_edid_data),
-
-    .I_axis_s_user      (mon_axis_user),
-    .I_axis_s_valid     (mon_axis_valid),
-    .I_axis_s_last      (mon_axis_last),
-    .I_axis_s_data      (mon_axis_data),
-    .O_axis_s_ready     (),
-
-    .I_audio_valid      (1'b0),
-    .I_audio_left_data  (24'd0),
-    .I_audio_right_data (24'd0),
-    .I_acr_valid        (1'b0),
-    .I_acr_cts          (20'd0),
-    .I_acr_n            (20'd0),
-
-    .O_video_locked     (),
-    .O_ddc_scl          (HDMI_A_DDC_SCL),
-    .IO_ddc_sda         (HDMI_A_DDC_SDA),
-
-    .O_ch0_tmds_data    (mon_tmds_ch0),
-    .O_ch1_tmds_data    (mon_tmds_ch1),
-    .O_ch2_tmds_data    (mon_tmds_ch2),
-    .O_clk_tmds_data    (mon_tmds_clk)
-);
-
-hdmi_phy_wrapper #(
-    .DEVICE ( "EG" )
-) u_hdmi_phy_mon(
-    .I_pixel_clk        (video_clk),
-    .I_serial_clk       (hdmi_5x_clk),
-    .I_rst              (rst_video),
-    .I_tmds_channel_0   (mon_tmds_ch0),
-    .I_tmds_channel_1   (mon_tmds_ch1),
-    .I_tmds_channel_2   (mon_tmds_ch2),
-    .I_tmds_channel_clk (mon_tmds_clk),
-    .O_tmds_ch0_p       (HDMI_A_D0_P),
-    .O_tmds_ch1_p       (HDMI_A_D1_P),
-    .O_tmds_ch2_p       (HDMI_A_D2_P),
-    .O_tmds_clk_p       (HDMI_A_CLK_P)
-);
+// 首版720p仅HDMI-B；A端口处于确定的闲置状态。
+assign HDMI_A_CLK_P=1'b0;
+assign HDMI_A_D2_P=1'b0;
+assign HDMI_A_D1_P=1'b0;
+assign HDMI_A_D0_P=1'b0;
+assign HDMI_A_DDC_SCL=1'b1;
+assign HDMI_A_DDC_SDA=1'bz;
 
 endmodule

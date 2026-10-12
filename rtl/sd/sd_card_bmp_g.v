@@ -5,7 +5,8 @@
 //   3. 保留双缓冲提交和最多 8 张图片的轮播控制
 module sd_card_bmp_g #(
     parameter integer CLK_FREQ_HZ       = 100_000_000,
-    parameter [3:0]   SCAN_TARGET_COUNT = 4'd8
+    parameter [3:0]   SCAN_TARGET_COUNT = 4'd8,
+    parameter EXACT_WIDTH = 0, EXACT_HEIGHT = 0
 )(
     input  wire        clk,
     input  wire        rst,
@@ -575,6 +576,7 @@ module sd_card_bmp_g #(
     end
 
     bmp_read_g #(
+        .EXACT_WIDTH(EXACT_WIDTH), .EXACT_HEIGHT(EXACT_HEIGHT),
         .MAX_IMAGES (8),
         .MAX_DIM    (2047)
     ) bmp_read_g_m0 (

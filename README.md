@@ -3,7 +3,7 @@
 数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 伪双端口帧缓存 → 多图层 alpha 合成 → 双 HDMI 异显（主通道广告内容 / 副通道监视台），并提供 WAV/警笛音频、Goertzel 频谱和帧边界应急切换。
 
 - 平台：HX4S20C 开发板（EG4S20BG256，TD 6.2.1）
-- 当前显示：真实 PCM 的圆润 B 样条曲线及逐帧平滑；默认旧图左移、新图从右侧进入，可选双页交叉淡化。KEY2 图片编号独立循环，最多缓存255个尚未启动请求；详见 [波形平滑与KEY2修复](docs/波形平滑与KEY2循环修复-20261003.md)。
+- 当前720p分支：HDMI-B输出1280×720/60Hz，HDMI-A暂停；RGB565双页交叉淡化、原生32px黑色透明字体、圆润PCM曲线。KEY2编号循环与请求排队保留；素材及验证说明见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
 - 实施计划：[docs/计划书-基于EG4S20的HDMI多媒体播放系统.md](docs/计划书-基于EG4S20的HDMI多媒体播放系统.md)
 - 参考工程：`D:\FPGA\ref\lab_ex5_i2s`（官方赛题样例，自 `D:\FPGA\HX4S20_Contest_202606\7_lab_ex_2026_nosoft` 解压）
 
@@ -24,7 +24,7 @@ docs\          计划书 / 设计说明书 / 测试报告
 | 信号 | 引脚 | 信号 | 引脚 |
 |---|---|---|---|
 | 50M 时钟 | R7 | HDMI_B TMDS | E1/F1/G5/C3 (LVDS33) + DDC P2/R2 |
-| KEY1~4 | A2/B2/B1/C1（KEY1 为复位；KEY4 短按转场、长按应急） | HDMI_A TMDS | B3/E3/F5/K1 (LVDS33) + DDC P1/R1 |
+| KEY1~4 | A2/B2/B1/C1（KEY1复位；720p版KEY4长按应急） | HDMI_A TMDS | B3/E3/F5/K1 (LVDS33) + DDC P1/R1 |
 | SW1~4 | C8/C7/C6/C5 | TF (SPI) | CS=A12 CLK=A14 MOSI=A13 MISO=B14 |
 | 蜂鸣器 | H11 (低有效) | UART | RXD=F12 TXD=D12 |
 
@@ -32,21 +32,24 @@ docs\          计划书 / 设计说明书 / 测试报告
 
 **双入口，单一事实源**：所有 RTL/约束都在本仓库目录里，TD 工程 `td_prj/av_media.al` 以相对路径引用它们。GUI 和命令行打开的是同一个工程。
 
-- **我（命令行）**：改代码 → 一键编译 `bash td_prj/build_all.sh` → 检查时序/资源报告 → 出 bit。
+- **我（命令行）**：改代码 → PowerShell 7运行 `pwsh.exe -NoLogo -NoProfile -File td_prj/build_all.ps1` → 检查时序/资源报告 → 出 bit。
   - 工程创建/加文件脚本：`td_prj/create_project.tcl`、`td_prj/add_sources.tcl`（TCL shell 逐行解析，禁止多行块）
   - 编译机制：run 目录下 `settings.cfg` + 基于 TD 官方流程的 `flow_fixhold.tcl`（syn_1: elaborate→opt_rtl→opt_gate；phy_1: opt_place→opt_route→bitgen，自动导入 syn 的 gate.db）
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-10-03）：圆润 PCM 曲线、逐帧平滑、KEY2请求排队与事务完成隔离；默认双页横向推移及可选无黑场交叉淡化保持。完整验证、bit哈希、资源和时序见 [PROGRESS 8.31](docs/PROGRESS.md#831-2026-10-03-圆润波形与-key2-请求及事务隔离)。setup仍有负余量，板级效果需下载本轮bit确认。
+- 当前构建（2026-10-12）：720p改造与老师例程对应、回归和时序边界见 [HDMI-B 720p](docs/HDMI_B_720P.md)。基线tag为 `backup/pre-720p-20261012`；SD/SDRAM仍有负setup余量，新视频域单独要求setup/hold均非负，板级效果需下载本轮bit确认。
 - 历史修复（2026-10-01）：D3 照片 `WR/SCALE=01/4C` 对应 scaler 等待 C 口命令接受，已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
 
 ## 回归门（每轮改动后必跑）
 
-```bash
-bash scripts/regression.sh          # 模块/通路仿真 + 生成物同步 + 报告门限（含慢速仿真）
-bash scripts/regression.sh --full   # 上述 + 从当前源码重新全编译出 bit
+```powershell
+pwsh.exe -NoLogo -NoProfile -File scripts/regression.ps1 -ReuseVerified
+pwsh.exe -NoLogo -NoProfile -File scripts/regression.ps1 -Full -ReuseVerified
 ```
+
+原生入口保留原回归用例，并增加当前720p顶层、RGB565、刷新压力、音频与时钟检查。
+`-ReuseVerified`仅复用输入hash完全一致且已经成功执行的仿真，全量TD构建仍执行。
 
 检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和真实顶层缩放连接仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前基础/完整回归结果以最新 [PROGRESS](docs/PROGRESS.md) 及构建清单为准。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
 

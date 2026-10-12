@@ -25,6 +25,8 @@ def source_files():
         os.path.join(ROOT, "td_prj", "av_media.al"),
         os.path.join(ROOT, "td_prj", "flow_fixhold.tcl"),
         os.path.join(ROOT, "td_prj", "build_all.sh"),
+        os.path.join(ROOT, "td_prj", "build_all.ps1"),
+        os.path.join(ROOT, "td_prj", "build_native.py"),
         os.path.join(ROOT, "td_prj", "av_media_Runs", "syn_1", "settings.cfg"),
         os.path.join(ROOT, "td_prj", "av_media_Runs", "phy_1", "settings.cfg"),
         os.path.join(ROOT, "td_prj", "av_media_Runs", "syn_1", "av_media.prj"),
@@ -153,6 +155,28 @@ def main():
         print("[RPT][FAIL] 修复后详细时序报告与汇总不一致")
         return 1
     print("[RPT][PASS] av_media_pr.timing 与修复后汇总一致")
+    # 旧SDRAM基线负余量不得掩盖新720p视频域违例。
+    for clock in ("video_clk", "hdmi_5x_clk"):
+        summary = re.search(r"clk\d+:\s+[0-9.]+\s+\d+\s+" + re.escape(clock) + r"\s*$", detailed, re.M)
+        if summary is None:
+            print(f"[RPT][FAIL] 缺少 {clock} 时钟摘要")
+            fails += 1
+            continue
+        clock_id = re.search(r"clk\d+", summary.group()).group()
+        row = re.search(r"^\s*" + clock_id + r"\s+local\s+(.+)$", detailed, re.M)
+        try:
+            values = row.group(1).split()
+            slack = float(values[6])
+            hold = float(values[8])
+        except (AttributeError, IndexError, ValueError):
+            print(f"[RPT][FAIL] {clock} 时钟域余量无法解析")
+            fails += 1
+            continue
+        if slack < 0 or hold < 0:
+            print(f"[RPT][FAIL] 新720p域 {clock} setup={slack:.3f}ns hold={hold:.3f}ns")
+            fails += 1
+        else:
+            print(f"[RPT][PASS] {clock} setup={slack:.3f}ns hold={hold:.3f}ns")
     if swns < 0:
         print("[RPT][WARN] setup 仍有负余量；按现有基线验收，不代表所有路径已闭合")
     base, tol = cfg["SWNS_BASE"], cfg["SWNS_TOL"]

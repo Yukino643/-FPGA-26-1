@@ -2,11 +2,11 @@
 //
 // 高对比红底 #C00000 + 白字警示标题 + 黄字滚动告警条
 // 纯组合逻辑 + 字库 ROM，不访问 SDRAM
-module emergency_render(
+module emergency_render #(parameter X_BITS=10, Y_BITS=9)(
     input  wire        clk,
     input  wire        de_in,
-    input  wire [9:0]  x,
-    input  wire [8:0]  y,
+    input  wire [X_BITS-1:0] x,
+    input  wire [Y_BITS-1:0] y,
     input  wire        emergency_mode,
     input  wire [23:0] normal_rgb,     // 正常模式输出
     output wire [23:0] rgb_out
@@ -18,7 +18,7 @@ module emergency_render(
     localparam [23:0] EMG_WARN  = 24'hFFDD00;  // 黄色告警
 
     // 滚动偏移（每帧 +2px）
-    reg [9:0] scroll_off;
+    reg [9:0] scroll_off = 10'd0;
     reg       vs_d;
     always @(posedge clk) begin
         vs_d <= de_in;  // 简化: 用 de 下降沿当帧边界

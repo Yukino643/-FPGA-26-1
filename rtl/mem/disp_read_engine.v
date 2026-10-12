@@ -8,7 +8,9 @@ module disp_read_engine #(
     parameter FRAME_WORDS = 307200,   // 640*480
     parameter BURST       = 128,      // mem_mpu 单簇上限
     parameter HIGH_WATER  = 256,      // A1: 适配官方 FIFO 深度 512（余量 2×BURST）
-    parameter ENABLE_SCROLL = 0
+    parameter ENABLE_SCROLL = 0,
+    parameter FIFO_USED_BITS = 10,
+    parameter GATE_ENABLE = 0
 )(
     input  wire                     clk,        // mem_clk 125M
     input  wire                     rst,
@@ -19,11 +21,12 @@ module disp_read_engine #(
     // 水平推移偏移；每行从 scroll_x 列开始读取并在行尾回绕。
     // 输入跨域后只在帧重启时采纳，保证一帧内地址序列稳定。
     input  wire [9:0]               scroll_x,
+    input  wire                     frame_enable,
 
     // FIFO 接口（afifo_simple 写侧，同域）
     output reg                      fifo_we,
     output reg  [31:0]              fifo_wdata,
-    input  wire [9:0]               fifo_wusedw, // A1: 深度512 → 10 位
+    input  wire [FIFO_USED_BITS-1:0] fifo_wusedw, // A1: 深度512 → 10 位
 
     // mem_mpu 请求方接口
     output reg                      cmd_valid,
@@ -48,6 +51,7 @@ module disp_read_engine #(
     reg [7:0]           burst_left;
     reg                 in_burst;      // 0=待发 1=已发命令待收数
     reg                 frame_act;
+    reg [1:0] enable_sync;
 
     wire [31:0] remaining = FRAME_WORDS - word_cnt;
     wire [10:0] source_remaining = 11'd640 - {1'b0, src_col};
@@ -77,9 +81,11 @@ module disp_read_engine #(
             cmd_len    <= 8'd0;
             go_pend    <= 1'b0;
             vs_sync    <= 3'b000;
+            enable_sync <= 0;
         end else begin
             fifo_we <= 1'b0;
             vs_sync <= {vs_sync[1:0], vs_toggle};
+            enable_sync <= {enable_sync[0], frame_enable};
             scroll_sync1 <= (ENABLE_SCROLL && scroll_x < 10'd640) ? scroll_x : 10'd0;
             scroll_sync2 <= scroll_sync1;
             if (vs_pulse)
@@ -93,7 +99,8 @@ module disp_read_engine #(
                 scroll_r  <= scroll_sync2;
                 out_col   <= 10'd0;
                 word_cnt  <= 32'd0;
-                frame_act <= 1'b1;
+                // 只在帧边界采纳使能；已有突发必须完整收尾。
+                frame_act <= !GATE_ENABLE || enable_sync[1];
                 go_pend   <= 1'b0;
                 // 重启和请求旧页互斥，不能用本拍更新前的 base_r 发首突发。
                 cmd_valid <= 1'b0;

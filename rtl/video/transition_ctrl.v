@@ -4,11 +4,12 @@ module transition_ctrl #(
     parameter [20:0] PAGE0_BASE = 21'h0_0000,
     parameter [20:0] PAGE1_BASE = 21'h8_0000,
     parameter [7:0] ALPHA_STEP = 8'd8,
-    parameter [9:0] SLIDE_STEP = 10'd16
+    parameter [9:0] SLIDE_STEP = 10'd16,
+    parameter X_BITS=10, Y_BITS=9
 )(
     input wire clk, rst, vs_rise,
-    input wire [9:0] x,
-    input wire [8:0] y,
+    input wire [X_BITS-1:0] x,
+    input wire [Y_BITS-1:0] y,
     input wire commit_toggle,
     input wire [1:0] commit_buf, tr_mode,
     output reg tr_active,

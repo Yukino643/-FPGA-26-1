@@ -11,15 +11,17 @@ module video_timing_gen #(
     parameter integer VSA     = 2,
     parameter integer VFP     = 10,
     parameter integer VBP     = 33,
-    parameter integer VACTIVE = 480
+    parameter integer VACTIVE = 480,
+    parameter integer X_BITS = 10,
+    parameter integer Y_BITS = 9
 )(
     input  wire        I_clk,
     input  wire        I_rst,
     output reg         O_hs,
     output reg         O_vs,
     output reg         O_de,
-    output reg  [9:0]  O_x,    // 有效区 x: 0..HACTIVE-1
-    output reg  [8:0]  O_y     // 有效区 y: 0..VACTIVE-1
+    output reg  [X_BITS-1:0] O_x,    // 有效区 x: 0..HACTIVE-1
+    output reg  [Y_BITS-1:0] O_y     // 有效区 y: 0..VACTIVE-1
 );
 
     localparam integer H_SYNC_START = HFP + HACTIVE + HBP;
@@ -57,8 +59,8 @@ module video_timing_gen #(
             O_hs <= (S_xc >= H_SYNC_START) && (S_xc < H_SYNC_START + HSA);
             O_vs <= (S_yc >= V_SYNC_START) && (S_yc < V_SYNC_START + VSA);
             O_de <= (S_xc < HACTIVE) && (S_yc < VACTIVE);
-            O_x  <= S_xc[9:0];
-            O_y  <= S_yc[8:0];
+            O_x  <= S_xc[X_BITS-1:0];
+            O_y  <= S_yc[Y_BITS-1:0];
         end
     end
 

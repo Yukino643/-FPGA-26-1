@@ -1,3 +1,4 @@
+// 720p: reference=27MHz, pixel=74.25MHz, serial=371.25MHz, VCO=742.5MHz.
 /************************************************************\
  **     Copyright (c) 2012-2024 Anlogic Inc.
  **  All Right Reserved.\
@@ -9,15 +10,9 @@
  ** TD version	:	5.6.119222
 \************************************************************/
 
-///////////////////////////////////////////////////////////////////////////////
-//	Input frequency:               50.000000MHz
-//	Clock multiplication factor: 1
-//	Clock division factor:       2
-//	Clock information:
-//		Clock name	| Frequency 	| Phase shift
-//		C0        	| 25.000000 MHZ	| 0.0000  DEG  
-//		C1        	| 125.000000MHZ	| 0.0000  DEG  
-///////////////////////////////////////////////////////////////////////////////
+// 该封装由旧官方生成模板适配TN305_1.1数字参数，未宣称重新经IP Generator生成。
+// 输入27MHz，M=11/N=4，CLKC0反馈；VCO742.5MHz，输出74.25/371.25MHz。
+// 已用官方功能模型与TD实际综合/布线验证；实物PLL锁定仍需上板复核。
 `timescale 1 ns / 100 fs
 
 module video_pll (
@@ -25,7 +20,7 @@ module video_pll (
   reset,
   extlock,
   clk0_out,
-  clk1_out 
+  clk1_out
 );
 
   input refclk;
@@ -38,13 +33,13 @@ module video_pll (
 
   EG_LOGIC_BUFG bufg_feedback (
     .i(clk0_buf),
-    .o(clk0_out) 
+    .o(clk0_out)
   );
 
   EG_PHY_PLL #(
     .DPHASE_SOURCE("DISABLE"),
     .DYNCFG("DISABLE"),
-    .FIN("50.000000"),
+    .FIN("27.000000"),
     .FEEDBK_MODE("NORMAL"),
     .FEEDBK_PATH("CLKC0_EXT"),
     .STDBY_ENABLE("DISABLE"),
@@ -55,16 +50,16 @@ module video_pll (
     .KVCO(2),
     .LPF_CAPACITOR(1),
     .LPF_RESISTOR(8),
-    .REFCLK_DIV(2),
-    .FBCLK_DIV(1),
+    .REFCLK_DIV(4),
+    .FBCLK_DIV(11),
     .CLKC0_ENABLE("ENABLE"),
-    .CLKC0_DIV(40),
-    .CLKC0_CPHASE(39),
+    .CLKC0_DIV(10),
+    .CLKC0_CPHASE(9),
     .CLKC0_FPHASE(0),
     .CLKC1_ENABLE("ENABLE"),
-    .CLKC1_DIV(8),
-    .CLKC1_CPHASE(7),
-    .CLKC1_FPHASE(0) 
+    .CLKC1_DIV(2),
+    .CLKC1_CPHASE(1),
+    .CLKC1_FPHASE(0)
   ) pll_inst (
     .refclk(refclk),
     .reset(reset),
@@ -83,7 +78,7 @@ module video_pll (
     .daddr(6'b000000),
     .do({open, open, open, open, open, open, open, open}),
     .fbclk(clk0_out),
-    .clkc({open, open, open, clk1_out, clk0_buf}) 
+    .clkc({open, open, open, clk1_out, clk0_buf})
   );
 
 endmodule

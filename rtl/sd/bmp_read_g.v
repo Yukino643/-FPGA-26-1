@@ -10,7 +10,9 @@ module bmp_read_g #(
     parameter MAX_IMAGES = 8,
     parameter MAX_DIM    = 2047,
     parameter CLK_FREQ_HZ = 100_000_000,
-    parameter SD_READ_TIMEOUT_MS = 500
+    parameter SD_READ_TIMEOUT_MS = 500,
+    parameter EXACT_WIDTH = 0,
+    parameter EXACT_HEIGHT = 0
 )(
     input  wire        clk,
     input  wire        rst,
@@ -87,6 +89,8 @@ module bmp_read_g #(
                            && (compression == 32'd0)
                            && (width  != 32'd0) && (width  <= MAX_DIM)
                            && (height != 32'd0) && (height[31] == 1'b0) && (height <= MAX_DIM)
+                           && (EXACT_WIDTH == 0 || width == EXACT_WIDTH)
+                           && (EXACT_HEIGHT == 0 || height == EXACT_HEIGHT)
                            && (pixel_offset >= 32'd54)
                            && (file_len >= pixel_offset);
     wire [31:0] next_if_miss  = scan_sector + 32'd1;
