@@ -19,7 +19,11 @@ else
   PY_ROOT=/d/FPGA/code/example
   IV_CMD=/c/iverilog/bin/iverilog
   VVP_CMD=/c/iverilog/bin/vvp
-  DEFAULT_PY=python3
+  if [ -x /d/miniconda3/python.exe ]; then
+    DEFAULT_PY=/d/miniconda3/python.exe
+  else
+    DEFAULT_PY=python3
+  fi
 fi
 PYTHON_BIN="${PYTHON_BIN:-$DEFAULT_PY}"
 if [ ! -x "$PYTHON_BIN" ] && ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then

@@ -13,8 +13,9 @@ module tb_disp_path #(
     localparam FRAME_WORDS = 640*ACTIVE_ROWS;
     localparam SLIDE_FRAMES = (640+ANIM_SLIDE_STEP-1)/ANIM_SLIDE_STEP;
     localparam BLEND_FRAMES = 4;
-    localparam SLIDE_SPAN = SLIDE_FRAMES+3;
-    localparam BLEND_SPAN = BLEND_FRAMES+3;
+    // 转场状态机还包含一帧 S_SETTLE；额外保留两个完整稳定帧做无位移核对。
+    localparam SLIDE_SPAN = SLIDE_FRAMES+4;
+    localparam BLEND_SPAN = BLEND_FRAMES+4;
     localparam FINAL_FRAME = TEST_ANIMATION ? 2+2*SLIDE_SPAN+2*BLEND_SPAN : 8;
     localparam PAGE0 = 21'h0_0000;
     localparam PAGE1 = 21'h8_0000;
@@ -194,12 +195,21 @@ module tb_disp_path #(
 
     // 按外部提交建立参考页，不能从 DUT 的当前页反推期望结果。
     integer frames_seen=0, checked_pixels=0, checked_frames=0, err=0;
+    integer submissions=0, post_stable_frames=0;
     reg expected_page=0, next_page=0, request_pending=0;
+    reg transition_completed_seen=0;
     reg [23:0] expected;
     integer ref_phase=0, ref_progress=0, source_index, ref_weight;
     reg ref_old=0, ref_new=1;
     always @(posedge clk25) begin
         if(de_al && frames_seen>0) begin
+            // 稳定显示必须逐列直读源图。该检查不复用横推参考公式，
+            // 防止 DUT 与期望模型同时保留相同的循环移位错误。
+            if (!tr_active && (display_scroll_x !== 10'd0 || boundary !== 10'd0 ||
+                               slide_axis !== 2'd0 || u_eng_a.scroll_r !== 10'd0 ||
+                               u_eng_b.scroll_r !== 10'd0))
+                $fatal(1,"FAIL stale scroll in stable frame x=%0d scroll=%0d/%0d boundary=%0d axis=%0d",
+                       px,u_eng_a.scroll_r,u_eng_b.scroll_r,boundary,slide_axis);
             if (TEST_ANIMATION) begin
                 source_index=py*640+((px+((mode==2 && ref_phase==1) ? ref_progress : 0))%640);
                 if(ref_phase==1 && mode==2)
@@ -234,8 +244,13 @@ module tb_disp_path #(
                     if(ref_progress>=((mode==2) ? 640 : 255)) begin
                         ref_progress=255; expected_page=ref_new; ref_phase=2;
                     end
-                end else if(ref_phase==2) ref_phase=0;
+                end else if(ref_phase==2) begin
+                    ref_phase=0;
+                    transition_completed_seen=1;
+                end
             end else if(request_pending) begin expected_page=next_page; request_pending=0; end
+            if(TEST_ANIMATION && transition_completed_seen && ref_phase==0 && !tr_active)
+                post_stable_frames=post_stable_frames+1;
             frames_seen=frames_seen+1;
         end
     end
@@ -243,6 +258,13 @@ module tb_disp_path #(
         input [1:0] target;
         reg [20:0] old_page;
         begin
+            if(TEST_ANIMATION) begin
+                if(submissions>0 && post_stable_frames<2)
+                    $fatal(1,"FAIL fewer than two stable frames after transition: %0d",post_stable_frames);
+                submissions=submissions+1;
+                post_stable_frames=0;
+                transition_completed_seen=0;
+            end
             old_page=page_a_base;
             @(negedge clk25); commit_buf=target; commit_toggle=1;
             next_page=target[0]; request_pending=1;
@@ -268,6 +290,8 @@ module tb_disp_path #(
         // 只豁免启动时尚无 VS 预取的第一帧，此后不允许增加下溢。
         if(ufl!=FRAME_WORDS) $fatal(1,"FAIL underflow=%0d expected=%0d",ufl,FRAME_WORDS);
         if(err!=0 || checked_frames!=FINAL_FRAME-1) $fatal(1,"FAIL frames=%0d pixel_errors=%0d",checked_frames,err);
+        if(TEST_ANIMATION && post_stable_frames<2)
+            $fatal(1,"FAIL final transition has only %0d stable frames",post_stable_frames);
         $display("TB_DISP_PATH PASS frames=%0d exact_pixels=%0d",checked_frames,checked_frames*FRAME_WORDS);
         $finish;
     end

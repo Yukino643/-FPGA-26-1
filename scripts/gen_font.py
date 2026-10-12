@@ -12,11 +12,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 OUT_V   = os.path.join(os.path.dirname(__file__), "..", "rtl", "ctrl", "font_rom_ascii.v")
 OUT_HEX = os.path.join(os.path.dirname(__file__), "..", "sim", "font_ascii.hex")
+FONT_PATH = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "consola.ttf")
 CW, CH = 8, 16
 FIRST, LAST = 0x20, 0x7E
 
 def rasterize():
-    font = ImageFont.truetype("consola.ttf", 14)
+    font = ImageFont.truetype(FONT_PATH, 14)
     glyphs = {}
     for code in range(FIRST, LAST + 1):
         ch = chr(code)

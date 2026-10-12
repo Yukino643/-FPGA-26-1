@@ -16,7 +16,15 @@ else
   PROJ_ROOT="/d/FPGA/code/example"
 fi
 RUNS="$ROOT/av_media_Runs"
-PYTHON_BIN="${PYTHON_BIN:-/mnt/d/miniconda3/python.exe}"
+if [ -z "${PYTHON_BIN:-}" ]; then
+  if [ -d /mnt/d ] && [ -x /mnt/d/miniconda3/python.exe ]; then
+    PYTHON_BIN=/mnt/d/miniconda3/python.exe
+  elif [ -x /d/miniconda3/python.exe ]; then
+    PYTHON_BIN=/d/miniconda3/python.exe
+  else
+    PYTHON_BIN=python3
+  fi
+fi
 
 if [ ! -x "$PYTHON_BIN" ] && ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   PYTHON_BIN="python3"
