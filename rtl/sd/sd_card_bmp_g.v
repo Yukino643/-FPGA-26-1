@@ -6,7 +6,8 @@
 module sd_card_bmp_g #(
     parameter integer CLK_FREQ_HZ       = 100_000_000,
     parameter [3:0]   SCAN_TARGET_COUNT = 4'd8,
-    parameter EXACT_WIDTH = 0, EXACT_HEIGHT = 0
+    parameter EXACT_WIDTH = 0, EXACT_HEIGHT = 0,
+    parameter PREFETCH_NEXT = 0
 )(
     input  wire        clk,
     input  wire        rst,
@@ -111,6 +112,10 @@ module sd_card_bmp_g #(
     reg              load_retry_used;
     reg              load_fault;
     reg [7:0]        failed_mask;        // 已重试仍失败的图片，避免轮播反复卡在坏图
+    // 老师第八讲：完整装载与可见页发布分离。预取页保持到真实切图请求。
+    reg              prefetch_ready;
+    reg [15:0]       prefetch_w, prefetch_h;
+    reg              auto_request_pending;
 
     reg [2:0]        wrfin_tgl_sync;
     wire             write_finish_pulse;
@@ -120,8 +125,8 @@ module sd_card_bmp_g #(
     wire [3:0] first_good_image;
     wire        any_good_image;
 
-    // [27:20]坏图掩码，[19:16]状态，[15:12]错误，[11:8]发现数，[7:0]阶段标志。
-    assign debug_status = {4'd0, failed_mask, state_code,
+    // [29]自动待请求，[28]预取就绪，[27:20]坏图掩码；其余沿用原诊断布局。
+    assign debug_status = {2'd0, auto_request_pending, prefetch_ready, failed_mask, state_code,
                            (fs_scan_error != 0) ? scan_error_display_code : bmp_error_code,
                            img_found_count,
                            any_good_image, first_image_committed, display_valid,
@@ -152,13 +157,20 @@ module sd_card_bmp_g #(
     assign any_good_image    = has_good_image(img_found_count, failed_mask);
     // 手动切图事件独立于装载/转场状态；请求先入饱和计数器，空闲时逐个消费。
     wire manual_next_press = key_next_press && scan_done && (img_found_count > 4'd0);
-    wire manual_next_start = scan_done && bmp_ready && display_valid && !load_busy
+    wire manual_next_start = !PREFETCH_NEXT && scan_done && bmp_ready && display_valid && !load_busy
                            && (next_req_count != 8'd0)
                            && (img_found_count != 4'd0) && any_good_image && !hold_load;
     assign write_finish_pulse = wrfin_tgl_sync[2] ^ wrfin_tgl_sync[1];
-    assign display_commit_pulse = sd_init_done && scan_kicked && load_busy && !bmp_load_error
-                                  && (source_done_seen || load_done)
-                                  && (write_finish_seen || write_finish_pulse);
+    wire frame_complete = sd_init_done && scan_kicked && load_busy && !bmp_load_error
+                          && (source_done_seen || load_done)
+                          && (write_finish_seen || write_finish_pulse);
+    wire cached_publish = PREFETCH_NEXT && sd_init_done && scan_kicked && prefetch_ready && !hold_load
+                          && ((next_req_count != 0) || manual_next_press ||
+                              (auto_request_pending && !(key_auto_press && auto_play_en)));
+    wire manual_next_consume = PREFETCH_NEXT ?
+                              cached_publish && ((next_req_count != 0) || manual_next_press) : manual_next_start;
+    assign display_commit_pulse = PREFETCH_NEXT ?
+                                  ((frame_complete && !first_image_committed) || cached_publish) : frame_complete;
 
     key_press_debounce #(
         .CLK_FREQ_HZ (CLK_FREQ_HZ),
@@ -386,6 +398,10 @@ module sd_card_bmp_g #(
             load_retry_used       <= 1'b0;
             load_fault            <= 1'b0;
             failed_mask           <= 8'd0;
+            prefetch_ready        <= 1'b0;
+            prefetch_w            <= 0;
+            prefetch_h            <= 0;
+            auto_request_pending  <= 1'b0;
             display_valid         <= 1'b0;
         end else begin
             wrfin_tgl_sync   <= {wrfin_tgl_sync[1:0], write_finish_toggle};
@@ -413,6 +429,8 @@ module sd_card_bmp_g #(
                 load_retry_used       <= 1'b0;
                 load_fault            <= 1'b0;
                 failed_mask           <= 8'd0;
+                prefetch_ready        <= 1'b0;
+                auto_request_pending  <= 1'b0;
                 display_valid         <= 1'b0;
             end else begin
                 // 扫描阶段缓存根目录项给出的首簇与文件长度。
@@ -444,7 +462,8 @@ module sd_card_bmp_g #(
                         failed_mask[load_idx] <= 1'b1;
                         // 失败事务不提交目标页；下一拍自动寻找下一张可用图片，
                         // 若当前正处于转场则由 hold_load 暂挂该请求。
-                        if (next_req_count == 8'd0) next_req_count <= 8'd1;
+                        // 后台预取失败不能制造用户请求；跳坏图后继续准备下一张。
+                        if (!PREFETCH_NEXT && next_req_count == 8'd0) next_req_count <= 8'd1;
                     end
                 end
 
@@ -454,8 +473,18 @@ module sd_card_bmp_g #(
                 if (load_busy && !bmp_load_error && write_finish_pulse)
                     write_finish_seen <= 1'b1;
 
-                // 收到 write_finish_toggle 脉冲才提交新图并切换显示缓冲
-                // 两端完成事件均锁存，容许先后或同拍；错误不得提交半成品页。
+                if (PREFETCH_NEXT && frame_complete && first_image_committed) begin
+                    prefetch_ready   <= 1'b1;
+                    prefetch_w       <= load_img_w;
+                    prefetch_h       <= load_img_h;
+                    load_busy        <= 1'b0;
+                    source_done_seen <= 1'b0;
+                    write_finish_seen<= 1'b0;
+                    load_fault       <= 1'b0;
+                end
+
+                // 首图双完成后直接发布；预取页等待真实请求，禁止装载完成即自行切图。
+                // 完成事件分别锁存，容许先后或同拍；错误不得发布半成品页。
                 if (display_commit_pulse) begin
                     display_commit_toggle <= ~display_commit_toggle;
                     load_busy             <= 1'b0;
@@ -463,11 +492,13 @@ module sd_card_bmp_g #(
                     write_finish_seen <= 1'b0;
                     disp_buf_idx          <= pending_buf_idx;
                     img_idx               <= load_idx;
-                    cur_img_w             <= load_img_w;
-                    cur_img_h             <= load_img_h;
+                    cur_img_w             <= cached_publish ? prefetch_w : load_img_w;
+                    cur_img_h             <= cached_publish ? prefetch_h : load_img_h;
                     display_valid         <= 1'b1;
                     first_image_committed <= 1'b1;
                     load_fault            <= 1'b0;
+                    prefetch_ready        <= 1'b0;
+                    auto_request_pending  <= 1'b0;
                 end
 
                 // FAT32 扫描错误也保留在诊断状态中，避免无图/坏 BPB 只呈现为黑屏。
@@ -494,11 +525,18 @@ module sd_card_bmp_g #(
                     load_retry_used       <= 1'b0;
                     load_fault            <= 1'b0;
                     failed_mask           <= 8'd0;
+                    prefetch_ready        <= 1'b0;
+                    auto_request_pending  <= 1'b0;
                 end else begin
                     // 即使正在读卡、缩放或转场，也缓存按键请求（最多积压255次，累计切图次数不限）。
                     // manual_next_start 分支在本拍消费一个请求，因此同拍按键已单独合并处理。
-                    if (manual_next_press && !manual_next_start && (next_req_count < 8'd255))
+                    if (manual_next_press && !manual_next_consume && (next_req_count < 8'd255))
                         next_req_count <= next_req_count + 8'd1;
+                    if (PREFETCH_NEXT && manual_next_consume) begin
+                        // 同拍新增与消费抵消；直接热请求不先入队，不允许0减1回绕。
+                        if (!manual_next_press) next_req_count <= next_req_count - 8'd1;
+                        auto_cnt <= 0;
+                    end
 
                     // 全部图片被本轮错误屏蔽后，新的手动按键开启一次有界重试。
                     // 自动积压请求不清屏蔽，避免无卡/坏图导致无限自动重读。
@@ -508,13 +546,17 @@ module sd_card_bmp_g #(
                     if (key_auto_press && scan_done && (img_found_count > 4'd1)) begin
                         auto_play_en <= ~auto_play_en;
                         auto_cnt     <= 32'd0;
+                        auto_request_pending <= 1'b0;
                     end
 
-                    if (scan_done && auto_play_en && display_valid && !load_busy && first_image_committed && (img_found_count > 4'd1)) begin
+                    if (scan_done && auto_play_en && display_valid && (!load_busy || PREFETCH_NEXT)
+                        && first_image_committed && (img_found_count > 4'd1)
+                        && (!PREFETCH_NEXT || (!hold_load && !display_commit_pulse && !key_auto_press))) begin
                         if (auto_tick)
                             auto_cnt <= 32'd0;
                         else
                             auto_cnt <= auto_cnt + 32'd1;
+                        if (PREFETCH_NEXT && auto_tick) auto_request_pending <= 1'b1;
                     end else begin
                         auto_cnt <= 32'd0;
                     end
@@ -536,6 +578,23 @@ module sd_card_bmp_g #(
                         auto_cnt         <= 32'd0;
                         img_count        <= img_found_count;
                     end
+                    else if (PREFETCH_NEXT && scan_done && bmp_ready && display_valid && !load_busy
+                             && !prefetch_ready && !display_commit_pulse && any_good_image && !hold_load
+                             && ((next_from_current != img_idx) || next_req_count != 0 || manual_next_press
+                                 || auto_request_pending)) begin
+                        // 当前页只读；只有视频释放旧页后才能准备下一张，不等KEY2才读卡。
+                        load_idx         <= next_from_current;
+                        load_sector      <= 0;
+                        load_cluster     <= cluster_lut(next_from_current);
+                        load_file_size   <= size_lut(next_from_current);
+                        pending_buf_idx  <= next_buf_lut(disp_buf_idx, display_valid);
+                        write_buf_idx    <= next_buf_lut(disp_buf_idx, display_valid);
+                        load_start_pulse <= 1'b1;
+                        load_busy        <= 1'b1;
+                        source_done_seen <= 1'b0;
+                        write_finish_seen<= 1'b0;
+                        load_retry_used  <= 1'b0;
+                    end
                     else if (manual_next_start) begin
                         load_idx         <= next_from_current;
                         load_sector      <= 32'd0;
@@ -555,7 +614,7 @@ module sd_card_bmp_g #(
                             next_req_count <= next_req_count;
                         auto_cnt         <= 32'd0;
                     end
-                    else if (scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
+                    else if (!PREFETCH_NEXT && scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
                              && (img_found_count > 4'd1) && any_good_image && !hold_load) begin
                         load_idx         <= next_from_current;
                         load_sector      <= 32'd0;

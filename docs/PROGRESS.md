@@ -657,3 +657,19 @@
 | 恢复 | tag `backup/pre-smooth-key-20261003`指向bcece2b7；D:/FPGA/backups/pre-smooth-key-20261003保存旧bit/.al、恢复说明及完整bundle |
 | 证据 | [改进文档](波形平滑与KEY2循环修复-20261003.md)、[basic](validation/smooth-key-20261003/basic.log)、[full](validation/smooth-key-20261003/full.log)、[report](validation/smooth-key-20261003/reports.log)、[review](validation/smooth-key-20261003/review.md) |
 | 板级待验 | 下载本轮bit，KEY2逐次40次以上及转场中连按5次；检查曲线圆润/流畅、三图循环、音频、两路HDMI和应急。当前板测根因尚未由现场状态确认，只证明已修复的RTL反例；行为模型不替代物理IP/刷新/突发断卡验证 |
+
+## 8.32 2026-10-14 七图720p板测与KEY2下一张预取
+
+| 项目 | 当前结论 |
+|---|---|
+| 上一版板测 | 用户确认七张720p图片全部正常，显示效果满意；预取版本仍需重新上板 |
+| KEY2根因 | 纯RTL无软件中断优先级；20ms消抖后才读约2.76MB BMP，25MHz SPI仅数据下限约0.885秒 |
+| 优化 | 参考老师第八讲，空闲页后台提前装载，完整后等待真实请求；转场释放返回才再次预取 |
+| 请求/错误 | 热/冷请求、255饱和、同拍消费、自动取消、坏图重试、唯一好图自动恢复及SD重初始化保留 |
+| 中断恢复 | 种子5最终RTL局部hold-buffer布线冲突；官方place seed改6，完整TD及报告通过，未放宽门限 |
+| 验证补强 | 预取页毒值初始化、实际存储写地址/DQM/字数核对；关闭模型写入负例由像素检查拒绝 |
+| 最新资源 | LUT11564/19600=59.00%；寄存器7903/19600=40.32%；BRAM9K49/64=76.56%；BRAM32K0/16；DSP9/29；PLL3/4 |
+| 时序 | pixel setup+0.144ns/hold+0.022ns；serial setup+0.977ns/hold+0.068ns；SWNS=-6.565ns，SD/SDRAM旧负setup仍存在 |
+| 扩展 | 当前单板够用，HDMI-A暂停；双HDMI独立画面需另做BRAM/PLL/SDRAM并行带宽验证 |
+| 交付进度 | 最终完整显示回归与Git保存进行中；完成结果以验收记录为准 |
+| 详情 | [完整资源与验收记录](validation/key2-prefetch-20261014.md)、[720p使用说明](HDMI_B_720P.md) |

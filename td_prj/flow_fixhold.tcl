@@ -169,8 +169,8 @@ proc opt_place_fun {} {
   }
 
 ### Editable zone for opt_place ###
-  # 官方 MultiSeed.tcl 使用 place seed；固定种子 5 避免本轮局部布线冲突。
-  set_param place seed 5
+  # 使用官方 MultiSeed.tcl 的布局种子接口；预取版避开种子 5 的 hold-buffer 局部冲突。
+  set_param place seed 6
   place
   update_timing -mode manhattan
   report_timing_summary -file ${prj_name}_place.timing

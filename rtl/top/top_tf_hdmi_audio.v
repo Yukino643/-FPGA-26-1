@@ -376,7 +376,7 @@ end
 sd_card_bmp_g #(
     .CLK_FREQ_HZ       (100_000_000),
     .SCAN_TARGET_COUNT (4'd8),
-    .EXACT_WIDTH(1280), .EXACT_HEIGHT(720)
+    .EXACT_WIDTH(1280), .EXACT_HEIGHT(720), .PREFETCH_NEXT(1)
 ) sd_card_bmp_g_m0(
     .clk               (sd_card_clk),
     .rst               (rst_sd),

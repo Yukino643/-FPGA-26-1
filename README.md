@@ -3,7 +3,7 @@
 数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 伪双端口帧缓存 → 多图层 alpha 合成 → 双 HDMI 异显（主通道广告内容 / 副通道监视台），并提供 WAV/警笛音频、Goertzel 频谱和帧边界应急切换。
 
 - 平台：HX4S20C 开发板（EG4S20BG256，TD 6.2.1）
-- 当前720p分支：HDMI-B输出1280×720/60Hz，HDMI-A暂停；RGB565双页交叉淡化、原生32px黑色透明字体、圆润PCM曲线。KEY2编号循环与请求排队保留；素材及验证说明见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
+- 当前720p分支：七张图片已获实物确认。HDMI-B输出1280×720/60Hz，HDMI-A暂停；RGB565双页交叉淡化、原生32px黑色透明字体、圆润PCM曲线。新增下一张后台预取以缩短KEY2热请求等待，连续快按仍受读卡吞吐限制；资源表、素材及验证说明见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
 - 实施计划：[docs/计划书-基于EG4S20的HDMI多媒体播放系统.md](docs/计划书-基于EG4S20的HDMI多媒体播放系统.md)
 - 参考工程：`D:\FPGA\ref\lab_ex5_i2s`（官方赛题样例，自 `D:\FPGA\HX4S20_Contest_202606\7_lab_ex_2026_nosoft` 解压）
 

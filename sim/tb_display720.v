@@ -2,7 +2,8 @@
 // 实际720p时序、125MHz存储、真实仲裁、刷新阻塞及完整帧逐像素检查。
 module tb_display720 #(
     parameter ACTIVE_ROWS=720,
-    parameter TEST_FRAMES=8
+    parameter TEST_FRAMES=8,
+    parameter PREFETCH_WRITES=0
 );
     reg vc=0,mc=0,rst=1;
     always #6.734 vc=~vc;
@@ -50,17 +51,56 @@ module tb_display720 #(
     // 125MHz下7.8us周期；强制32拍阻塞比常见tRFC更保守。
     always @(posedge mc) if(rst) refresh_div<=0;else refresh_div<=refresh_div==974?0:refresh_div+1;
     wire refresh_busy=refresh_div<32;
+    wire read_busy,writer_busy,writer_wr,writer_ack,writer_finish,fifo_clear;
+    wire [20:0] writer_addr,mem_wr_addr;
+    wire [31:0] mem_wr_data;
+    wire [3:0] mem_wr_dm;
+    wire mem_wr;
+    reg writer_req=0;
+    reg [9:0] fifo_used=0;
+    integer producer_div=0,written_words=0,mem_written_words=0;
+    // 每64个存储拍产生一字，约1.95Mword/s，高于当前25MHz SPI可提供速率。
+    wire producer_tick=PREFETCH_WRITES && !fifo_clear && producer_div==63 && fifo_used<512;
+    always @(posedge mc) begin
+        if(rst || fifo_clear) begin fifo_used<=0;producer_div<=0;end
+        else begin
+            producer_div<=producer_div==63 ? 0:producer_div+1;
+            case({producer_tick,writer_wr})
+                2'b10: fifo_used<=fifo_used+1;
+                2'b01: fifo_used<=fifo_used-1;
+                default: fifo_used<=fifo_used;
+            endcase
+        end
+        if(!rst && writer_wr) begin
+            if(!PREFETCH_WRITES || fifo_used==0 || read_busy || ren || active ||
+               writer_addr!==21'h80000+written_words)$fatal(1,"FAIL background writer reservation/page");
+            written_words=written_words+1;
+        end
+        if(!rst && mem_wr) begin
+            if(!PREFETCH_WRITES || mem_wr_addr!==21'h80000+mem_written_words || mem_wr_dm!==4'd0)
+                $fatal(1,"FAIL background memory write address/mask");
+            mem_written_words=mem_written_words+1;
+        end
+    end
+    frame_fifo_write #(.WRITE_V_FLIP(0),.FRAME_WIDTH(640),.FRAME_HEIGHT(ACTIVE_ROWS)) writer(
+        .rst(rst),.mem_clk(mc),.Sdr_init_done(1'b1),.Sdr_init_ref_vld(1'b0),.Sdr_busy(refresh_busy),
+        .App_rd_busy(read_busy),.O_wr_busy(writer_busy),.App_wr_en(writer_wr),.App_wr_addr(writer_addr),
+        .write_req(writer_req),.write_req_ack(writer_ack),.write_finish(writer_finish),
+        .write_addr_0(21'h80000),.write_addr_1(21'd0),.write_addr_2(21'd0),.write_addr_3(21'd0),
+        .write_addr_index(2'd0),.write_len(21'd640*ACTIVE_ROWS),.fifo_aclr(fifo_clear),.rdusedw(fifo_used));
+    wire [31:0] writer_data={pattern(2*((writer_addr-21'h80000)%640)+1,(writer_addr-21'h80000)/640,1),
+                            pattern(2*((writer_addr-21'h80000)%640),(writer_addr-21'h80000)/640,1)};
     mem_mpu #(.MAX_A_RUN(8),.MAX_B_RUN(8),.MAX_C_RUN(4)) mpu(
         .clk(mc),.rst(rst),.A_cmd_valid(av),.A_cmd_addr(aa),.A_cmd_len(an),.A_cmd_ready(ar),
         .A_rsp_valid(ard),.A_rsp_data(ad),.A_rsp_last(al),
         .B_cmd_valid(bv),.B_cmd_addr(ba),.B_cmd_len(bn),.B_cmd_ready(br),.B_rsp_valid(brd),.B_rsp_data(bd),.B_rsp_last(bl),
         .C_cmd_valid(1'b0),.C_cmd_addr(21'd0),.C_cmd_len(8'd1),.C_cmd_ready(),.C_rsp_valid(),.C_rsp_data(),.C_rsp_last(),
         .App_rd_en(ren),.App_rd_addr(raddr),.Sdr_rd_en(rv),.Sdr_rd_dout(rd),.Sdr_init_done(1'b1),.Sdr_busy(refresh_busy),
-        .source_write_busy(1'b0),.scaler_write_request(1'b0),.read_busy(),.write_ready(),
-        .App_wr_en_u(1'b0),.App_wr_addr_u(21'd0),.App_wr_din_u(32'd0),.App_wr_dm_u(4'd0),
+        .source_write_busy(writer_busy),.scaler_write_request(1'b0),.read_busy(read_busy),.write_ready(),
+        .App_wr_en_u(writer_wr),.App_wr_addr_u(writer_addr),.App_wr_din_u(writer_data),.App_wr_dm_u(4'd0),
         .App_wr2_en_u(1'b0),.App_wr2_addr_u(21'd0),.App_wr2_din_u(32'd0),.App_wr2_dm_u(4'd0),.wr2_active(1'b0),
-        .App_wr_en(),.App_wr_addr(),.App_wr_din(),.App_wr_dm());
-    sdram_beh #(.LAT(12)) memory(.clk(mc),.rst(rst),.wr_en(1'b0),.wr_addr(21'd0),.wr_data(32'd0),.wr_dm(4'd0),
+        .App_wr_en(mem_wr),.App_wr_addr(mem_wr_addr),.App_wr_din(mem_wr_data),.App_wr_dm(mem_wr_dm));
+    sdram_beh #(.LAT(12)) memory(.clk(mc),.rst(rst),.wr_en(mem_wr),.wr_addr(mem_wr_addr),.wr_data(mem_wr_data),.wr_dm(mem_wr_dm),
         .rd_en(ren),.rd_addr(raddr),.rd_vld(rv),.rd_dout(rd));
     function [15:0] pattern;
         input integer px,py,page;
@@ -91,6 +131,8 @@ module tb_display720 #(
                 if(frame==1) uf_start=underflow;
                 if(frame==TEST_FRAMES) begin
                     if(underflow!=uf_start) $fatal(1,"FAIL 720p underflow %d",underflow-uf_start);
+                    if(PREFETCH_WRITES && (written_words!=640*ACTIVE_ROWS || mem_written_words!=640*ACTIVE_ROWS))
+                        $fatal(1,"FAIL background write coverage");
                     $display("TB_DISPLAY720 PASS frames=%d checked=%d static+blend+handover no_underflow",frame-1,checked);$finish;
                 end
             end
@@ -111,10 +153,16 @@ module tb_display720 #(
     initial begin
         for(j=0;j<ACTIVE_ROWS;j=j+1) for(i=0;i<640;i=i+1) begin
             memory.mem[j*640+i]={pattern(2*i+1,j,0),pattern(2*i,j,0)};
-            memory.mem[21'h80000+j*640+i]={pattern(2*i+1,j,1),pattern(2*i,j,1)};
+            // 预取必须通过实际写入生成正确内容，禁止预填期望图案掩盖丢写。
+            memory.mem[21'h80000+j*640+i]=PREFETCH_WRITES ? 32'hdeadbeef :
+                                                        {pattern(2*i+1,j,1),pattern(2*i,j,1)};
         end
         repeat(10) @(negedge vc);rst=0;
         wait(frame==1);wait(y==100 || ACTIVE_ROWS<100);
+        if(PREFETCH_WRITES) begin
+            @(negedge mc);writer_req=1;wait(writer_ack);@(negedge mc);writer_req=0;
+            wait(writer_finish);repeat(10) @(negedge mc);
+        end
         @(negedge vc);commit=1;@(negedge vc);commit=0;
     end
     initial begin #200000000; $fatal(1,"FAIL 720p display timeout");end
