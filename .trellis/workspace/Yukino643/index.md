@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 3
-- **Last Active**: 2026-10-13
+- **Total Sessions**: 4
+- **Last Active**: 2026-10-14
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~113 | Active |
+| `journal-1.md` | ~148 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 4 | 2026-10-14 | KEY2 next-frame prefetch and resource audit | `52cd68f` | `feat/key2-next-prefetch` |
 | 3 | 2026-10-13 | HDMI-B 720p verified implementation | `fa1e485` | `feat/hdmi-b-720p` |
 | 2 | 2026-10-03 | 圆润PCM波形与KEY2事务隔离 | `a75b408` | `fix/bmp-header-spi-valid` |
 | 1 | 2026-10-03 | 连续PCM曲线与无黑场双页转场 | `bcece2b` | `fix/bmp-header-spi-valid` |

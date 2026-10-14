@@ -111,3 +111,38 @@ HDMI-B 1280x720/60; RGB565 two pages, teacher frame ownership/blend/waveform; ba
 ### Next Steps
 
 - Board HDMI-B seven BMP/WAV, KEY2 repeat, cold-start and long stability
+
+
+## Session 4: KEY2 next-frame prefetch and resource audit
+
+**Date**: 2026-10-14
+**Task**: KEY2 next-frame prefetch and resource audit
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+Recovered interrupted build, verified prefetch ownership and real memory-write checks, completed current-source TD and resources; GitHub upload pending network.
+
+### Main Changes
+
+- Prefetch next 720p image in idle page; teacher complete-page/frame-boundary rules retained.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `52cd68f` | (see git log) |
+
+### Testing
+
+- [OK] Source 52/52, basic 53/53, filtered full build 53/53 plus independent full display 6451200 pixels; reports 0 failures.
+- [OK] Poisoned target page and real write interface count/mask check passed; disabled memory write negative test rejected.
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- Board-test hot/cold KEY2, continuous key presses, WAV and long-run prefetch.
+- Push feat/key2-next-prefetch when GitHub TCP 443 or existing local proxy becomes available.

@@ -98,3 +98,9 @@ D:/miniconda3/python.exe -X utf8 scripts/check_reports.py
 机器结果：`build/720p/key2-sim-final-results.json`、`key2-full-final-results.json`、
 `key2-basic-final-results.json`及`key2_resources.json`。最后一次TD完整日志在
 `build/720p/td`；源码、工程快照、bit及构建脚本的SHA清单位于物理run目录。
+
+Git功能提交：`52cd68f`，本地分支`feat/key2-next-prefetch`。
+GitHub推送尚未完成：首次连接重置，HTTP/1.1通道检查显示github.com:443无法连接；
+本机记录的127.0.0.1:7897代理端口未监听。未改变系统代理、全局Git配置或远端。
+网络恢复后在PowerShell7中执行`git push -u origin feat/key2-next-prefetch`。
+本轮新固件与完整Git bundle离线备份目录：`D:/FPGA/backups/key2-prefetch-20261014`。

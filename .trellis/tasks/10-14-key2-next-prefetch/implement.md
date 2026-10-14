@@ -6,7 +6,8 @@
 - [x] 独立测试首图、预取不自发提交、热请求、冷请求、队列、自动开关、坏图、SD重新初始化及hold页所有权。
 - [x] 当前顶层gate/CDC真实连接回归，完整默认覆盖，TD当前源码重建及报告检查。
 - [x] 记录完整资源表、实物720p结果、优化边界，上板需复核音频/连续预取显示。
-- [ ] Git提交推送，交付当前版本bit及回退方法。
+- [x] Git本地提交，交付当前版本bit及回退方法（功能提交52cd68f）。
+- [ ] Git推送：github.com:443无法连接，已配置的本机代理端口7897未监听；网络恢复后重试。
 
 原生PowerShell7入口：scripts/regression.ps1 -SimOnly/-Full/-ReuseVerified。
 输出集中build/720p和当前task；不操作TF卡，不以旧bit报告验证新RTL。

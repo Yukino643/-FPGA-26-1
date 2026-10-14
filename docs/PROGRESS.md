@@ -671,5 +671,5 @@
 | 最新资源 | LUT11564/19600=59.00%；寄存器7903/19600=40.32%；BRAM9K49/64=76.56%；BRAM32K0/16；DSP9/29；PLL3/4 |
 | 时序 | pixel setup+0.144ns/hold+0.022ns；serial setup+0.977ns/hold+0.068ns；SWNS=-6.565ns，SD/SDRAM旧负setup仍存在 |
 | 扩展 | 当前单板够用，HDMI-A暂停；双HDMI独立画面需另做BRAM/PLL/SDRAM并行带宽验证 |
-| 交付进度 | 最终完整显示回归与Git保存进行中；完成结果以验收记录为准 |
+| 交付进度 | 源码52/52、基础53/53、完整构建53/53和独立报告通过；bit及102项清单与Git字节一致；本地提交52cd68f，GitHub网络阻塞待推送 |
 | 详情 | [完整资源与验收记录](validation/key2-prefetch-20261014.md)、[720p使用说明](HDMI_B_720P.md) |
