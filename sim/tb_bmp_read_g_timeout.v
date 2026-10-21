@@ -5,6 +5,7 @@
 module tb_bmp_read_g_timeout;
     reg clk = 1'b0;
     reg rst = 1'b1;
+    reg sd_init_done = 1'b1;
     always #500 clk = ~clk;  // 1 MHz
 
     reg         load_start = 1'b0;
@@ -49,7 +50,7 @@ module tb_bmp_read_g_timeout;
         .load_active            (load_active),
         .load_img_w             (),
         .load_img_h             (),
-        .sd_init_done           (1'b1),
+        .sd_init_done           (sd_init_done),
         .state_code             (state_code),
         .write_req              (write_req),
         .write_req_ack          (write_req_ack),
@@ -66,13 +67,18 @@ module tb_bmp_read_g_timeout;
 
     integer cycles;
     integer errors;
+    // 对照原有超时定义，约束预测到期标志不能提前或迟一拍。
+    always @(negedge clk) begin
+        if (!rst && dut.timeout_hit !== (dut.read_state && dut.timeout_cnt >= 32'd2000))
+            $fatal(1, "FAIL timeout cycle equivalence count=%0d hit=%b", dut.timeout_cnt, dut.timeout_hit);
+    end
     initial begin
         errors = 0;
         #3000;
         rst = 1'b0;
-        @(posedge clk);
+        @(negedge clk);
         load_start = 1'b1;
-        @(posedge clk);
+        @(negedge clk);
         load_start = 1'b0;
 
         cycles = 0;
@@ -96,6 +102,22 @@ module tb_bmp_read_g_timeout;
                      ready, load_active, sd_sec_read);
         end
 
+        // 到期前SD失效必须取消，重新初始化后的请求仍有完整的超时窗口。
+        @(negedge clk); load_start = 1'b1;
+        @(negedge clk); load_start = 1'b0;
+        wait(dut.timeout_cnt == 1999);
+        @(negedge clk); sd_init_done = 1'b0;
+        repeat(3) @(negedge clk);
+        if (!ready || load_error || dut.timeout_cnt != 0)
+            $fatal(1, "FAIL timeout cancellation");
+        sd_init_done = 1'b1; load_start = 1'b1;
+        @(negedge clk); load_start = 1'b0;
+        cycles = 0;
+        while (!load_error && cycles < 4000) begin
+            @(negedge clk); cycles = cycles + 1;
+        end
+        if (!load_error || error_code != 2 || cycles < 2000)
+            $fatal(1, "FAIL timeout restart cycles=%0d error=%h", cycles, error_code);
         if (errors == 0)
             $display("TB_BMP_READ_G_TIMEOUT PASS");
         else

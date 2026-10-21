@@ -23,11 +23,11 @@ def delete_outputs(run,names):
         if path.parent.resolve()!=run.resolve(): raise RuntimeError('构建清理路径越界')
         if path.is_file(): path.unlink()
 
-def run_td(run,output):
+def run_td(run,output,flow=None):
     log=output/f'{run.name}_console.log'
     with log.open('wb') as dst:
         started=time.monotonic()
-        proc=subprocess.Popen([TD.as_posix(),(ROOT/'td_prj/flow_fixhold.tcl').as_posix()],cwd=run,
+        proc=subprocess.Popen([TD.as_posix(),(flow or ROOT/'td_prj/flow_fixhold.tcl').as_posix()],cwd=run,
                               stdin=subprocess.PIPE,stdout=dst,stderr=subprocess.STDOUT)
         proc.stdin.write(b'exit\n'); proc.stdin.close()
         while proc.poll() is None:
@@ -45,7 +45,9 @@ def run_td(run,output):
             continue
         if 'PHY-5079 CRITICAL-WARNING: Marked 1 clock net(s)' in line:
             # 限定实际局部时钟表的一条旧SDRAM输出；不能凭全日志出现网名放行。
-            tables=re.findall(r'CTS Local Wire Summary(.*?)End Stage 7\.1',data,re.S)
+            # TD的DRC阶段号随实际优化流程变化（已见7.1/9.1）；
+            # 用同一检查项名称结束表格，下面仍严格核对唯一网名/驱动/扇出。
+            tables=re.findall(r'CTS Local Wire Summary(.*?)End Stage \d+\.\d+ \| Clock Net Status Check;',data,re.S)
             rows=[row for table in tables for row in table.splitlines()
                   if '|' in row and 'ClockName' not in row]
             if len(rows)==1:

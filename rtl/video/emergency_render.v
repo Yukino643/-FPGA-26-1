@@ -1,7 +1,7 @@
 // emergency_render.v — W9: 应急模式渲染器
 //
-// 高对比红底 #C00000 + 白字警示标题 + 黄字滚动告警条
-// 纯组合逻辑 + 字库 ROM，不访问 SDRAM
+// 高对比红底 + 白色标题占位条 + 黄色滚动警示条，不访问 SDRAM。
+// 当前标题仍为色块，尚未接入应急文字字库。
 module emergency_render #(parameter X_BITS=10, Y_BITS=9)(
     input  wire        clk,
     input  wire        de_in,
@@ -18,12 +18,14 @@ module emergency_render #(parameter X_BITS=10, Y_BITS=9)(
     localparam [23:0] EMG_WARN  = 24'hFFDD00;  // 黄色告警
 
     // 滚动偏移（每帧 +2px）
-    reg [9:0] scroll_off = 10'd0;
-    reg       vs_d;
+    reg [4:0] scroll_off = 5'd0;
+    reg       origin_d = 1'b0;
+    wire frame_origin = de_in && (x == 0) && (y == 0);
     always @(posedge clk) begin
-        vs_d <= de_in;  // 简化: 用 de 下降沿当帧边界
-        if (de_in && !vs_d)  // de 上升沿 = 新行开始
-            scroll_off <= scroll_off + 10'd2;
+        // 坐标和 DE 已处于相同流水级。只在帧首推进一次，禁止逐行移动。
+        origin_d <= frame_origin;
+        if (frame_origin && !origin_d)
+            scroll_off <= scroll_off + 5'd2;
     end
 
     // 标题区域: y∈[180,220]，居中显示 "紧急疏散"
@@ -31,13 +33,9 @@ module emergency_render #(parameter X_BITS=10, Y_BITS=9)(
     // 告警条: y∈[280,300]，滚动
     wire in_warn  = (y >= 9'd280) && (y <= 9'd299);
 
-    // 简化文字渲染（用色块模拟，实际应接字库 ROM）
-    wire [23:0] title_color = in_title ? EMG_TITLE : EMG_BG;
-    wire [23:0] warn_color  = in_warn  ? EMG_WARN  : title_color;
-
-    // 告警条滚动效果（水平条纹）
-    wire [9:0] warn_x = (x + scroll_off) % 10'd40;
-    wire       warn_stripe = in_warn && (warn_x < 10'd20);
+    // 32 像素周期仅需低位加法，不引入逐像素除法器；720p 全宽均可覆盖。
+    wire [4:0] warn_x = x[4:0] + scroll_off;
+    wire       warn_stripe = in_warn && !warn_x[4];
     wire [23:0] warn_final = warn_stripe ? EMG_WARN : EMG_BG;
 
     // 最终输出

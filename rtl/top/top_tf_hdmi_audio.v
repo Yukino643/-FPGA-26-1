@@ -7,6 +7,7 @@ module top(
     input                       key3,           // 物理 KEY4：长按进入/退出应急
     input  [3:0]                sw,             // 物理 SW1-SW4：参数调节/图层开关
     output                      buzzer,         // W9: 蜂鸣器（低有效）
+    output [3:0]                led,            // 板载绿色 LED，LED0..LED3
 
     output [5:0]                seg_sel,
     output [7:0]                seg_data,
@@ -21,7 +22,7 @@ module top(
     output                      HDMI_DDC_SCL,
     inout                       HDMI_DDC_SDA,
 
-    // HDMI_A TMDS（720p首版暂停）
+    // HDMI_A TMDS（640x480 监视与控制台）
     output                      HDMI_A_CLK_P,
     output                      HDMI_A_D2_P,
     output                      HDMI_A_D1_P,
@@ -175,6 +176,87 @@ reset_sync u_rst_sd    (.clk(sd_card_clk), .arst(reset_request), .rst(rst_sd));
 reset_sync u_rst_mem   (.clk(ext_mem_clk), .arst(reset_request), .rst(rst_mem));
 reset_sync u_rst_video (.clk(video_clk),   .arst(reset_request), .rst(rst_video));
 
+// 菜单控制器与 HDMI-A 状态信号必须在实例化前声明，避免 TD 生成隐式网。
+wire [3:0]  cfg_shadow_sd;
+wire [3:0]  cfg_payload_sd;
+wire [9:0]  screen_shadow_sd, screen_payload_sd;
+wire [4:0]  subtitle_shadow_sd, subtitle_payload_sd;
+wire        monitor_subtitle_page_sd, monitor_subtitle_edit_sd;
+wire        monitor_screen_page_sd, monitor_screen_edit_sd, monitor_cfg_busy_sd;
+wire        cfg_commit_toggle_sd;
+wire        monitor_menu_active_sd, monitor_menu_page_sd;
+wire [2:0]  monitor_cursor_sd;
+wire [1:0]  monitor_period_shadow_sd, monitor_period_active_sd;
+wire        monitor_cfg_dirty_sd, monitor_buzzer_test_sd;
+wire        monitor_key_next_pulse_sd, monitor_key_auto_pulse_sd;
+wire [15:0] monitor_key_events_sd;
+wire [2:0]  monitor_key_state_sd;
+wire        cfg_commit_ack_toggle_sd;
+reg  [2:0]  cfg_ack_sync_sd;
+wire [9:0]  mon_tmds_ch0, mon_tmds_ch1, mon_tmds_ch2, mon_tmds_clk;
+reg         emergency_mode;
+wire        emergency_request_sd;
+reg [1:0]   emergency_req_sync_v;
+reg [1:0]   emergency_mode_sync_sd;
+wire        emergency_mode_sd = emergency_mode_sync_sd[1];
+
+// 板载 LED 状态：LED0 心跳，LED1 TF/首图有效，LED2 WAV 已找到，
+// LED3 应急或 SD 超时告警。LED 引脚采用老师完赛工程确认的高电平点亮方式。
+reg [25:0] led_heartbeat_cnt;
+reg        led_heartbeat;
+reg        led_audio_present;
+always @(posedge sd_card_clk or posedge rst_sd) begin
+    if (rst_sd) begin
+        led_heartbeat_cnt <= 26'd0;
+        led_heartbeat     <= 1'b0;
+        led_audio_present <= 1'b0;
+    end else begin
+        if (led_heartbeat_cnt >= 26'd49_999_999) begin
+            led_heartbeat_cnt <= 26'd0;
+            led_heartbeat     <= ~led_heartbeat;
+        end else begin
+            led_heartbeat_cnt <= led_heartbeat_cnt + 1'b1;
+        end
+        if (!sd_init_done)
+            led_audio_present <= 1'b0;
+        else if (wav_scan_done && wav_scan_found)
+            led_audio_present <= 1'b1;
+    end
+end
+// 上电和 TF 初始化期间保持四灯全亮，沿用开发板的可见启动反馈；
+// 初始化完成后切换为媒体系统状态编码，避免把“未初始化”误报成故障。
+wire [3:0] led_state_sd = (!rst_n || !sd_init_done) ? 4'b1111 : {
+    emergency_mode_sd | bmp_sd_timeout | wav_sd_timeout,
+    led_audio_present,
+    display_valid,
+    led_heartbeat
+};
+assign led = led_state_sd;
+
+monitor_menu_ctrl #(.CLK_FREQ_HZ(100_000_000), .DEBOUNCE_MS(20),
+                    .LONG_PRESS_MS(1000), .TEST_MS(200)) u_monitor_menu_ctrl(
+    .clk(sd_card_clk), .rst(rst_sd),
+    .key_next(key1), .key_auto(key2), .key_emergency(key3),
+    .emergency_active(emergency_mode_sd),
+    .cfg_commit_ack_toggle(cfg_commit_ack_toggle_sd),
+    .menu_active(monitor_menu_active_sd), .menu_page(monitor_menu_page_sd),
+    .cursor(monitor_cursor_sd), .cfg_shadow(cfg_shadow_sd),
+    .cfg_payload(cfg_payload_sd),
+    .period_shadow(monitor_period_shadow_sd),
+    .period_active(monitor_period_active_sd),
+    .screen_page(monitor_screen_page_sd), .screen_edit(monitor_screen_edit_sd),
+    .screen_shadow(screen_shadow_sd), .screen_payload(screen_payload_sd),
+    .subtitle_page(monitor_subtitle_page_sd), .subtitle_edit(monitor_subtitle_edit_sd),
+    .subtitle_shadow(subtitle_shadow_sd), .subtitle_payload(subtitle_payload_sd),
+    .cfg_commit_busy(monitor_cfg_busy_sd),
+    .cfg_commit_toggle(cfg_commit_toggle_sd), .cfg_dirty(monitor_cfg_dirty_sd),
+    .buzzer_test(monitor_buzzer_test_sd),
+    .key_state(monitor_key_state_sd),
+    .key_next_pulse(monitor_key_next_pulse_sd),
+    .key_auto_pulse(monitor_key_auto_pulse_sd),
+    .key_event_count(monitor_key_events_sd)
+);
+
 // 720p首版固定交叉淡化；KEY4长按仍由emergency_ctrl处理。
 wire [1:0] tr_mode_reg=2'd1;
 // W5/W4 主通道像素坐标（供转场/OSD）
@@ -187,13 +269,25 @@ wire [23:0] vout_osd;       // OSD 输出
 wire [23:0] vout_waveform;  // 老师第十二讲：PCM 时域波形图层输出
 wire [23:0] vout_color;     // W8: 色彩调节后输出
 wire [23:0] vout_final;     // W9: 应急渲染后输出（最终）
+wire [3:0]  cfg_active_video;
+wire [3:0]  cfg_preview_video;
+wire [9:0]  screen_active_video, screen_preview_video;
+wire [4:0]  subtitle_active_video, subtitle_preview_video;
+// HDMI-B 专用参数；不作用于 HDMI-A 菜单。
+wire [7:0] screen_contrast_video = 8'd64 + {screen_active_video[7:4], 4'b0000};
+wire signed [7:0] screen_brightness_video = {screen_active_video[3:0], 4'b0000} - 8'd64;
+wire signed [7:0] screen_temp_video = (screen_active_video[9:8] == 0) ? -8'sd20 :
+                                    (screen_active_video[9:8] == 2) ? 8'sd20 : 8'sd0;
+wire        cfg_commit_seen_video;
+wire        cfg_applied_toggle_video;
+wire        menu_buzzer_test = monitor_buzzer_test_sd;
+wire        cfg_image_enable = cfg_active_video[0];
+wire        cfg_wave_enable  = cfg_active_video[1];
+wire        cfg_clock_enable = cfg_active_video[2];
+wire        cfg_text_enable  = cfg_active_video[3];
+assign cfg_commit_ack_toggle_sd = cfg_ack_sync_sd[2];
 
-// 前向声明（避免隐式声明）
-reg         emergency_mode;
-wire        emergency_request_sd;
-reg [1:0]   emergency_req_sync_v;
-reg [1:0]   emergency_mode_sync_sd;
-wire        emergency_mode_sd = emergency_mode_sync_sd[1];
+// 其余跨模块状态信号
 wire [15:0] sync_dev_real;
 wire        audio_valid_final;
 wire [23:0] audio_left_final;
@@ -317,9 +411,24 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
 end
 wire frame_write_finish_pulse = fw_tgl_sync[2] ^ fw_tgl_sync[1];
 
-// direct writer必须解析成功且写完成，并经过新请求ACK隔离门。
+// 源帧完整后启动缩放；管理器只接受目标显示页写完后的事件。
 wire scaler_start_tgl;
-wire scaler_commit_toggle=scaler_start_tgl;
+wire scaler_commit_toggle;
+wire resize_busy_mem, resize_error_mem;
+reg [1:0] resize_busy_sync_sd;
+reg [2:0] resize_error_sync_sd;
+reg [1:0] resize_card_ready_mem;
+always @(posedge sd_card_clk or posedge rst_sd) begin
+    if(rst_sd) begin resize_busy_sync_sd<=0; resize_error_sync_sd<=0; end
+    else begin
+        resize_busy_sync_sd<={resize_busy_sync_sd[0],resize_busy_mem};
+        resize_error_sync_sd<={resize_error_sync_sd[1:0],resize_error_mem};
+    end
+end
+always @(posedge ext_mem_clk or posedge rst_mem) begin
+    if(rst_mem) resize_card_ready_mem<=0;
+    else resize_card_ready_mem<={resize_card_ready_mem[0],sd_init_done};
+end
 
 // 显示提交握手：源与目标均成功完成才锁住下一次装载，视频完成转场才释放。
 // 只同步持久电平和 toggle；不跨域传递单拍脉冲。
@@ -352,15 +461,14 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
     end
 end
 
-// ===================== TF多图扫描与缓存（最多8张，1280×720 BMP24） =====================
+// ===================== TF多图扫描与缓存（最多8张，最大1280×720 BMP24） =====================
 wire [31:0] tf_bmp_debug;
 wire [191:0] tf_video_snapshot;
 wire [7:0] scaler_debug_status=8'd0;
 wire [3:0]  img_count;
 wire [15:0] cur_img_w, cur_img_h;
 
-// src_packer连接解析器与显示页writer
-// BMP24 → RGB565双像素打包 → frame_read_write写空闲显示页
+// BMP24 → RGB565双像素打包 → 紧凑源图暂存 → 行缓存缩放 → 空闲显示页
 wire        bmp_wr_en;
 wire [23:0] bmp_wr_data;
 wire        packed_wr_en;
@@ -376,13 +484,17 @@ end
 sd_card_bmp_g #(
     .CLK_FREQ_HZ       (100_000_000),
     .SCAN_TARGET_COUNT (4'd8),
-    .EXACT_WIDTH(1280), .EXACT_HEIGHT(720), .PREFETCH_NEXT(1)
+    .MAX_WIDTH(1280), .MAX_HEIGHT(720), .PREFETCH_NEXT(1)
 ) sd_card_bmp_g_m0(
     .clk               (sd_card_clk),
     .rst               (rst_sd),
     .key_next          (key1),
     .key_auto          (key2),
-    .hold_load         (display_submit_pending_sd | tr_hold_sync_sd[1]),
+    .key_event_override(1'b1),
+    .key_next_event    (monitor_key_next_pulse_sd),
+    .key_auto_event    (monitor_key_auto_pulse_sd),
+    .auto_period_sel   (monitor_period_active_sd),
+    .hold_load         (display_submit_pending_sd | tr_hold_sync_sd[1] | resize_busy_sync_sd[1]),
     .state_code        (state_code),
     .debug_status      (tf_bmp_debug),
     .img_count         (img_count),
@@ -405,7 +517,7 @@ sd_card_bmp_g #(
     .write_en          (bmp_wr_en),           // W6: 改接 src_packer
     .write_data        (bmp_wr_data),         // W6: 24bit RGB
     .sd_init_done      (sd_init_done),
-    .sd_sec_read_abort (bmp_sd_timeout),
+    .sd_sec_read_abort (bmp_sd_timeout | (resize_error_sync_sd[1] & ~resize_error_sync_sd[2])),
     .sd_sec_read       (bmp_sd_sec_read),
     .sd_sec_read_addr  (bmp_sd_sec_read_addr),
     .sd_sec_read_data  (bmp_sd_sec_read_data),
@@ -506,6 +618,34 @@ always @(posedge video_clk or posedge rst_video) begin
 end
 wire vs_rise_v = vs & ~vs_d_v;
 
+monitor_config_regs u_monitor_config_regs(
+    .video_clk              (video_clk),
+    .video_rst              (rst_video),
+    .vs_rise                (vs_rise_v),
+    .cfg_shadow_sd          (cfg_shadow_sd),
+    .cfg_payload_sd         (cfg_payload_sd),
+    .screen_shadow_sd       (screen_shadow_sd),
+    .screen_payload_sd      (screen_payload_sd),
+    .subtitle_shadow_sd     (subtitle_shadow_sd),
+    .subtitle_payload_sd    (subtitle_payload_sd),
+    .cfg_commit_toggle_sd   (cfg_commit_toggle_sd),
+    .cfg_active_video       (cfg_active_video),
+    .cfg_preview_video      (cfg_preview_video),
+    .screen_active_video    (screen_active_video),
+    .screen_preview_video   (screen_preview_video),
+    .subtitle_active_video  (subtitle_active_video),
+    .subtitle_preview_video (subtitle_preview_video),
+    .cfg_commit_seen_video  (cfg_commit_seen_video),
+    .cfg_applied_toggle_video(cfg_applied_toggle_video)
+);
+
+always @(posedge sd_card_clk or posedge rst_sd) begin
+    if (rst_sd)
+        cfg_ack_sync_sd <= 3'b000;
+    else
+        cfg_ack_sync_sd <= {cfg_ack_sync_sd[1:0], cfg_applied_toggle_video};
+end
+
 // KEY4 请求跨到 video 域，只在帧起始提交；提交结果再同步回控制域。
 always @(posedge video_clk or posedge rst_video) begin
     if (rst_video) begin
@@ -570,8 +710,13 @@ wire        mpu_B_cv, mpu_B_cr, mpu_B_rv, mpu_B_rl;
 wire [20:0] mpu_B_ca;
 wire [31:0] mpu_B_rd;
 wire [7:0]  mpu_B_cl;
-// 720p直接写空闲显示页；C和第二写口关闭。
+// 源写入与缩放写入互斥，C口在源帧完成后读取暂存区。
 wire source_write_busy, memory_read_busy, memory_write_ready;
+wire resize_cmd_valid, resize_cmd_ready, resize_rsp_valid, resize_rsp_last;
+wire [20:0] resize_cmd_addr, resize_wr_addr;
+wire [7:0] resize_cmd_len;
+wire [31:0] resize_rsp_data, resize_wr_data;
+wire resize_write_request, resize_wr_en;
 wire sdram_wr_en;
 wire [20:0] sdram_wr_addr;
 wire [31:0] sdram_wr_din;
@@ -584,8 +729,8 @@ mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mem_mpu(
     .A_cmd_ready    (mpu_A_cr), .A_rsp_valid(mpu_A_rv), .A_rsp_data(mpu_A_rd), .A_rsp_last(mpu_A_rl),
     .B_cmd_valid    (mpu_B_cv), .B_cmd_addr(mpu_B_ca), .B_cmd_len(mpu_B_cl),
     .B_cmd_ready    (mpu_B_cr), .B_rsp_valid(mpu_B_rv), .B_rsp_data(mpu_B_rd), .B_rsp_last(mpu_B_rl),
-    .C_cmd_valid    (1'b0), .C_cmd_addr(21'd0), .C_cmd_len(8'd1),
-    .C_cmd_ready    (), .C_rsp_valid(), .C_rsp_data(), .C_rsp_last(),
+    .C_cmd_valid    (resize_cmd_valid), .C_cmd_addr(resize_cmd_addr), .C_cmd_len(resize_cmd_len),
+    .C_cmd_ready    (resize_cmd_ready), .C_rsp_valid(resize_rsp_valid), .C_rsp_data(resize_rsp_data), .C_rsp_last(resize_rsp_last),
     .App_rd_en      (App_rd_en),
     .App_rd_addr    (App_rd_addr),
     .Sdr_rd_en      (Sdr_rd_en),
@@ -593,18 +738,18 @@ mem_mpu #(.MAX_A_RUN(8), .MAX_B_RUN(8), .MAX_C_RUN(4)) u_mem_mpu(
     .Sdr_init_done  (Sdr_init_done),
     .Sdr_busy       (Sdr_busy),
     .source_write_busy(source_write_busy),
-    .scaler_write_request(1'b0),
+    .scaler_write_request(resize_write_request),
     .read_busy      (memory_read_busy),
     .write_ready    (memory_write_ready),
     .App_wr_en_u    (App_wr_en),
     .App_wr_addr_u  (App_wr_addr),
     .App_wr_din_u   (App_wr_din),
     .App_wr_dm_u    (App_wr_dm),
-    .App_wr2_en_u   (1'b0),
-    .App_wr2_addr_u (21'd0),
-    .App_wr2_din_u  (32'd0),
+    .App_wr2_en_u   (resize_wr_en),
+    .App_wr2_addr_u (resize_wr_addr),
+    .App_wr2_din_u  (resize_wr_data),
     .App_wr2_dm_u   (4'h0),
-    .wr2_active     (1'b0),
+    .wr2_active     (resize_busy_mem),
     .App_wr_en      (sdram_wr_en),
     .App_wr_addr    (sdram_wr_addr),
     .App_wr_din     (sdram_wr_din),
@@ -641,7 +786,7 @@ always @(posedge video_clk or posedge rst_video) begin
 end
 assign vout_data = display_visible_v ? mix_rgb : 24'd0;
 
-// 完整页发布隔离门沿用已验证的事务契约；不再启动scaler。
+// 仅源解析和源writer均完成后启动缩放，失败事务不会进入目标页。
 source_scaler_gate u_source_scaler_gate (
     .clk(sd_card_clk), .rst(rst_sd), .sd_init_done(sd_init_done),
     .source_restart(bmp_source_restart), .source_done(bmp_load_done),
@@ -650,14 +795,28 @@ source_scaler_gate u_source_scaler_gate (
     .scaler_start_toggle(scaler_start_tgl), .scaler_start_pulse()
 );
 
-// ---- RGB565直接显示页写入；BMP垂直方向由writer转换 ----
+// ---- 多尺寸缩放桥：输入参数在源帧装载期间即稳定，保持至目标页完成 ----
+resize_frame_720 u_resize_frame(
+    .clk(ext_mem_clk), .rst(rst_mem), .cancel(~resize_card_ready_mem[1]),
+    .start_toggle(scaler_start_tgl), .cfg_w(bmp_load_img_w[10:0]), .cfg_h(bmp_load_img_h[10:0]),
+    .cfg_src_base(21'h100000), .cfg_dst_base(write_buf_idx[0] ? BUF1_ADDR : BUF0_ADDR),
+    .cmd_valid(resize_cmd_valid), .cmd_addr(resize_cmd_addr), .cmd_len(resize_cmd_len),
+    .cmd_ready(resize_cmd_ready), .rsp_valid(resize_rsp_valid), .rsp_last(resize_rsp_last), .rsp_data(resize_rsp_data),
+    .write_request(resize_write_request), .write_ready(memory_write_ready),
+    .wr_en(resize_wr_en), .wr_addr(resize_wr_addr), .wr_data(resize_wr_data),
+    .busy(resize_busy_mem), .done_toggle(scaler_commit_toggle), .error(resize_error_mem)
+);
+
+// ---- RGB565紧凑源图写入；垂直方向在缩放读源行时转换 ----
 wire video_read_en_unused;
 wire [31:0] video_read_data_unused;
+// 解析器已检查宽<=1280、高<=720；收窄乘法输入，避免为未支持的16bit尺寸保留DSP。
+wire [9:0] source_row_words = ({1'b0,bmp_load_img_w[10:0]}+12'd1)>>1;
+wire [20:0] source_frame_words = source_row_words*bmp_load_img_h[9:0];
 
-// 两像素/字，640字×720行；写地址反转抵消BMP底向上行序。
+// 先写完整紧凑源图，不能用固定460800字等待640素材的后续像素。
 frame_read_write #(
-    // 按640字/行翻转垂直地址；解析器已经拒绝非1280×720素材。
-    .WRITE_V_FLIP     (1),
+    .WRITE_V_FLIP     (0),
     .EXTERNAL_READ    (1),
     .FRAME_WIDTH      (640),
     .FRAME_HEIGHT     (720)
@@ -697,13 +856,13 @@ frame_read_write #(
     .write_req         (sd_card_write_req),
     .write_req_ack     (sd_card_write_req_ack),
     .write_finish      (frame_write_finish),
-    // RGB565直接写本次空闲显示页
-    .write_addr_0      (BUF0_ADDR),      // RGB565显示页
-    .write_addr_1      (BUF1_ADDR),
+    // 显示双页以外的源图暂存区，最大源图末地址0x1707ff < 0x200000。
+    .write_addr_0      (21'h100000),
+    .write_addr_1      (21'h100000),
     .write_addr_2      (21'd0),
     .write_addr_3      (21'd0),
-    .write_addr_index  (write_buf_idx),            // 本次装载目标页
-    .write_len         (FRAME_PIXELS),
+    .write_addr_index  (2'd0),
+    .write_len         (source_frame_words),
     .write_en          (packed_wr_en),    // W6: 来自 src_packer
     .write_data        (packed_wr_data)   // W6: RGB565 打包
 );
@@ -954,11 +1113,16 @@ pixel_pos_gen #(.X_BITS(11),.Y_BITS(10)) u_main_pos(
 
 osd_engine_720 u_osd(
     .I_clk        (video_clk),
+    .I_rst        (rst_video),
+    .I_vs_pulse   (vs_rise_v),
+    .I_subtitle_cfg(subtitle_active_video),
     .I_x          (x_d2),
     .I_y          (y_d2),
     .I_bg_rgb     (waveform_q),
     .I_uptime_bcd ({clk_hh, clk_mm, clk_ss}),
     .I_mode       (mode_v1),
+    .I_clock_enable(cfg_clock_enable),
+    .I_text_enable (cfg_text_enable),
     .O_rgb        (vout_osd)
 );
 
@@ -976,22 +1140,22 @@ promax_audio_waveform #(
     .pixel_x       (x_d1),
     .pixel_y       (y_d1),
     .rgb_in        (vout_color),
-    .enable        (1'b1),
+    .enable        (cfg_wave_enable !== 1'b0),
     .pcm_tap_valid (waveform_pcm_valid),
     .pcm_tap_left  (audio_left_final[23:8]),
     .rgb_out       (vout_waveform),
     .waveform_active()
 );
 
-// color_adjust: 亮度/对比度/色温（SW2-4 调节）
+// HDMI-B 图片色彩调节：菜单确认后帧边界生效，SW2-4 不再覆盖菜单。
 color_adjust u_color_adjust(
     .clk        (video_clk),
     .rst        (rst_video),
     .de_in      (mix_de),
-    .rgb_in     (vout_data),
-    .contrast   (sw[1] ? 8'd192 : 8'd128),   // SW2: 对比度增强
-    .brightness (sw[2] ? 8'sd30 : 8'sd0),    // SW3: 亮度提升
-    .color_temp (sw[3] ? 8'sd20 : 8'sd0),    // SW4: 色温偏暖
+    .rgb_in     ((cfg_image_enable !== 1'b0) ? vout_data : 24'h07131D),
+    .contrast   (screen_contrast_video),
+    .brightness (screen_brightness_video),
+    .color_temp (screen_temp_video),
     .de_out     (),
     .rgb_out    (vout_color)
 );
@@ -1011,7 +1175,7 @@ emergency_ctrl #(
     .buzzer_on      (buzzer_drv)
 );
 
-assign buzzer = ~buzzer_drv;  // 低有效
+assign buzzer = ~(buzzer_drv | (monitor_buzzer_test_sd & ~emergency_mode_sd));  // 低有效，应急优先
 
 // emergency_render: 应急模式下替换视频输出
 emergency_render #(.X_BITS(11),.Y_BITS(10)) u_emergency_render(
@@ -1045,12 +1209,190 @@ assign audio_right_final = emergency_mode ? siren_right : audio_right_data;
 // HDMI 包节拍包含 FIFO 空时的静音；波形采集只接受真实 PCM 样本事件。
 assign waveform_pcm_valid = emergency_mode ? siren_valid : audio_sample_data_valid;
 
-// 首版720p仅HDMI-B；A端口处于确定的闲置状态。
-assign HDMI_A_CLK_P=1'b0;
-assign HDMI_A_D2_P=1'b0;
-assign HDMI_A_D1_P=1'b0;
-assign HDMI_A_D0_P=1'b0;
-assign HDMI_A_DDC_SCL=1'b1;
-assign HDMI_A_DDC_SDA=1'bz;
+// ===================== HDMI-A 640x480 监视与控制台 =====================
+// 控制域状态均以稳定电平跨入视频域；配置正文由 monitor_config_regs
+// 在视频帧边界提交，避免多位组合总线在像素路径中产生撕裂。
+reg [1:0]  mon_menu_active_sync, mon_menu_page_sync;
+reg [1:0]  mon_screen_page_sync, mon_screen_edit_sync, mon_cfg_busy_sync;
+reg [1:0]  mon_subtitle_page_sync, mon_subtitle_edit_sync;
+reg [2:0]  mon_cursor_sync0, mon_cursor_sync1;
+reg [1:0]  mon_period_shadow_sync0, mon_period_shadow_sync1;
+reg [1:0]  mon_period_active_sync0, mon_period_active_sync1;
+reg [1:0]  mon_dirty_sync, mon_buzzer_sync, mon_sd_init_sync;
+reg [2:0]  mon_key_state_sync0, mon_key_state_sync1;
+reg [15:0] mon_key_events_sync0, mon_key_events_sync1;
+reg [3:0]  mon_img_count_sync0, mon_img_count_sync1;
+reg [3:0]  mon_led_state_sync0, mon_led_state_sync1;
+always @(posedge video_clk or posedge rst_video) begin
+    if (rst_video) begin
+        mon_menu_active_sync <= 2'b00;
+        mon_menu_page_sync   <= 2'b00;
+        mon_screen_page_sync <= 2'b00;
+        mon_screen_edit_sync <= 2'b00;
+        mon_subtitle_page_sync <= 2'b00;
+        mon_subtitle_edit_sync <= 2'b00;
+        mon_cfg_busy_sync <= 2'b00;
+        mon_cursor_sync0     <= 3'b000;
+        mon_cursor_sync1     <= 3'b000;
+        mon_period_shadow_sync0 <= 2'd0;
+        mon_period_shadow_sync1 <= 2'd0;
+        mon_period_active_sync0 <= 2'd0;
+        mon_period_active_sync1 <= 2'd0;
+        mon_dirty_sync       <= 2'b00;
+        mon_buzzer_sync      <= 2'b00;
+        mon_sd_init_sync     <= 2'b00;
+        mon_key_state_sync0  <= 3'b000;
+        mon_key_state_sync1  <= 3'b000;
+        mon_key_events_sync0<= 16'd0;
+        mon_key_events_sync1<= 16'd0;
+        mon_img_count_sync0 <= 4'd0;
+        mon_img_count_sync1 <= 4'd0;
+        mon_led_state_sync0 <= 4'd0;
+        mon_led_state_sync1 <= 4'd0;
+    end else begin
+        mon_menu_active_sync <= {mon_menu_active_sync[0], monitor_menu_active_sd};
+        mon_menu_page_sync   <= {mon_menu_page_sync[0], monitor_menu_page_sd};
+        mon_screen_page_sync <= {mon_screen_page_sync[0], monitor_screen_page_sd};
+        mon_screen_edit_sync <= {mon_screen_edit_sync[0], monitor_screen_edit_sd};
+        mon_subtitle_page_sync <= {mon_subtitle_page_sync[0], monitor_subtitle_page_sd};
+        mon_subtitle_edit_sync <= {mon_subtitle_edit_sync[0], monitor_subtitle_edit_sd};
+        mon_cfg_busy_sync <= {mon_cfg_busy_sync[0], monitor_cfg_busy_sd};
+        mon_cursor_sync0     <= monitor_cursor_sd;
+        mon_cursor_sync1     <= mon_cursor_sync0;
+        mon_period_shadow_sync0 <= monitor_period_shadow_sd;
+        mon_period_shadow_sync1 <= mon_period_shadow_sync0;
+        mon_period_active_sync0 <= monitor_period_active_sd;
+        mon_period_active_sync1 <= mon_period_active_sync0;
+        mon_dirty_sync       <= {mon_dirty_sync[0], monitor_cfg_dirty_sd};
+        mon_buzzer_sync      <= {mon_buzzer_sync[0], monitor_buzzer_test_sd};
+        mon_sd_init_sync     <= {mon_sd_init_sync[0], sd_init_done};
+        mon_key_state_sync0  <= monitor_key_state_sd;
+        mon_key_state_sync1  <= mon_key_state_sync0;
+        mon_key_events_sync0<= monitor_key_events_sd;
+        mon_key_events_sync1<= mon_key_events_sync0;
+        mon_img_count_sync0 <= img_count;
+        mon_img_count_sync1 <= mon_img_count_sync0;
+        mon_led_state_sync0 <= led_state_sd;
+        mon_led_state_sync1 <= mon_led_state_sync0;
+    end
+end
+
+wire mon_hs, mon_vs, mon_de;
+wire [10:0] mon_x_full;
+wire [9:0] mon_y_full;
+reg [9:0] mon_x;
+reg [8:0] mon_y;
+reg mon_de_view_q;
+// HDMI-A 对外使用标准 1280x720@60Hz 时序，监视画布按 4:3 比例放大到
+// 960x720 并水平居中。原 640x480 渲染器只接收缩放后的逻辑坐标，左右
+// 各 160 像素为黑边，避免 7 寸屏上的文字过小或画面变形。
+wire mon_de_view = mon_de && (mon_x_full >= 11'd160) &&
+                   (mon_x_full < 11'd1120);
+wire [10:0] mon_x_rel = (mon_x_full >= 11'd160) ?
+                        (mon_x_full - 11'd160) : 11'd0;
+wire [11:0] mon_x_num = {1'b0, mon_x_rel} << 1;
+wire [10:0] mon_x_logical = (mon_x_num / 12'd3);
+wire [10:0] mon_y_num = {1'b0, mon_y_full} << 1;
+wire [10:0] mon_y_logical = (mon_y_num / 11'd3);
+wire [23:0] mon_menu_rgb;
+reg [23:0] mon_rgb;
+wire mon_menu_active_v = mon_menu_active_sync[1];
+wire mon_menu_page_v   = mon_menu_page_sync[1];
+wire [2:0] mon_cursor_v = mon_cursor_sync1;
+wire [1:0] mon_period_shadow_v = mon_period_shadow_sync1;
+wire [1:0] mon_period_active_v = mon_period_active_sync1;
+wire mon_cfg_dirty_v = mon_dirty_sync[1];
+wire mon_buzzer_test_v = mon_buzzer_sync[1];
+wire mon_sd_init_v = mon_sd_init_sync[1];
+wire [2:0] mon_key_state_v = mon_key_state_sync1;
+wire [15:0] mon_key_events_v = mon_key_events_sync1;
+wire [3:0] mon_img_count_v = mon_img_count_sync1;
+wire [3:0] mon_led_state_v = mon_led_state_sync1;
+reg mon_hs_d1, mon_de_d1, mon_vs_d1;
+reg mon_hs_d2, mon_de_d2, mon_vs_d2;
+reg mon_hs_d3, mon_de_d3, mon_vs_d3;
+
+video_timing_gen #(
+    .HTOTAL(1650), .HSA(40), .HFP(110), .HBP(220), .HACTIVE(1280),
+    .VTOTAL(750), .VSA(5), .VFP(5), .VBP(20), .VACTIVE(720),
+    .X_BITS(11), .Y_BITS(10)
+) u_mon_timing_gen(
+    .I_clk(video_clk), .I_rst(rst_video),
+    .O_hs(mon_hs), .O_vs(mon_vs), .O_de(mon_de),
+    .O_x(mon_x_full), .O_y(mon_y_full)
+);
+
+// 坐标缩放与字符选择分拍，避免除3/卡片译码/字库地址串成一条视频组合长路径。
+always @(posedge video_clk or posedge rst_video) begin
+    if(rst_video) begin mon_x<=0; mon_y<=0; mon_de_view_q<=0; end
+    else begin
+        mon_x<=mon_x_logical[9:0]; mon_y<=mon_y_logical[8:0]; mon_de_view_q<=mon_de_view;
+    end
+end
+
+monitor_menu_renderer u_mon_menu_renderer(
+    .clk(video_clk), .de(mon_de_view_q), .x(mon_x), .y(mon_y),
+    .menu_active(mon_menu_active_v),
+    .page(mon_menu_page_v), .cursor(mon_cursor_v),
+    .screen_page(mon_screen_page_sync[1]), .screen_edit(mon_screen_edit_sync[1]),
+    .screen_shadow(screen_preview_video), .screen_active(screen_active_video),
+    .subtitle_page(mon_subtitle_page_sync[1]), .subtitle_edit(mon_subtitle_edit_sync[1]),
+    .subtitle_shadow(subtitle_preview_video), .subtitle_active(subtitle_active_video),
+    .cfg_busy(mon_cfg_busy_sync[1]),
+    .cfg_shadow(cfg_preview_video), .cfg_active(cfg_active_video),
+    .period_shadow(mon_period_shadow_v), .period_active(mon_period_active_v),
+    .cfg_dirty(mon_cfg_dirty_v), .commit_seen(cfg_commit_seen_video),
+    .buzzer_test(mon_buzzer_test_v), .key_state(mon_key_state_v),
+    .key_events(mon_key_events_v), .sd_init_done(mon_sd_init_v),
+    .img_count(mon_img_count_v), .led_state(mon_led_state_v),
+    .rgb(mon_menu_rgb)
+);
+
+always @(posedge video_clk or posedge rst_video) begin
+    if (rst_video) begin
+        mon_hs_d1 <= 1'b0;
+        mon_de_d1 <= 1'b0;
+        mon_vs_d1 <= 1'b0;
+        mon_hs_d2 <= 1'b0;
+        mon_de_d2 <= 1'b0;
+        mon_vs_d2 <= 1'b0;
+        mon_hs_d3 <= 1'b0;
+        mon_de_d3 <= 1'b0;
+        mon_vs_d3 <= 1'b0;
+        mon_rgb <= 24'd0;
+    end else begin
+        mon_hs_d1 <= mon_hs;
+        mon_de_d1 <= mon_de;
+        mon_vs_d1 <= mon_vs;
+        mon_hs_d2 <= mon_hs_d1;
+        mon_de_d2 <= mon_de_d1;
+        mon_vs_d2 <= mon_vs_d1;
+        mon_hs_d3 <= mon_hs_d2;
+        mon_de_d3 <= mon_de_d2;
+        mon_vs_d3 <= mon_vs_d2;
+        // 隔离菜单组合绘图和 TMDS 统计/直流平衡链，同步信号同样延迟一拍。
+        mon_rgb <= mon_menu_rgb;
+    end
+end
+// 播放按键模式继续显示卡片和操作提示，不再恢复旧参数页。
+
+// HDMI-A is intentionally DVI-compatible video-only.  Its DDC pins remain
+// idle because the monitor page has fixed timing and carries no audio.
+assign HDMI_A_DDC_SCL = 1'b1;
+assign HDMI_A_DDC_SDA = 1'bz;
+
+hdmi_video_only_640x480 u_hdmi_video_mon(
+    .clk(video_clk), .rst_n(~rst_video),
+    .hsync(mon_hs_d3), .vsync(mon_vs_d3), .de(mon_de_d3), .rgb(mon_rgb),
+    .ch0_symbol(mon_tmds_ch0), .ch1_symbol(mon_tmds_ch1),
+    .ch2_symbol(mon_tmds_ch2), .clk_symbol(mon_tmds_clk)
+);
+hdmi_phy_wrapper #(.DEVICE("EG")) u_hdmi_phy_mon(
+    .I_pixel_clk(video_clk), .I_serial_clk(hdmi_5x_clk), .I_rst(rst_video),
+    .I_tmds_channel_0(mon_tmds_ch0), .I_tmds_channel_1(mon_tmds_ch1),
+    .I_tmds_channel_2(mon_tmds_ch2), .I_tmds_channel_clk(mon_tmds_clk),
+    .O_tmds_ch0_p(HDMI_A_D0_P), .O_tmds_ch1_p(HDMI_A_D1_P),
+    .O_tmds_ch2_p(HDMI_A_D2_P), .O_tmds_clk_p(HDMI_A_CLK_P)
+);
 
 endmodule

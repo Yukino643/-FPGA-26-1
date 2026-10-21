@@ -7,12 +7,17 @@ module sd_card_bmp_g #(
     parameter integer CLK_FREQ_HZ       = 100_000_000,
     parameter [3:0]   SCAN_TARGET_COUNT = 4'd8,
     parameter EXACT_WIDTH = 0, EXACT_HEIGHT = 0,
+    parameter MAX_WIDTH = 2047, MAX_HEIGHT = 2047,
     parameter PREFETCH_NEXT = 0
 )(
     input  wire        clk,
     input  wire        rst,
     input  wire        key_next,
     input  wire        key_auto,
+    input  wire        key_event_override,
+    input  wire        key_next_event,
+    input  wire        key_auto_event,
+    input  wire [1:0]  auto_period_sel, // 1/2/5/10 seconds
     input  wire        hold_load,     // 转场期间暂缓新装载（W5 transition_ctrl）
     output [3:0]       state_code,
     output reg  [3:0]  img_count,      // 扫描到的图片数
@@ -46,8 +51,12 @@ module sd_card_bmp_g #(
 
     assign source_restart = load_start_pulse | bmp_load_error;
 
-    wire key_next_press;
-    wire key_auto_press;
+    wire key_next_press_raw;
+    wire key_auto_press_raw;
+    // 只有明确置 1 才启用新菜单事件；旧实例未连接端口时避免 X 污染原按键路径。
+    wire key_event_override_i = (key_event_override === 1'b1);
+    wire key_next_press = key_event_override_i ? key_next_event : key_next_press_raw;
+    wire key_auto_press = key_event_override_i ? key_auto_event : key_auto_press_raw;
 
     wire             bmp_data_wr_en;
     wire [23:0]      bmp_data;
@@ -86,6 +95,8 @@ module sd_card_bmp_g #(
 
     reg              scan_start_pulse;
     reg              load_start_pulse;
+    reg              load_select_pending;
+    reg [3:0]        load_select_idx;
     reg [31:0]       load_sector;
     reg [31:0]       load_cluster;
     reg [31:0]       load_file_size;
@@ -121,7 +132,8 @@ module sd_card_bmp_g #(
     wire             write_finish_pulse;
 
     wire auto_tick;
-    wire [3:0] next_from_current;
+    reg [3:0]  next_from_current;
+    reg        next_index_settle;
     wire [3:0] first_good_image;
     wire        any_good_image;
 
@@ -151,13 +163,43 @@ module sd_card_bmp_g #(
         (fs_scan_error == 8'h24) ? 4'd5 :
         (fs_scan_error == 8'h25) ? 4'd6 :
         (fs_scan_error == 8'h30) ? 4'd7 : 4'hf;
-    assign auto_tick  = (auto_cnt == (CLK_FREQ_HZ - 1));
-    assign next_from_current = next_good_index(img_idx, img_found_count, failed_mask);
+    // Four bounded presets avoid a runtime multiplier and keep the automatic
+    // playback cadence deterministic: 1 s, 2 s, 5 s, or 10 s.
+    function [31:0] period_cycles;
+        input [1:0] sel;
+        begin
+            case (sel)
+                2'd1: period_cycles = CLK_FREQ_HZ * 2 - 1;
+                2'd2: period_cycles = CLK_FREQ_HZ * 5 - 1;
+                2'd3: period_cycles = CLK_FREQ_HZ * 10 - 1;
+                default: period_cycles = CLK_FREQ_HZ - 1;
+            endcase
+        end
+    endfunction
+    wire [31:0] auto_period_limit = period_cycles(auto_period_sel);
+    assign auto_tick  = (auto_cnt == auto_period_limit);
     assign first_good_image  = first_good_index(img_found_count, failed_mask);
     assign any_good_image    = has_good_image(img_found_count, failed_mask);
+
+    // 先寄存下一张索引，避免提交完成信号穿过状态译码和图片表多路器，
+    // 再驱动簇号/文件长度寄存器。输入状态变化后空一拍，让预译码稳定。
+    wire next_index_inputs_change = display_commit_pulse ||
+        (scan_found_valid && (img_found_count < SCAN_TARGET_COUNT)) ||
+        (load_busy && bmp_load_error && load_retry_used) ||
+        (manual_next_press && !load_busy && !any_good_image) ||
+        (!scan_kicked && bmp_ready) || !sd_init_done;
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            next_from_current <= 4'd0;
+            next_index_settle <= 1'b1;
+        end else begin
+            next_from_current <= next_good_index(img_idx, img_found_count, failed_mask);
+            next_index_settle <= next_index_inputs_change;
+        end
+    end
     // 手动切图事件独立于装载/转场状态；请求先入饱和计数器，空闲时逐个消费。
     wire manual_next_press = key_next_press && scan_done && (img_found_count > 4'd0);
-    wire manual_next_start = !PREFETCH_NEXT && scan_done && bmp_ready && display_valid && !load_busy
+    wire manual_next_start = !PREFETCH_NEXT && !next_index_settle && scan_done && bmp_ready && display_valid && !load_busy
                            && (next_req_count != 8'd0)
                            && (img_found_count != 4'd0) && any_good_image && !hold_load;
     assign write_finish_pulse = wrfin_tgl_sync[2] ^ wrfin_tgl_sync[1];
@@ -179,7 +221,7 @@ module sd_card_bmp_g #(
         .clk        (clk),
         .rst        (rst),
         .button_in  (key_next),
-        .press_pulse(key_next_press)
+        .press_pulse(key_next_press_raw)
     );
 
     key_press_debounce #(
@@ -189,7 +231,7 @@ module sd_card_bmp_g #(
         .clk        (clk),
         .rst        (rst),
         .button_in  (key_auto),
-        .press_pulse(key_auto_press)
+        .press_pulse(key_auto_press_raw)
     );
 
     function [3:0] next_index_limited;
@@ -366,6 +408,8 @@ module sd_card_bmp_g #(
             wrfin_tgl_sync        <= 3'b000;
             scan_start_pulse      <= 1'b0;
             load_start_pulse      <= 1'b0;
+            load_select_pending   <= 1'b0;
+            load_select_idx       <= 4'd0;
             load_sector           <= 32'd0;
             load_cluster          <= 32'd0;
             load_file_size        <= 32'd0;
@@ -408,7 +452,17 @@ module sd_card_bmp_g #(
             scan_start_pulse <= 1'b0;
             load_start_pulse <= 1'b0;
 
+            // 先锁存目标索引，再单独访问图片元数据表，切断控制译码到宽 mux 的单拍路径。
+            if (load_select_pending) begin
+                load_cluster        <= cluster_lut(load_select_idx);
+                load_file_size      <= size_lut(load_select_idx);
+                load_start_pulse    <= 1'b1;
+                load_select_pending <= 1'b0;
+            end
+
             if (!sd_init_done) begin
+                // SD失效的取消优先于上一拍准备好的元数据启动，禁止发布残留请求。
+                load_start_pulse       <= 1'b0;
                 scan_kicked           <= 1'b0;
                 first_image_committed <= 1'b0;
                 auto_play_en          <= 1'b0;
@@ -431,6 +485,7 @@ module sd_card_bmp_g #(
                 failed_mask           <= 8'd0;
                 prefetch_ready        <= 1'b0;
                 auto_request_pending  <= 1'b0;
+                load_select_pending   <= 1'b0;
                 display_valid         <= 1'b0;
             end else begin
                 // 扫描阶段缓存根目录项给出的首簇与文件长度。
@@ -514,6 +569,7 @@ module sd_card_bmp_g #(
                     img_found_count       <= 4'd0;
                     img_idx               <= 4'd0;
                     load_idx              <= 4'd0;
+                    load_select_pending <= 1'b0;
                     pending_buf_idx       <= 2'd0;
                     write_buf_idx         <= 2'd0;
                     disp_buf_idx          <= 2'd0;
@@ -564,12 +620,11 @@ module sd_card_bmp_g #(
                     if (scan_done && !first_image_committed && bmp_ready && !load_busy
                         && (img_found_count != 4'd0) && any_good_image) begin
                         load_idx         <= first_good_image;
+                        load_select_idx  <= first_good_image;
                         load_sector      <= 32'd0;
-                        load_cluster     <= cluster_lut(first_good_image);
-                        load_file_size   <= size_lut(first_good_image);
+                        load_select_pending <= 1'b1;
                         pending_buf_idx  <= 2'd0;
                         write_buf_idx    <= 2'd0;
-                        load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
                         write_finish_seen <= 1'b0;
@@ -578,18 +633,17 @@ module sd_card_bmp_g #(
                         auto_cnt         <= 32'd0;
                         img_count        <= img_found_count;
                     end
-                    else if (PREFETCH_NEXT && scan_done && bmp_ready && display_valid && !load_busy
+                    else if (PREFETCH_NEXT && !next_index_settle && scan_done && bmp_ready && display_valid && !load_busy
                              && !prefetch_ready && !display_commit_pulse && any_good_image && !hold_load
                              && ((next_from_current != img_idx) || next_req_count != 0 || manual_next_press
                                  || auto_request_pending)) begin
                         // 当前页只读；只有视频释放旧页后才能准备下一张，不等KEY2才读卡。
                         load_idx         <= next_from_current;
+                        load_select_idx  <= next_from_current;
                         load_sector      <= 0;
-                        load_cluster     <= cluster_lut(next_from_current);
-                        load_file_size   <= size_lut(next_from_current);
+                        load_select_pending <= 1'b1;
                         pending_buf_idx  <= next_buf_lut(disp_buf_idx, display_valid);
                         write_buf_idx    <= next_buf_lut(disp_buf_idx, display_valid);
-                        load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
                         write_finish_seen<= 1'b0;
@@ -597,12 +651,11 @@ module sd_card_bmp_g #(
                     end
                     else if (manual_next_start) begin
                         load_idx         <= next_from_current;
+                        load_select_idx  <= next_from_current;
                         load_sector      <= 32'd0;
-                        load_cluster     <= cluster_lut(next_from_current);
-                        load_file_size   <= size_lut(next_from_current);
+                        load_select_pending <= 1'b1;
                         pending_buf_idx  <= next_buf_lut(disp_buf_idx, display_valid);
                         write_buf_idx    <= next_buf_lut(disp_buf_idx, display_valid);
-                        load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
                         write_finish_seen <= 1'b0;
@@ -614,15 +667,14 @@ module sd_card_bmp_g #(
                             next_req_count <= next_req_count;
                         auto_cnt         <= 32'd0;
                     end
-                    else if (!PREFETCH_NEXT && scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
+                    else if (!PREFETCH_NEXT && !next_index_settle && scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
                              && (img_found_count > 4'd1) && any_good_image && !hold_load) begin
                         load_idx         <= next_from_current;
+                        load_select_idx  <= next_from_current;
                         load_sector      <= 32'd0;
-                        load_cluster     <= cluster_lut(next_from_current);
-                        load_file_size   <= size_lut(next_from_current);
+                        load_select_pending <= 1'b1;
                         pending_buf_idx  <= next_buf_lut(disp_buf_idx, display_valid);
                         write_buf_idx    <= next_buf_lut(disp_buf_idx, display_valid);
-                        load_start_pulse <= 1'b1;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
                         write_finish_seen <= 1'b0;
@@ -636,6 +688,7 @@ module sd_card_bmp_g #(
 
     bmp_read_g #(
         .EXACT_WIDTH(EXACT_WIDTH), .EXACT_HEIGHT(EXACT_HEIGHT),
+        .MAX_WIDTH(MAX_WIDTH), .MAX_HEIGHT(MAX_HEIGHT),
         .MAX_IMAGES (8),
         .MAX_DIM    (2047)
     ) bmp_read_g_m0 (

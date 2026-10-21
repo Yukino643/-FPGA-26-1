@@ -1,9 +1,11 @@
 # 基于 EG4S20 的 HDMI 多媒体播放系统（2026 安路赛道 · 选题一）
 
-数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 伪双端口帧缓存 → 多图层 alpha 合成 → 双 HDMI 异显（主通道广告内容 / 副通道监视台），并提供 WAV/警笛音频、Goertzel 频谱和帧边界应急切换。
+数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 帧缓存 → 图层/转场合成 → 双 HDMI 异显（主通道节目 / 副通道控制台），并提供 WAV/警笛音频、PCM波形和帧边界应急切换。当前顶层未接入FFT/Goertzel频谱，不能将波形描述为已实现频谱分析。
 
 - 平台：HX4S20C 开发板（EG4S20BG256，TD 6.2.1）
-- 当前720p分支：七张图片已获实物确认。HDMI-B输出1280×720/60Hz，HDMI-A暂停；RGB565双页交叉淡化、原生32px黑色透明字体、圆润PCM曲线。新增下一张后台预取以缩短KEY2热请求等待，连续快按仍受读卡吞吐限制；资源表、素材及验证说明见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
+- 当前版本（2026-10-21）：HDMI-B输出1280×720/60Hz，HDMI-A显示全屏放大的中文控制台；六卡菜单、图片/波形/时间开关、可调轮播周期、HDMI-B亮度/对比度/色温、外设测试及预设滚动字幕已接入。上一版六卡/32像素中文/屏幕设置已获用户板验确认；本轮字幕版待双屏实物验证。后台预取保留，连续快按仍受读卡吞吐限制。
+- 最新烧录文件：[字幕验证版 av_media.bit](releases/20261021-preset-subtitle/av_media.bit)；[发布记录与完整证据](releases/20261021-preset-subtitle/README.md)。修改前可回退版本：[源码与板验bit备份](releases/20261021-before-subtitle/README.md)。发布包内SHA256SUMS用于核对文件，Git保留发布目录原始字节。
+- 操作与验收：[字幕按键教学](docs/PRESET_SUBTITLE_20261021.md)、[屏幕设置](docs/HDMIB_SCREEN_MENU_20261021.md)、[SDRAM颗粒修复](docs/SDRAM_REFRESH_FIX_20261017.md)、[多尺寸测试素材](docs/MULTISIZE_IMAGES_20261017.md)、[赛题缺项审计](docs/REQUIREMENTS_AUDIT_20261021.md)、[构建进度](PROGRESS_HDMI_MONITOR.md)。旧720p历史资料见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
 - 实施计划：[docs/计划书-基于EG4S20的HDMI多媒体播放系统.md](docs/计划书-基于EG4S20的HDMI多媒体播放系统.md)
 - 参考工程：`D:\FPGA\ref\lab_ex5_i2s`（官方赛题样例，自 `D:\FPGA\HX4S20_Contest_202606\7_lab_ex_2026_nosoft` 解压）
 
@@ -38,7 +40,7 @@ docs\          计划书 / 设计说明书 / 测试报告
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-10-12）：720p改造与老师例程对应、回归和时序边界见 [HDMI-B 720p](docs/HDMI_B_720P.md)。基线tag为 `backup/pre-720p-20261012`；SD/SDRAM仍有负setup余量，新视频域单独要求setup/hold均非负，板级效果需下载本轮bit确认。
+- 当前构建（2026-10-21）：完整功能回归75/75、TD综合/P&R/bitgen及菜单/字幕/缩放定向时序通过。LUT75.89%、寄存器47.53%、BRAM9K57/64、BRAM32K4/16、DSP13/29、PLL3/4；视频setup/hold为+0.262/+0.036ns，串行为+0.370/+0.041ns，存储域内部为+0.017/+0.035ns。旧加密SDRAM全局setup仍为-6.565ns，不能声称全工程setup闭合；本轮字幕版仍需板验。
 - 历史修复（2026-10-01）：D3 照片 `WR/SCALE=01/4C` 对应 scaler 等待 C 口命令接受，已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
 
 ## 回归门（每轮改动后必跑）

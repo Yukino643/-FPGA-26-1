@@ -184,6 +184,59 @@ module fat32_bmp_index #(
         end
     endtask
 
+    // MBR采集独立于扫描完成/超时状态机；字节捕获与新扫描清零互斥，
+    // 避免finish_scan的深层控制译码驱动整个分区表的清零/保持mux。
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            mbr_jump <= 8'd0;
+            mbr_bps_lo <= 8'd0; mbr_bps_hi <= 8'd0;
+            mbr_sig_lo <= 8'd0; mbr_sig_hi <= 8'd0;
+            mbr_type0 <= 8'd0; mbr_type1 <= 8'd0;
+            mbr_type2 <= 8'd0; mbr_type3 <= 8'd0;
+            mbr_start0 <= 32'd0; mbr_start1 <= 32'd0;
+            mbr_start2 <= 32'd0; mbr_start3 <= 32'd0;
+        end else if ((state == ST_IDLE) && scan_start) begin
+            mbr_jump <= 8'd0;
+            mbr_bps_lo <= 8'd0;
+            mbr_bps_hi <= 8'd0;
+            mbr_sig_lo <= 8'd0;
+            mbr_sig_hi <= 8'd0;
+            mbr_type0 <= 8'd0; mbr_type1 <= 8'd0;
+            mbr_type2 <= 8'd0; mbr_type3 <= 8'd0;
+            mbr_start0 <= 32'd0; mbr_start1 <= 32'd0;
+            mbr_start2 <= 32'd0; mbr_start3 <= 32'd0;
+        end else if ((state == ST_MBR_WAIT) && sector_valid) begin
+            case (sector_byte_index)
+                9'd0:   mbr_jump <= sector_byte;
+                9'd11:  mbr_bps_lo <= sector_byte;
+                9'd12:  mbr_bps_hi <= sector_byte;
+                9'd450: mbr_type0 <= sector_byte;
+                9'd454: mbr_start0[7:0] <= sector_byte;
+                9'd455: mbr_start0[15:8] <= sector_byte;
+                9'd456: mbr_start0[23:16] <= sector_byte;
+                9'd457: mbr_start0[31:24] <= sector_byte;
+                9'd466: mbr_type1 <= sector_byte;
+                9'd470: mbr_start1[7:0] <= sector_byte;
+                9'd471: mbr_start1[15:8] <= sector_byte;
+                9'd472: mbr_start1[23:16] <= sector_byte;
+                9'd473: mbr_start1[31:24] <= sector_byte;
+                9'd482: mbr_type2 <= sector_byte;
+                9'd486: mbr_start2[7:0] <= sector_byte;
+                9'd487: mbr_start2[15:8] <= sector_byte;
+                9'd488: mbr_start2[23:16] <= sector_byte;
+                9'd489: mbr_start2[31:24] <= sector_byte;
+                9'd498: mbr_type3 <= sector_byte;
+                9'd502: mbr_start3[7:0] <= sector_byte;
+                9'd503: mbr_start3[15:8] <= sector_byte;
+                9'd504: mbr_start3[23:16] <= sector_byte;
+                9'd505: mbr_start3[31:24] <= sector_byte;
+                9'd510: mbr_sig_lo <= sector_byte;
+                9'd511: mbr_sig_hi <= sector_byte;
+                default: ;
+            endcase
+        end
+    end
+
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             state <= ST_IDLE;
@@ -209,13 +262,6 @@ module fat32_bmp_index #(
             root_chain_steps <= 32'd0;
             dir_end_marker <= 1'b0;
             bpb_parse_final <= 1'b0;
-            mbr_jump <= 8'd0;
-            mbr_bps_lo <= 8'd0; mbr_bps_hi <= 8'd0;
-            mbr_sig_lo <= 8'd0; mbr_sig_hi <= 8'd0;
-            mbr_type0 <= 8'd0; mbr_type1 <= 8'd0;
-            mbr_type2 <= 8'd0; mbr_type3 <= 8'd0;
-            mbr_start0 <= 32'd0; mbr_start1 <= 32'd0;
-            mbr_start2 <= 32'd0; mbr_start3 <= 32'd0;
             bpb_sig_lo <= 8'd0; bpb_sig_hi <= 8'd0;
             bpb_bps_lo <= 8'd0; bpb_bps_hi <= 8'd0;
             bpb_spc <= 8'd0;
@@ -263,36 +309,6 @@ module fat32_bmp_index #(
 
             if (sector_valid) begin
                 case (state)
-                    ST_MBR_WAIT: begin
-                        case (sector_byte_index)
-                            9'd0:   mbr_jump <= sector_byte;
-                            9'd11:  mbr_bps_lo <= sector_byte;
-                            9'd12:  mbr_bps_hi <= sector_byte;
-                            9'd450: mbr_type0 <= sector_byte;
-                            9'd454: mbr_start0[7:0] <= sector_byte;
-                            9'd455: mbr_start0[15:8] <= sector_byte;
-                            9'd456: mbr_start0[23:16] <= sector_byte;
-                            9'd457: mbr_start0[31:24] <= sector_byte;
-                            9'd466: mbr_type1 <= sector_byte;
-                            9'd470: mbr_start1[7:0] <= sector_byte;
-                            9'd471: mbr_start1[15:8] <= sector_byte;
-                            9'd472: mbr_start1[23:16] <= sector_byte;
-                            9'd473: mbr_start1[31:24] <= sector_byte;
-                            9'd482: mbr_type2 <= sector_byte;
-                            9'd486: mbr_start2[7:0] <= sector_byte;
-                            9'd487: mbr_start2[15:8] <= sector_byte;
-                            9'd488: mbr_start2[23:16] <= sector_byte;
-                            9'd489: mbr_start2[31:24] <= sector_byte;
-                            9'd498: mbr_type3 <= sector_byte;
-                            9'd502: mbr_start3[7:0] <= sector_byte;
-                            9'd503: mbr_start3[15:8] <= sector_byte;
-                            9'd504: mbr_start3[23:16] <= sector_byte;
-                            9'd505: mbr_start3[31:24] <= sector_byte;
-                            9'd510: mbr_sig_lo <= sector_byte;
-                            9'd511: mbr_sig_hi <= sector_byte;
-                            default: ;
-                        endcase
-                    end
                     ST_BPB_WAIT: begin
                         case (sector_byte_index)
                             9'd13: bpb_spc <= sector_byte;
@@ -385,15 +401,6 @@ module fat32_bmp_index #(
                         error_code <= ERR_NONE;
                         found_total <= 4'd0;
                         partition_lba <= 32'd0;
-                        mbr_jump <= 8'd0;
-                        mbr_bps_lo <= 8'd0;
-                        mbr_bps_hi <= 8'd0;
-                        mbr_sig_lo <= 8'd0;
-                        mbr_sig_hi <= 8'd0;
-                        mbr_type0 <= 8'd0; mbr_type1 <= 8'd0;
-                        mbr_type2 <= 8'd0; mbr_type3 <= 8'd0;
-                        mbr_start0 <= 32'd0; mbr_start1 <= 32'd0;
-                        mbr_start2 <= 32'd0; mbr_start3 <= 32'd0;
                         bpb_parse_final <= 1'b0;
                         sector_lba <= 32'd0;
                         state <= ST_MBR_REQ;
@@ -544,4 +551,5 @@ module fat32_bmp_index #(
             end
         end
     end
+
 endmodule

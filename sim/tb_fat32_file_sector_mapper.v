@@ -31,7 +31,7 @@ module tb_fat32_file_sector_mapper;
     reg [31:0] active_lba = 32'd0;
     reg [8:0] card_byte_index = 9'd0;
     reg [7:0] fat_sector [0:511];
-    reg [31:0] lba_log [0:15];
+    reg [31:0] lba_log [0:63];
     integer physical_count = 0;
     integer client_data_count = 0;
     integer i, cycles;
@@ -111,6 +111,8 @@ module tb_fat32_file_sector_mapper;
             while (!client_done && wait_cycles < 10000) begin
                 @(negedge clk);
                 wait_cycles = wait_cycles + 1;
+                // 接受后客户端总线可以变化，遍历必须只使用锁存请求。
+                if (wait_cycles == 1) client_sector_index = ~logical_sector;
             end
             if (!client_done || client_error) begin
                 $display("ERROR map sector %0d: done=%b error=%b", logical_sector, client_done, client_error);
@@ -178,6 +180,10 @@ module tb_fat32_file_sector_mapper;
             $finish;
         end
 
+        // 同一文件向后请求再向前跨碎片簇，准备结果不能阻断回退/遍历。
+        request_sector(32'd0, 32'd106);
+        request_sector(32'd3, 32'd115);
+
         // 文件长度恰好落在声明范围内；读完最后一个扇区不要求簇链额外 EOC。
         @(negedge clk);
         file_size = 32'd1536;
@@ -197,6 +203,11 @@ module tb_fat32_file_sector_mapper;
         @(negedge clk); first_cluster = 32'd1; file_size = 32'd512;
         pulse_file_start();
         request_error(32'd0);
+
+        // The largest BMP byte size must round up without truncating its sector bound.
+        @(negedge clk); first_cluster = 32'd5; file_size = 32'hffffffff;
+        pulse_file_start();
+        request_error(32'd8388608);
 
         // 超时路径：外部不返回扇区数据，映射器必须有界报错。
         @(negedge clk); first_cluster = 32'd5; stall_card = 1'b1;

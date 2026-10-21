@@ -154,6 +154,7 @@ module tb_wav_read;
 
     // ---- 激励 ----
     integer errors = 0;
+    integer copy_byte;
 
     initial begin
         init_wav_header;
@@ -175,6 +176,19 @@ module tb_wav_read;
             errors = errors + 1;
         end else
             $display("TEST1 PASS: found WAV at sector 0");
+
+        // 刚找到有效头后立即重扫：首扇区末个签名字符错误，下一扇区才有效。
+        // 检查分组寄存比较不会沿用上次匹配状态，误提交首扇区。
+        for (copy_byte=0; copy_byte<512; copy_byte=copy_byte+1)
+            sd_mem[512+copy_byte]=sd_mem[copy_byte];
+        sd_mem[11]="X";
+        @(negedge clk); scan_start=1; scan_start_sector=0;
+        @(negedge clk); scan_start=0;
+        wait(scan_done); #100;
+        if (!scan_found_valid || scan_found_sector != 1)
+            $fatal(1, "FAIL WAV signature bad/good rescan found=%b sector=%0d", scan_found_valid, scan_found_sector);
+        sd_mem[11]="E";
+        init_pcm_data;
 
         // Test 2: 装载并检查 PCM 输出
         $display("TEST2: load and stream PCM");

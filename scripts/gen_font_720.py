@@ -5,9 +5,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 WINDOWS = ('炬屏—双模HDMI多媒体系统', '广告模式', '应急模式', '运行 00:00:00')
-CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789'))
+PRESETS = ('欢迎体验双屏多媒体系统', '活动正在进行 欢迎参与体验', '图片 音乐 字幕 精彩呈现')
+CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789' + ''.join(PRESETS).replace(' ', '') + '通知'))
 
 def generate():
+    if len(CHARS) > 64:
+        raise ValueError('实际用字超过现有64格字库容量，必须先评估资源')
     font_path = Path('C:/Windows/Fonts/simhei.ttf')
     if not font_path.is_file():
         raise RuntimeError('缺少原生中文字体 C:/Windows/Fonts/simhei.ttf')
@@ -43,11 +46,22 @@ endmodule
     for ch in '0123456789:':
         name = 'COLON' if ch==':' else 'DIGIT_'+ch
         lookup += [f"localparam [5:0] {name}=6'd{CHARS.index(ch)};"]
+    for name,ch in (('NOTICE_TONG','通'),('NOTICE_ZHI','知')):
+        lookup += [f"localparam [5:0] {name}=6'd{CHARS.index(ch)};"]
+    subtitle = ['// Generated preset cells; 32 cells per cycle, blank-padded.',
+                'module subtitle_text_720(input wire [1:0] preset, input wire [4:0] col, output reg [5:0] glyph);',
+                'always @* begin', 'case ({preset,col})']
+    for pi,line in enumerate(PRESETS):
+        if len(line)>32:raise ValueError('字幕超出32字格')
+        for ci,ch in enumerate(line):
+            subtitle += [f"    {{2'd{pi},5'd{ci}}}: glyph=6'd{CHARS.index(ch)}; // {ch}"]
+    subtitle += ['default: glyph=0;','endcase','end','endmodule']
     return {
         'rtl/video/font_720.hex': ''.join(f'{row:08X}\n' for row in rows),
         'rtl/video/font_rom_720.v': rom,
         'rtl/video/osd_text_720.v': '\n'.join(text)+'\n',
         'rtl/video/font_720_map.vh': '\n'.join(lookup)+'\n',
+        'rtl/video/subtitle_text_720.v': '\n'.join(subtitle)+'\n',
     }
 
 if __name__=='__main__':

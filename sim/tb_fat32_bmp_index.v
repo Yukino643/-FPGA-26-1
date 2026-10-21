@@ -30,7 +30,7 @@ module tb_fat32_bmp_index;
     reg [31:0] seen_cluster0 = 32'd0, seen_cluster1 = 32'd0;
     reg [31:0] seen_size0 = 32'd0, seen_size1 = 32'd0;
     integer seen_count = 0;
-    integer i, cycles;
+    integer i, cycles, partition_slot, entry, spc_test;
 
     fat32_bmp_index #(
         .MAX_IMAGES(8), .MAX_ROOT_CLUSTERS(16), .TIMEOUT_CYCLES(20000)
@@ -218,6 +218,35 @@ module tb_fat32_bmp_index;
             $finish;
         end
 
+        // SPC legality is captured with BPB byte 13 and must reject malformed values.
+        for (spc_test = 0; spc_test < 3; spc_test = spc_test + 1) begin
+            case (spc_test)
+                0: put_byte(1, 13, 8'd0);
+                1: put_byte(1, 13, 8'd3);
+                default: put_byte(1, 13, 8'd255);
+            endcase
+            pulse_scan();
+            if (error_code != 8'h21 || found_total != 0)
+                $fatal(1, "FAIL invalid sectors-per-cluster value=%0d error=%h", disk[1*512+13], error_code);
+        end
+        put_byte(1, 13, 8'd2);
+        pulse_scan();
+        if (error_code != 0 || found_total != 2)
+            $fatal(1, "FAIL valid SPC rescan after invalid values error=%h count=%0d", error_code, found_total);
+
+        // 连续扫描且不复位，验证四个MBR槽位的选择与新扫描清零不会串扰。
+        for (partition_slot = 1; partition_slot < 4; partition_slot = partition_slot + 1) begin
+            for (entry = 0; entry < 4; entry = entry + 1) begin
+                put_byte(0, 450 + 16*entry, entry == partition_slot ? 8'h0b : 8'h07);
+                put_byte(0, 454 + 16*entry, entry == partition_slot ? 8'd1 : 8'd31);
+            end
+            @(negedge clk); seen_count = 0;
+            pulse_scan();
+            if (error_code != 0 || partition_lba != 1 || found_total != 2 || seen_count != 2 ||
+                seen_cluster0 != 5 || seen_size0 != 921654 || seen_cluster1 != 9 || seen_size1 != 543)
+                $fatal(1, "FAIL MBR slot/rescan slot=%0d part=%0d error=%h", partition_slot, partition_lba, error_code);
+        end
+
         // 超级软盘格式：BPB 直接位于 LBA 0，根目录仍需跟随 FAT 簇链。
         @(negedge clk); rst = 1'b1;
         for (i = 0; i < 512; i = i + 1)
@@ -255,7 +284,7 @@ module tb_fat32_bmp_index;
             $finish;
         end
 
-        $display("PASS FAT32 index: MBR, superfloppy, BMP filtering, fragmented root chain, empty card");
+        $display("PASS FAT32 index: four MBR slots, rescan without reset, superfloppy, BMP filtering, fragmented root chain, empty card");
         $finish;
     end
 endmodule

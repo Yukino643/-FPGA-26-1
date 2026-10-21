@@ -44,10 +44,11 @@ module fat32_file_sector_mapper #(
     localparam [3:0] ST_DATA_REQ    = 4'd5;
     localparam [3:0] ST_DATA_WAIT   = 4'd6;
     localparam [3:0] ST_WAIT_RELEASE= 4'd7;
+    localparam [3:0] ST_REQUEST_PREP= 4'd8;
 
     reg [3:0] state;
     reg [31:0] first_cluster_r;
-    reg [31:0] file_size_r;
+    reg [23:0] file_sector_count_r;
     reg [7:0] sectors_per_cluster_r;
     reg [2:0] spc_shift_r;
     reg [31:0] fat_start_lba_r;
@@ -65,14 +66,11 @@ module fat32_file_sector_mapper #(
     wire wait_sector = (state == ST_FAT_WAIT) || (state == ST_DATA_WAIT);
     wire timeout_hit = wait_sector && !sector_done &&
                        (timeout_count >= TIMEOUT_CYCLES - 1);
-    wire [31:0] desired_cluster_index = requested_sector >> spc_shift_r;
-    wire [6:0] desired_sector_in_cluster =
-        requested_sector[6:0] & (sectors_per_cluster_r[6:0] - 7'd1);
+    reg request_invalid;
+    reg [31:0] desired_cluster_index;
+    reg [6:0] desired_sector_in_cluster;
     wire [31:0] next_cluster_value =
         {fat_byte3[3:0], fat_byte2, fat_byte1, fat_byte0};
-    wire [32:0] last_file_sector = {1'b0, file_size_r[31:9]} +
-                                   {32'd0, (file_size_r[8:0] != 0)};
-
     assign busy = (state != ST_IDLE);
     assign client_data = sector_byte;
     assign client_data_valid = (state == ST_DATA_WAIT) && sector_valid;
@@ -90,7 +88,7 @@ module fat32_file_sector_mapper #(
         if (rst) begin
             state <= ST_IDLE;
             first_cluster_r <= 32'd0;
-            file_size_r <= 32'd0;
+            file_sector_count_r <= 24'd0;
             sectors_per_cluster_r <= 8'd0;
             spc_shift_r <= 3'd0;
             fat_start_lba_r <= 32'd0;
@@ -99,6 +97,9 @@ module fat32_file_sector_mapper #(
             current_cluster <= 32'd0;
             current_cluster_index <= 32'd0;
             requested_sector <= 32'd0;
+            request_invalid <= 1'b0;
+            desired_cluster_index <= 32'd0;
+            desired_sector_in_cluster <= 7'd0;
             chain_steps <= 32'd0;
             fat_entry_offset <= 9'd0;
             fat_byte0 <= 8'd0; fat_byte1 <= 8'd0;
@@ -133,7 +134,8 @@ module fat32_file_sector_mapper #(
 
             if (file_start) begin
                 first_cluster_r <= first_cluster;
-                file_size_r <= file_size;
+                file_sector_count_r <= {1'b0, file_size[31:9]} +
+                                       {{23{1'b0}}, (|file_size[8:0])};
                 sectors_per_cluster_r <= sectors_per_cluster;
                 spc_shift_r <= sectors_per_cluster_shift;
                 fat_start_lba_r <= fat_start_lba;
@@ -151,12 +153,22 @@ module fat32_file_sector_mapper #(
                 case (state)
                     ST_IDLE: if (client_req) begin
                         requested_sector <= client_sector_index;
+                        state <= ST_REQUEST_PREP;
+                    end
+                    // 请求先锁存，再计算边界与簇内位置；后续FAT遍历复用这些稳定结果，
+                    // 不让32位移位/范围比较继续串入LBA和错误输出的公共使能。
+                    ST_REQUEST_PREP: begin
+                        request_invalid <= (file_sector_count_r == 0) ||
+                            (sectors_per_cluster_r == 0) ||
+                            ({1'b0, requested_sector} >= {9'd0, file_sector_count_r}) ||
+                            (first_cluster_r < 2) || (first_cluster_r > max_cluster_r);
+                        desired_cluster_index <= requested_sector >> spc_shift_r;
+                        desired_sector_in_cluster <= requested_sector[6:0] &
+                                                     (sectors_per_cluster_r[6:0] - 7'd1);
                         state <= ST_CHECK;
                     end
                     ST_CHECK: begin
-                        if ((file_size_r == 0) || (sectors_per_cluster_r == 0) ||
-                            (spc_shift_r > 7) || (requested_sector >= last_file_sector) ||
-                            (first_cluster_r < 2) || (first_cluster_r > max_cluster_r)) begin
+                        if (request_invalid) begin
                             finish_with_error(ERR_CLUSTER);
                         end else if (desired_cluster_index < current_cluster_index) begin
                             current_cluster <= first_cluster_r;

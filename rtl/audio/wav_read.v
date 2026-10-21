@@ -63,6 +63,18 @@ module wav_read(
     reg [7:0]  riff0, riff1, riff2, riff3;
     reg [7:0]  wave8, wave9, wave10, wave11;
     reg [31:0] wav_data_size;
+    reg riff_match, wave_match;
+    // 固定签名分组寄存，避免64位比较与扫描提交控制串成高扇出路径。
+    // 扇区结束经sec_ready进入S_SCAN_CHK，采到末字节后仍留有一拍让匹配结果稳定。
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            riff_match <= 1'b0;
+            wave_match <= 1'b0;
+        end else begin
+            riff_match <= (riff0=="R" && riff1=="I" && riff2=="F" && riff3=="F");
+            wave_match <= (wave8=="W" && wave9=="A" && wave10=="V" && wave11=="E");
+        end
+    end
 
     // WAV 元数据
     reg [31:0] data_bytes_left;
@@ -225,8 +237,7 @@ module wav_read(
                 end
 
                 S_SCAN_CHK: begin
-                    if (riff0=="R" && riff1=="I" && riff2=="F" && riff3=="F" &&
-                        wave8=="W" && wave9=="A" && wave10=="V" && wave11=="E") begin
+                    if (riff_match && wave_match) begin
                         scan_found_valid  <= 1'b1;
                         scan_found_sector <= scan_sec;
                         scan_done         <= 1'b1;

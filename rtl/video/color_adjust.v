@@ -1,9 +1,9 @@
 // color_adjust.v — W8: 亮度/对比度/色温硬件像素管线
 //
 // 公式（计划书 5.10）:
-//   R' = clamp(((R-128)*C)>>8 + 128 + Br + T)
-//   G' = clamp(((G-128)*C)>>8 + 128 + Bg)
-//   B' = clamp(((B-128)*C)>>8 + 128 + Bb - T)
+//   R' = clamp(((R-128)*C)>>7 + 128 + Br + T)
+//   G' = clamp(((G-128)*C)>>7 + 128 + Bg)
+//   B' = clamp(((B-128)*C)>>7 + 128 + Bb - T)
 //
 // C = 对比度 0~255（128=1.0）
 // B = 亮度偏移 -128~+127
@@ -15,7 +15,7 @@ module color_adjust(
     input  wire        rst,
     input  wire        de_in,
     input  wire [23:0] rgb_in,
-    // 参数（准静态，按键/拨码调节）
+    // 参数来自视频域帧边界提交寄存器，整帧保持稳定
     input  wire [7:0]  contrast,     // 0~255, 128=1.0
     input  wire signed [7:0] brightness,  // -128~+127
     input  wire signed [7:0] color_temp,  // -128~+127

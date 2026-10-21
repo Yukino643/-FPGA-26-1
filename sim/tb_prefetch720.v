@@ -101,11 +101,26 @@ module tb_prefetch720;
             if(loader.cur_img_w!=1280 || loader.cur_img_h!=720)$fatal(1,"FAIL cached dimensions");
         end
     endtask
+    // 元数据用互不相同的位图，防止索引/宽mux选错仍被全零测试数据掩盖。
+    always @(posedge sd_card_clk) begin
+        if(!rst_sd && loader.load_start_pulse) begin
+            if(loader.load_cluster !== (32'h10203000 + loader.load_idx) ||
+               loader.load_file_size !== (32'h00ab4000 + loader.load_idx * 32'h101))
+                $fatal(1,"FAIL metadata mismatch idx=%0d cluster=%h size=%h",loader.load_idx,loader.load_cluster,loader.load_file_size);
+        end
+    end
     initial begin
         force loader.scan_done=1;force loader.scan_found_valid=0;force loader.bmp_ready=1;
         force loader.fs_scan_error=0;force loader.bmp_load_error=error;
         force loader.key_next_press=keypulse;force loader.key_auto_press=autopulse;
         force loader.load_done=source_done;force loader.load_img_w=16'd1280;force loader.load_img_h=16'd720;
+        force loader.img_cluster0=32'h10203000;force loader.img_size0=32'h00ab4000;
+        force loader.img_cluster1=32'h10203001;force loader.img_size1=32'h00ab4101;
+        force loader.img_cluster2=32'h10203002;force loader.img_size2=32'h00ab4202;
+        force loader.img_cluster3=32'h10203003;force loader.img_size3=32'h00ab4303;
+        force loader.img_cluster4=32'h10203004;force loader.img_size4=32'h00ab4404;
+        force loader.img_cluster5=32'h10203005;force loader.img_size5=32'h00ab4505;
+        force loader.img_cluster6=32'h10203006;force loader.img_size6=32'h00ab4606;
         repeat(4) @(negedge video_clk);rst_video=0;rst_sd=0;
         loader.scan_kicked=1;loader.img_found_count=7;
         // 首图不必按键，但仍须双完成与新ACK。
@@ -183,7 +198,15 @@ module tb_prefetch720;
         start_load;
         if(loader.load_idx!=0 || !loader.auto_request_pending)$fatal(1,"FAIL unique-good auto recovery");
         complete(2);finish_transition;
-        $display("TB_PREFETCH720 PASS first_image hot41 cold_request debounce_cycles=%0d saturated255 errors auto_cancel reinit unique_good_auto CDC_page_hold",cycles);$finish;
+        // 新增的元数据准备拍也属于事务；SD失效必须撤销尚未发出的启动。
+        rst_sd=1;rst_video=1;repeat(5) @(negedge video_clk);rst_sd=0;rst_video=0;
+        loader.scan_kicked=1;loader.img_found_count=7;
+        wait(loader.load_select_pending);
+        @(negedge sd_card_clk);sd_init_done=0;
+        @(posedge sd_card_clk);#1;
+        if(loader.load_start_pulse || bmp_source_restart || loader.load_busy)
+            $fatal(1,"FAIL deinit launched pending metadata transaction");
+        $display("TB_PREFETCH720 PASS first_image hot41 cold_request debounce_cycles=%0d saturated255 errors auto_cancel reinit unique_good_auto CDC_page_hold metadata deinit_pending",cycles);$finish;
     end
     initial begin #5000000;$fatal(1,"FAIL prefetch720 timeout");end
 endmodule

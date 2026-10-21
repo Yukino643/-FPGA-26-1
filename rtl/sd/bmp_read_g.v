@@ -12,7 +12,9 @@ module bmp_read_g #(
     parameter CLK_FREQ_HZ = 100_000_000,
     parameter SD_READ_TIMEOUT_MS = 500,
     parameter EXACT_WIDTH = 0,
-    parameter EXACT_HEIGHT = 0
+    parameter EXACT_HEIGHT = 0,
+    parameter MAX_WIDTH = MAX_DIM,
+    parameter MAX_HEIGHT = MAX_DIM
 )(
     input  wire        clk,
     input  wire        rst,
@@ -65,6 +67,7 @@ module bmp_read_g #(
     localparam ST_HDR_PREP   = 4'd5;
     localparam ST_HDR_MUL    = 4'd6;
     localparam ST_HDR_RESULT = 4'd7;
+    localparam ST_HDR_BOUNDS = 4'd8;
 
     localparam [3:0] ERR_NONE      = 4'd0;
     localparam [3:0] ERR_HEADER    = 4'd1;
@@ -91,6 +94,7 @@ module bmp_read_g #(
                            && (height != 32'd0) && (height[31] == 1'b0) && (height <= MAX_DIM)
                            && (EXACT_WIDTH == 0 || width == EXACT_WIDTH)
                            && (EXACT_HEIGHT == 0 || height == EXACT_HEIGHT)
+                           && (width <= MAX_WIDTH) && (height <= MAX_HEIGHT)
                            && (pixel_offset >= 32'd54)
                            && (file_len >= pixel_offset);
     wire [31:0] next_if_miss  = scan_sector + 32'd1;
@@ -118,6 +122,7 @@ module bmp_read_g #(
     reg        header_result_ok;
     reg [31:0] header_row_bytes;
     reg [31:0] header_expected_bytes;
+    reg [31:0] header_available_bytes;
     reg [31:0] header_sector_count;
     reg [31:0] hdr_mul_a;
     reg [31:0] hdr_mul_b;
@@ -130,7 +135,8 @@ module bmp_read_g #(
 
     wire read_state = (state == ST_SCAN) || (state == ST_LOAD_HDR) ||
                       (state == ST_LOAD_DATA);
-    wire timeout_hit = read_state && (timeout_cnt >= TIMEOUT_CYCLES);
+    reg timeout_reached;
+    wire timeout_hit = read_state && timeout_reached;
 
     // ---- 头部字节采样 ----
     reg [9:0] hdr_cnt;
@@ -191,10 +197,17 @@ module bmp_read_g #(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             timeout_cnt <= 32'd0;
+            timeout_reached <= (TIMEOUT_CYCLES == 0);
         end else if (!sd_init_done || !read_state || sd_sec_read_end) begin
             timeout_cnt <= 32'd0;
-        end else if (timeout_cnt < TIMEOUT_CYCLES) begin
-            timeout_cnt <= timeout_cnt + 32'd1;
+            timeout_reached <= (TIMEOUT_CYCLES == 0);
+        end else begin
+            if (timeout_cnt < TIMEOUT_CYCLES)
+                timeout_cnt <= timeout_cnt + 32'd1;
+            // 预测本拍计数更新后的到期状态，保持原超时触发拍数，
+            // 将宽比较器与头参数/状态机的公共控制路径分离。
+            timeout_reached <= (TIMEOUT_CYCLES == 0) ||
+                               (timeout_cnt >= TIMEOUT_CYCLES - 1);
         end
     end
 
@@ -203,11 +216,21 @@ module bmp_read_g #(
     // row_pos : 像素区内"下一字节"在源图行内的位置（无除法实现 padding 剥离）
     reg [31:0] byte_pos;
     reg [31:0] row_pos;
-    wire [31:0] w3            = width + width + width;             // W*3
+    reg [31:0] pixel_row_bytes;
+    // 头部准备阶段预计算W*3，避免逐字节路径串联加法、行范围比较和像素计数使能。
+    // 原有头校验还需多拍，进入ST_LOAD_DATA前该值已稳定，不改变字节/像素相位。
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            pixel_row_bytes <= 32'd0;
+        else if (!sd_init_done)
+            pixel_row_bytes <= 32'd0;
+        else if (state == ST_HDR_PREP)
+            pixel_row_bytes <= width + (width << 1);
+    end
     wire [31:0] row_bytes_pad = row_bytes_pad_reg;                 // 已锁存行字节数
     wire       in_pixel_data  = (state == ST_LOAD_DATA)
                              && (byte_pos >= pixel_offset) && (byte_pos < file_len);
-    wire       byte_is_pixel  = in_pixel_data && (row_pos < w3);
+    wire       byte_is_pixel  = in_pixel_data && (row_pos < pixel_row_bytes);
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -280,6 +303,7 @@ module bmp_read_g #(
             header_result_ok  <= 1'b0;
             header_row_bytes  <= 32'd0;
             header_expected_bytes <= 32'd0;
+            header_available_bytes <= 32'd0;
             header_sector_count <= 32'd1;
             hdr_mul_a        <= 32'd0;
             hdr_mul_b        <= 32'd0;
@@ -373,6 +397,8 @@ module bmp_read_g #(
                         state            <= ST_HDR_RESULT;
                     end else begin
                         header_row_bytes <= (width + (width << 1) + 32'd3) & ~32'd3;
+                        // basic_ok保证file_len>=offset；先作减法，避免offset+像素长度回绕。
+                        header_available_bytes <= file_len - pixel_offset;
                         hdr_mul_a        <= (width + (width << 1) + 32'd3) & ~32'd3;
                         hdr_mul_b        <= height;
                         hdr_product      <= 32'd0;
@@ -390,12 +416,8 @@ module bmp_read_g #(
                         header_expected_bytes <= hdr_product + (hdr_mul_b[0] ? hdr_mul_a : 32'd0);
                         header_expected_pixels <= hdr_pixel_product + (hdr_mul_b[0] ? hdr_pixel_a : 32'd0);
                         header_sector_count   <= (file_len == 32'd0) ? 32'd1
-                                                   : ((file_len + 32'd511) >> 9);
-                        header_result_ok      <= (file_len >= pixel_offset)
-                                              && (file_len >= pixel_offset
-                                                  + hdr_product
-                                                  + (hdr_mul_b[0] ? hdr_mul_a : 32'd0));
-                        state <= ST_HDR_RESULT;
+                            : ({9'd0,file_len[31:9]} + {31'd0,(|file_len[8:0])});
+                        state <= ST_HDR_BOUNDS;
                     end else begin
                         if (hdr_mul_b[0])
                             hdr_product <= hdr_product + hdr_mul_a;
@@ -406,6 +428,13 @@ module bmp_read_g #(
                         hdr_mul_b     <= hdr_mul_b >> 1;
                         hdr_mul_count <= hdr_mul_count + 6'd1;
                     end
+                end
+
+                // 长度累加与宽比较分拍；不能把加法、比较和提交使能放在同一周期。
+                ST_HDR_BOUNDS: begin
+                    state_code <= 4'd2;
+                    header_result_ok <= header_available_bytes >= header_expected_bytes;
+                    state <= ST_HDR_RESULT;
                 end
 
                 // 扫描和装载都只使用已寄存的校验结果。
