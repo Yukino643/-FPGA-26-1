@@ -7,7 +7,7 @@ module tb_audio_waveform_720;
  initial begin #100000000;$fatal(1,"FAIL waveform timeout");end
 endmodule
 module tb_audio_waveform_720_case #(
- parameter WAVE_X=128,WAVE_Y=576,WAVE_WIDTH=1024,WAVE_HEIGHT=96,DECIMATE=4,RENDER=0
+ parameter WAVE_X=128,WAVE_Y=576,WAVE_WIDTH=1024,WAVE_HEIGHT=88,DECIMATE=4,RENDER=0
 )(output reg done=0);
  localparam SPACING=WAVE_WIDTH/32,CENTER=WAVE_Y+WAVE_HEIGHT/2,LIMIT=WAVE_HEIGHT/2-2;
  localparam [23:0] BG=24'h876543;
@@ -52,7 +52,7 @@ module tb_audio_waveform_720_case #(
  $fatal(1,"FAIL curve numeric/range width=%0d x=%0d [%0d,%0d] ref=[%0d,%0d]",WAVE_WIDTH,xx,top_y,bot_y,rtop,rbot);
  first_y=-1;last_y=-1;visible=0;
  for(yy=WAVE_Y;yy<WAVE_Y+WAVE_HEIGHT;yy=yy+1)begin pixel(WAVE_X+xx,yy);
- if(rgb===24'h20ff90)begin if(first_y<0)first_y=yy;last_y=yy;visible=visible+1;end
+ if(rgb===24'h3bf0a5)begin if(first_y<0)first_y=yy;last_y=yy;visible=visible+1;end
  if(dut.curve_bounds[xx]!==saved_bounds[xx])$fatal(1,"FAIL curve mutated during display");end
  if(first_y!=top_y || last_y!=bot_y || visible!=bot_y-top_y+1)$fatal(1,"FAIL sync raster x=%0d",xx);
  if(xx>0 && (top_y>last_bot || bot_y<last_top))$fatal(1,"FAIL disconnected columns");
@@ -79,7 +79,7 @@ module tb_audio_waveform_720_case #(
  $fwrite(file,"%0d %0d %0d\n",rgb[23:16],rgb[15:8],rgb[7:0]);end
  $fclose(file);end endtask
  initial begin repeat(3)@(negedge clk);rst=0;de=1;
- pixel(WAVE_X,CENTER);if(rgb!==24'h406060)$fatal(1,"FAIL unpublished RAM exposed");
+ pixel(WAVE_X,CENTER);if(rgb!==24'h2A4E58)$fatal(1,"FAIL unpublished RAM exposed");
  for(n=0;n<32;n=n+1)samples[n]=48;
  capture(0,25);frame;if(dut.display_valid || dut.capture_count!=25)$fatal(1,"FAIL incomplete publish");
  capture(25,7);pcm_word(-128);if(dut.capture_count!=32)$fatal(1,"FAIL full group overwritten");
@@ -96,6 +96,9 @@ module tb_audio_waveform_720_case #(
  for(n=0;n<32;n=n+1)samples[n]=n%2?-128:127;capture(0,32);frame;converge;snapshot;check_curve;
  for(n=0;n<32;n=n+1)samples[n]=$rtoi(44.0*$sin(n*0.48)+18.0*$sin(n*1.12));
  capture(0,32);frame;converge;snapshot;check_curve;if(RENDER)render;
+ // 峰值数据已发布，但波形外区域必须原样透传。
+ for(yy=WAVE_Y;yy<WAVE_Y+WAVE_HEIGHT;yy=yy+1)begin
+ pixel(WAVE_X+WAVE_WIDTH+8,yy);if(rgb!==BG || active)$fatal(1,"FAIL removed peak visible");end
  enable=0;pixel(WAVE_X,CENTER);if(rgb!==BG || active)$fatal(1,"FAIL disabled passthrough");
  enable=1;de=0;pixel(WAVE_X,CENTER);if(rgb!==BG || active)$fatal(1,"FAIL blanking passthrough");
  $display("TB_AUDIO_WAVEFORM width=%0d checks=%0d PASS",WAVE_WIDTH,checks);done=1;end

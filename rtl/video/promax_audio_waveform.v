@@ -249,25 +249,21 @@ module promax_audio_waveform #(
 `endif
     reg [23:0] rgb_q;
     reg [Y_BITS-1:0] y_q;
-    reg in_wave_q, peak_x_q, draw_q;
+    reg in_wave_q, draw_q;
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            rgb_q <= 0; y_q <= 0; in_wave_q <= 0; peak_x_q <= 0; draw_q <= 0;
+            rgb_q <= 0; y_q <= 0; in_wave_q <= 0; draw_q <= 0;
         end else begin
             rgb_q <= rgb_in; y_q <= pixel_y; draw_q <= enable && de;
             in_wave_q <= in_wave_x && pixel_y >= WAVE_Y && pixel_y < WAVE_Y+WAVE_HEIGHT;
-            peak_x_q <= pixel_x >= WAVE_X+WAVE_WIDTH+8 && pixel_x < WAVE_X+WAVE_WIDTH+16;
         end
     end
     wire wave_pixel = draw_q && in_wave_q && display_valid && curve_valid &&
                       y_q >= bounds_q[Y_BITS-1:0] && y_q <= bounds_q[CURVE_DW-1:Y_BITS];
     wire axis_pixel = draw_q && in_wave_q && y_q == CENTER_Y;
-    wire [7:0] peak_height = display_peak >> 2;
-    wire peak_pixel = draw_q && peak_x_q && y_q >= WAVE_Y+WAVE_HEIGHT-peak_height &&
-                      y_q < WAVE_Y+WAVE_HEIGHT;
-    assign waveform_active = wave_pixel || peak_pixel || axis_pixel;
-    assign rgb_out = wave_pixel ? 24'h20FF90 : peak_pixel ? 24'hFFB020 :
-                     axis_pixel ? 24'h406060 : rgb_q;
+    // 保留采集/双bank发布，移除波形外孤立的峰值条；连续曲线边界不变。
+    assign waveform_active = wave_pixel || axis_pixel;
+    assign rgb_out = wave_pixel ? 24'h3BF0A5 : axis_pixel ? 24'h2A4E58 : rgb_q;
 
     // synthesis translate_off
     always @(posedge clk) begin

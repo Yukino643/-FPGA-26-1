@@ -5,8 +5,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 WINDOWS = ('炬屏—双模HDMI多媒体系统', '广告模式', '应急模式', '运行 00:00:00')
-PRESETS = ('欢迎体验双屏多媒体系统', '活动正在进行 欢迎参与体验', '图片 音乐 字幕 精彩呈现')
-CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789' + ''.join(PRESETS).replace(' ', '') + '通知'))
+PRESETS = ('炬屏—双模HDMI多媒体系统', '双屏协作 一屏操作 一屏呈现', '图片 音乐 字幕 精彩同屏')
+BADGE = '视界'
+CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789' + ''.join(PRESETS).replace(' ', '') + BADGE))
 
 def generate():
     if len(CHARS) > 64:
@@ -21,6 +22,23 @@ def generate():
         draw = ImageDraw.Draw(img)
         bx,by,ex,ey = draw.textbbox((0,0),ch,font=font)
         draw.text(((32-ex+bx)//2-bx,(32-ey+by)//2-by),ch,font=font,fill=255)
+        # 仅改善全角HDMI格内的拉丁墨迹宽度；字格、字号和ROM深度不变。
+        if ch in 'HDMI':
+            bbox = img.getbbox()
+            if bbox is None:
+                raise RuntimeError(f'拉丁字形为空: {ch}')
+            ink = img.crop(bbox)
+            if ch == 'I':
+                # 黑体I只有窄竖笔，直接拉宽会变实心块；使用明确的横杠/竖笔结构。
+                ink = Image.new('L', (24, ink.height), 0)
+                strokes = ImageDraw.Draw(ink)
+                strokes.rectangle((0, 0, 23, 2), fill=255)
+                strokes.rectangle((10, 0, 13, ink.height-1), fill=255)
+                strokes.rectangle((0, ink.height-3, 23, ink.height-1), fill=255)
+            else:
+                ink = ink.resize((24, ink.height), Image.Resampling.NEAREST)
+            img = Image.new('L', (32,32), 0)
+            img.paste(ink, (4, (32-ink.height)//2))
         rows += [sum((img.getpixel((x,y))>=100) << (31-x) for x in range(32)) for y in range(32)]
     depth = 1 << (len(rows)-1).bit_length()
     aw = (depth-1).bit_length()
@@ -46,7 +64,7 @@ endmodule
     for ch in '0123456789:':
         name = 'COLON' if ch==':' else 'DIGIT_'+ch
         lookup += [f"localparam [5:0] {name}=6'd{CHARS.index(ch)};"]
-    for name,ch in (('NOTICE_TONG','通'),('NOTICE_ZHI','知')):
+    for name,ch in (('BADGE_SHI','视'),('BADGE_JIE','界')):
         lookup += [f"localparam [5:0] {name}=6'd{CHARS.index(ch)};"]
     subtitle = ['// Generated preset cells; 32 cells per cycle, blank-padded.',
                 'module subtitle_text_720(input wire [1:0] preset, input wire [4:0] col, output reg [5:0] glyph);',

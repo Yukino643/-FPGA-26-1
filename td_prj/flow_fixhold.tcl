@@ -127,6 +127,9 @@ proc opt_rtl_fun {} {
   if { ![info exists chipDebugger] } {
      insert_debugger
   } else { insert_debugger $chipDebugger }
+  # TD 6.2官方LogicLevelOptimize，保持RTL、时钟与SDC不变。
+  set_param rtl infer_fsm one_hot
+  set_param rtl min_ripple_len 18
   optimize_rtl
   report_area -file ${prj_name}_rtl.area
 #################################
@@ -140,6 +143,10 @@ proc opt_gate_fun {} {
   if { ![info exists singleRun] } { commit_param -step gate }
 
 ### Editable zone for opt_gate ###
+  # TD 6.2官方LogicLevelOptimize，保持RTL、时钟与SDC不变。
+  set_param gate map_mode balance_explore
+  set_param gate mapper_lut_delay 2200
+  set_param gate merge_tiny_lut on
   optimize_gate ${area_option} ${prj_name}_gate.area
   legalize_phy_inst
   update_timing
@@ -169,9 +176,11 @@ proc opt_place_fun {} {
   }
 
 ### Editable zone for opt_place ###
-  # 保留已板验版本的布局种子；字幕/中文地址关键路径由RTL并行译码消除。
-  # 时钟、SDC与时序验收门限保持不变。
-  set_param place seed 12
+  # 主屏UI：seed11域内违例，seed12/13视频未达+0.150ns，seed14域内违例；官方seed接口重布局。
+  # 时钟、SDC与时序验收门限保持不变，失败报告单独归档。
+  set_param place seed 13
+  # 官方TimingUltra的高扇出优化选项；针对SD数据78扇出连线。
+  set_param place hfn_opt_effort high
   place
   update_timing -mode manhattan
   report_timing_summary -file ${prj_name}_place.timing

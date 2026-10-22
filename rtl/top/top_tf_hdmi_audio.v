@@ -1130,7 +1130,7 @@ osd_engine_720 u_osd(
 // 每 120 个 PCM 样本抽取一个，32 点覆盖约 80 ms 音频；采集可跨帧继续，
 // 只在 VS 边界发布完整采样组，并逐帧平滑、消隐期预计算曲线。
 promax_audio_waveform #(
-    .WAVE_X(128),.WAVE_Y(576),.WAVE_WIDTH(1024),.WAVE_HEIGHT(96),.DECIMATE(120),
+    .WAVE_X(128),.WAVE_Y(576),.WAVE_WIDTH(1024),.WAVE_HEIGHT(88),.DECIMATE(120),
     .VIDEO_WIDTH(1280),.VIDEO_HEIGHT(720),.X_BITS(11),.Y_BITS(10),.PIPELINED_GEOMETRY(1)
 ) u_promax_audio_waveform(
     .clk           (video_clk),

@@ -32,32 +32,31 @@ module monitor_menu_renderer(
     input  wire [3:0]  led_state,
     output wire [23:0] rgb
 );
-    localparam [23:0] BG       = 24'h07131D;
-    localparam [23:0] HEADER   = 24'h124E70;
-    localparam [23:0] CARD     = 24'h102A3A;
-    localparam [23:0] CARD_SEL = 24'h075E78;
-    localparam [23:0] FG       = 24'hF5FBFF;
-    localparam [23:0] MUTED    = 24'h9BB8C4;
-    localparam [23:0] ON       = 24'h4BE38A;
-    localparam [23:0] OFF      = 24'hFF756C;
-    localparam [23:0] ACCENT   = 24'hFFD166;
-    localparam [23:0] WARN     = 24'hFF756C;
-    localparam [23:0] FOOTER   = 24'h0D2633;
+    localparam [23:0] BG=24'h07131D, HEADER=24'h0B1D28, RULE=24'h2A5A70;
+    localparam [23:0] SURF=24'h142F40, SEL=24'h1B4658, FRAME=24'h3A6478;
+    localparam [23:0] FG=24'hE9F4FA, VALUE=24'hC9DBE5, MUTED=24'h8FA9B8;
+    localparam [23:0] FOCUS=24'h38BDF8, ON=24'h5BE39B, OFF=24'hFF7B72;
+    localparam [23:0] AMBER=24'hFFB84D, DIS=24'h6E8593, CHIP=24'h16394A;
+    localparam [23:0] WAIT_FG=24'h16232B;
+    localparam [1:0] PAGE_PROGRAM=0, PAGE_PERIPHERAL=1, PAGE_SCREEN=2, PAGE_SUBTITLE=3;
+    localparam [2:0] VALUE_NORMAL=0, VALUE_ON=1, VALUE_OFF=2, VALUE_WAIT=3, VALUE_ERROR=4;
+    localparam [2:0] KIND_HEADER=0, KIND_CJK=1, KIND_VALUE=2, KIND_FOOTER=3,
+                     KIND_STATUS=4, KIND_ARROW=5;
 
     localparam [8*16-1:0] STR_PROG  = "PROGRAM CONTROL ";
     localparam [8*16-1:0] STR_PERI  = "PERIPHERAL TEST ";
     localparam [8*16-1:0] STR_PLAY  = "PLAYBACK KEYS   ";
     localparam [8*16-1:0] STR_SCREEN= "HDMI-B SETTINGS ";
     localparam [8*16-1:0] STR_SUBTITLE= "HDMI-B SUBTITLE ";
-    localparam [8*32-1:0] STR_PLAY_KEYS = "K2 NEXT IMAGE   K3 AUTO         ";
-    localparam [8*32-1:0] STR_PLAY_HINT = "HOLD K3 MENU                    ";
+    localparam [8*32-1:0] STR_PLAY_KEYS = "K2 NEXT K3 AUTO HOLD K3 MENU    ";
 
-    // Indices are generated from scripts/osd_strings.txt. Keeping the mapping
+    // Indices are generated from scripts/gen_monitor_cjk.py. Keeping the mapping
     // local avoids relying on Unicode source support in the TD Verilog parser.
     localparam [4:0] CJK_TU=5'd0, CJK_PIAN=5'd1;
     localparam [4:0] CJK_BO=5'd2, CJK_XING=5'd3;
     localparam [4:0] CJK_SHI=5'd4, CJK_JIAN=5'd5;
-    localparam [4:0] CJK_CENG=5'd6, CJK_ZHOU=5'd7, CJK_QI=5'd8;
+    localparam [4:0] CJK_BIAO=5'd6, CJK_ZHOU=5'd7, CJK_QI=5'd8;
+    localparam [4:0] CJK_TI=5'd31;
     localparam [4:0] CJK_WAI=5'd9, CJK_SHE=5'd10;
     localparam [4:0] CJK_FENG=5'd11, CJK_MING=5'd12, CJK_QI2=5'd13;
     localparam [4:0] CJK_AN=5'd14, CJK_JIAN3=5'd15;
@@ -72,174 +71,181 @@ module monitor_menu_renderer(
         begin hex = (d < 4'd10) ? (8'h30 + d) : (8'h37 + d); end
     endfunction
 
-    function [7:0] value_char;
-        input       p;
+    // 以下函数仅在状态寄存器前执行，与像素坐标无关。文本、pending、
+    // 编辑态与值色类别在同一拍采样，像素路径不再串入参数档位查表。
+    wire [1:0] state_page = subtitle_page ? PAGE_SUBTITLE : screen_page ? PAGE_SCREEN :
+                            page ? PAGE_PERIPHERAL : PAGE_PROGRAM;
+    function card_pending;
+        input [1:0] p;
         input [2:0] idx;
-        input [3:0] pos;
         begin
-            value_char = 8'h20;
-            if (!p) begin
-                if (idx == 3'd3) begin
-                    case (pos)
-                        0:value_char="O"; 1:value_char="P"; 2:value_char="E"; 3:value_char="N";
-                        default:value_char=" ";
-                    endcase
-                end else if (idx == 3'd5) begin
-                    case (pos)
-                        0: value_char="H"; 1: value_char="D"; 2: value_char="M";
-                        3: value_char="I"; 4: value_char="-"; 5: value_char="B";
-                        default: value_char=" ";
-                    endcase
-                end else if (idx == 3'd4) begin
-                    case (period_shadow)
-                        2'd0: case (pos) 4'd0:value_char="1"; 4'd1:value_char="S"; 4'd2:value_char="E"; 4'd3:value_char="C"; default:value_char=8'h20; endcase
-                        2'd1: case (pos) 4'd0:value_char="2"; 4'd1:value_char="S"; 4'd2:value_char="E"; 4'd3:value_char="C"; default:value_char=8'h20; endcase
-                        2'd2: case (pos) 4'd0:value_char="5"; 4'd1:value_char="S"; 4'd2:value_char="E"; 4'd3:value_char="C"; default:value_char=8'h20; endcase
-                        default: case (pos) 4'd0:value_char="1"; 4'd1:value_char="0"; 4'd2:value_char="S"; 4'd3:value_char="E"; 4'd4:value_char="C"; default:value_char=8'h20; endcase
-                    endcase
-                    if (pos == 4'd6 && period_shadow != period_active) value_char = "*";
-                end else begin
-                    case (pos)
-                        4'd0: value_char = "O";
-                        4'd1: value_char = cfg_shadow[idx] ? "N" : "F";
-                        4'd2: value_char = cfg_shadow[idx] ? 8'h20 : "F";
-                        4'd3: value_char = (cfg_shadow[idx] != cfg_active[idx]) ? "*" : 8'h20;
-                        default: value_char = 8'h20;
-                    endcase
-                end
-            end else begin
-                case (idx)
-                    2'd0: begin
-                        case (pos)
-                            4'd0: value_char = sd_init_done ? "R" : "W";
-                            4'd1: value_char = sd_init_done ? "E" : "A";
-                            4'd2: value_char = sd_init_done ? "A" : "I";
-                            4'd3: value_char = sd_init_done ? "D" : "T";
-                            4'd4: value_char = sd_init_done ? "Y" : " ";
-                            default: value_char = 8'h20;
-                        endcase
-                    end
-                    2'd1: begin
-                        case (pos)
-                            4'd0: value_char = buzzer_test ? "T" : "I";
-                            4'd1: value_char = buzzer_test ? "E" : "D";
-                            4'd2: value_char = buzzer_test ? "S" : "L";
-                            4'd3: value_char = buzzer_test ? "T" : "E";
-                            default: value_char = 8'h20;
-                        endcase
-                    end
-                    2'd2: begin
-                        case (pos)
-                            4'd0: value_char = "C";
-                            4'd1: value_char = "N";
-                            4'd2: value_char = "T";
-                            4'd3: value_char = hex(key_events[15:12]);
-                            4'd4: value_char = hex(key_events[11:8]);
-                            default: value_char = 8'h20;
-                        endcase
-                    end
-                    default: begin
-                        // LED 状态按 [3:0] 显示为十六进制，便于快速确认四灯组合。
-                        case (pos)
-                            4'd0: value_char = "L";
-                            4'd1: value_char = "E";
-                            4'd2: value_char = "D";
-                            4'd3: value_char = hex(led_state);
-                            default: value_char = 8'h20;
-                        endcase
-                    end
+            card_pending=1'b0;
+            case(p)
+                PAGE_PROGRAM: case(idx)
+                    0,1,2:card_pending=cfg_shadow[idx]!=cfg_active[idx];
+                    3:card_pending=subtitle_shadow[0]!=subtitle_active[0];
+                    4:card_pending=period_shadow!=period_active;
+                    default:card_pending=1'b0;
                 endcase
-            end
-        end
-    endfunction
-
-    function [7:0] subtitle_value_char;
-        input [2:0] idx;
-        input [3:0] pos;
-        reg [79:0] label;
-        reg changed;
-        begin
-            changed=1'b0;
-            case(idx)
-                0:begin label=subtitle_shadow[0] ? "ON        " : "OFF       ";
-                    changed=subtitle_shadow[0]!=subtitle_active[0]; end
-                1:begin
-                    case(subtitle_shadow[2:1])
-                        0:label="01WELCOME "; 1:label="02 EVENT  ";
-                        2:label="03 MEDIA  "; default:label="ERR       ";
-                    endcase
-                    changed=subtitle_shadow[2:1]!=subtitle_active[2:1];
-                end
-                2:begin
-                    case(subtitle_shadow[4:3])
-                        0:label="SLOW 30   "; 1:label="NORM 60   ";
-                        2:label="FAST 120  "; default:label="ERR       ";
-                    endcase
-                    changed=subtitle_shadow[4:3]!=subtitle_active[4:3];
-                end
-                default:begin label=cfg_shadow[3] ? "ON        " : "OFF       ";
-                    changed=cfg_shadow[3]!=cfg_active[3]; end
+                PAGE_SUBTITLE: case(idx)
+                    0:card_pending=subtitle_shadow[0]!=subtitle_active[0];
+                    1:card_pending=subtitle_shadow[2:1]!=subtitle_active[2:1];
+                    2:card_pending=subtitle_shadow[4:3]!=subtitle_active[4:3];
+                    3:card_pending=cfg_shadow[3]!=cfg_active[3];
+                    default:card_pending=1'b0;
+                endcase
+                PAGE_SCREEN: case(idx)
+                    0:card_pending=screen_shadow[3:0]!=screen_active[3:0];
+                    1:card_pending=screen_shadow[7:4]!=screen_active[7:4];
+                    2:card_pending=screen_shadow[9:8]!=screen_active[9:8];
+                    // RESET是动作，不是第四个独立参数；变化由前三卡表达。
+                    default:card_pending=1'b0;
+                endcase
+                default:card_pending=1'b0;
             endcase
-            subtitle_value_char=label[(4'd9-pos)*8 +: 8];
-            if(pos==9 && changed) subtitle_value_char="*";
         end
     endfunction
 
-    // 固定档位文本避免视频像素路径上的除法/BCD 转换。
-    function [7:0] screen_value_char;
+    function [2:0] card_value_kind;
+        input [1:0] p;
         input [2:0] idx;
-        input [3:0] pos;
+        begin
+            card_value_kind=VALUE_NORMAL;
+            case(p)
+                PAGE_PROGRAM: case(idx)
+                    0,1,2:card_value_kind=cfg_shadow[idx] ? VALUE_ON : VALUE_OFF;
+                    3:card_value_kind=subtitle_shadow[0] ? VALUE_ON : VALUE_OFF;
+                    default:card_value_kind=VALUE_NORMAL;
+                endcase
+                PAGE_SUBTITLE: case(idx)
+                    0:card_value_kind=subtitle_shadow[0] ? VALUE_ON : VALUE_OFF;
+                    1:if(subtitle_shadow[2:1]>2) card_value_kind=VALUE_ERROR;
+                    2:if(subtitle_shadow[4:3]>2) card_value_kind=VALUE_ERROR;
+                    3:card_value_kind=cfg_shadow[3] ? VALUE_ON : VALUE_OFF;
+                    default:card_value_kind=VALUE_ERROR;
+                endcase
+                PAGE_SCREEN: case(idx)
+                    0:if(screen_shadow[3:0]>8) card_value_kind=VALUE_ERROR;
+                    1:if(screen_shadow[7:4]>8) card_value_kind=VALUE_ERROR;
+                    2:if(screen_shadow[9:8]>2) card_value_kind=VALUE_ERROR;
+                    3:card_value_kind=VALUE_NORMAL;
+                    default:card_value_kind=VALUE_ERROR;
+                endcase
+                PAGE_PERIPHERAL: case(idx)
+                    0:card_value_kind=sd_init_done ? VALUE_ON : VALUE_WAIT;
+                    1:card_value_kind=buzzer_test ? VALUE_ON : VALUE_NORMAL;
+                    default:card_value_kind=VALUE_NORMAL;
+                endcase
+            endcase
+        end
+    endfunction
+
+    function [79:0] card_value_label;
+        input [1:0] p;
+        input [2:0] idx;
         input editing_this;
-        reg [39:0] label;
-        reg changed;
         begin
-            label = "     ";
-            changed = 1'b0;
-            case (idx)
-                0: begin
-                    case (screen_shadow[3:0])
-                        0:label="-64  "; 1:label="-48  "; 2:label="-32  ";
-                        3:label="-16  "; 4:label=" 00  "; 5:label="+16  ";
-                        6:label="+32  "; 7:label="+48  "; 8:label="+64  ";
-                        default:label="ERR  ";
+            card_value_label="ERR       ";
+            case(p)
+                PAGE_PROGRAM: case(idx)
+                    0,1,2:card_value_label=cfg_shadow[idx] ? "ON        " : "OFF       ";
+                    3:card_value_label=subtitle_shadow[0] ? "ON        " : "OFF       ";
+                    4:case(period_shadow)
+                        0:card_value_label="1S        "; 1:card_value_label="2S        ";
+                        2:card_value_label="5S        "; 3:card_value_label="10S       ";
                     endcase
-                    changed = screen_shadow[3:0] != screen_active[3:0];
-                end
-                1: begin
-                    case (screen_shadow[7:4])
-                        0:label="050% "; 1:label="063% "; 2:label="075% ";
-                        3:label="088% "; 4:label="100% "; 5:label="113% ";
-                        6:label="125% "; 7:label="138% "; 8:label="150% ";
-                        default:label="ERR  ";
+                    5:card_value_label="HDMI-B    ";
+                endcase
+                PAGE_SUBTITLE: case(idx)
+                    0:card_value_label=subtitle_shadow[0] ? "ON        " : "OFF       ";
+                    1:case(subtitle_shadow[2:1])
+                        0:card_value_label="1/3       "; 1:card_value_label="2/3       ";
+                        2:card_value_label="3/3       "; default:card_value_label="ERR       ";
                     endcase
-                    changed = screen_shadow[7:4] != screen_active[7:4];
-                end
-                2: begin
-                    case (screen_shadow[9:8])
-                        0:label="COOL "; 1:label="NORM "; 2:label="WARM ";
-                        default:label="ERR  ";
+                    2:case(subtitle_shadow[4:3])
+                        0:card_value_label="SLOW      "; 1:card_value_label="NORM      ";
+                        2:card_value_label="FAST      "; default:card_value_label="ERR       ";
                     endcase
-                    changed = screen_shadow[9:8] != screen_active[9:8];
-                end
-                3: label = editing_this ? "RESET" : "OPEN ";
-                default: label = "ERR  ";
+                    3:card_value_label=cfg_shadow[3] ? "ON        " : "OFF       ";
+                endcase
+                PAGE_SCREEN: case(idx)
+                    0:case(screen_shadow[3:0])
+                        0:card_value_label="-64       "; 1:card_value_label="-48       ";
+                        2:card_value_label="-32       "; 3:card_value_label="-16       ";
+                        4:card_value_label="0         "; 5:card_value_label="+16       ";
+                        6:card_value_label="+32       "; 7:card_value_label="+48       ";
+                        8:card_value_label="+64       "; default:card_value_label="ERR       ";
+                    endcase
+                    1:case(screen_shadow[7:4])
+                        0:card_value_label="50%       "; 1:card_value_label="63%       ";
+                        2:card_value_label="75%       "; 3:card_value_label="88%       ";
+                        4:card_value_label="100%      "; 5:card_value_label="113%      ";
+                        6:card_value_label="125%      "; 7:card_value_label="138%      ";
+                        8:card_value_label="150%      "; default:card_value_label="ERR       ";
+                    endcase
+                    2:case(screen_shadow[9:8])
+                        0:card_value_label="COOL      "; 1:card_value_label="NORM      ";
+                        2:card_value_label="WARM      "; default:card_value_label="ERR       ";
+                    endcase
+                    3:card_value_label=editing_this ? "CONFIRM   " : "RESET     ";
+                endcase
+                PAGE_PERIPHERAL: case(idx)
+                    0:card_value_label=sd_init_done ? "READY     " : "WAIT      ";
+                    1:card_value_label=buzzer_test ? "TEST      " : "IDLE      ";
+                    // 仅调整展示层；沿用既有事件计数高字节口径。
+                    2:card_value_label={"CNT",hex(key_events[15:12]),hex(key_events[11:8]),40'h2020202020};
+                    3:card_value_label={"LED",hex(led_state),48'h202020202020};
+                endcase
             endcase
-            screen_value_char = (pos < 5) ? label[(4-pos)*8 +: 8] :
-                                ((pos == 6 && changed) ? "*" : " ");
         end
     endfunction
 
-    // 参数是低速状态。提前生成四卡状态行，像素路径只取字符，避免
-    // 坐标译码后再串接档位查表和多级字符选择；不增加视频输出延迟。
-    reg [79:0] screen_text0, screen_text1, screen_text2, screen_text3;
-    integer screen_char_index;
-    always @(posedge clk) begin
-        for (screen_char_index=0; screen_char_index<10; screen_char_index=screen_char_index+1) begin
-            screen_text0[(9-screen_char_index)*8 +: 8] <= subtitle_page ? subtitle_value_char(3'd0,screen_char_index) : screen_value_char(3'd0, screen_char_index, screen_edit && cursor==0);
-            screen_text1[(9-screen_char_index)*8 +: 8] <= subtitle_page ? subtitle_value_char(3'd1,screen_char_index) : screen_value_char(3'd1, screen_char_index, screen_edit && cursor==1);
-            screen_text2[(9-screen_char_index)*8 +: 8] <= subtitle_page ? subtitle_value_char(3'd2,screen_char_index) : screen_value_char(3'd2, screen_char_index, screen_edit && cursor==2);
-            screen_text3[(9-screen_char_index)*8 +: 8] <= subtitle_page ? subtitle_value_char(3'd3,screen_char_index) : screen_value_char(3'd3, screen_char_index, screen_edit && cursor==3);
+    function [79:0] pending_label;
+        input [79:0] label;
+        input pending;
+        integer col;
+        reg [3:0] length;
+        reg [3:0] star_col;
+        reg [3:0] reverse_col;
+        begin
+            length=0;
+            for(col=0;col<10;col=col+1)
+                if(label[(9-col)*8 +: 8]!=8'h20) length=col+1;
+            pending_label=label;
+            star_col=length+4'd1;
+            reverse_col=4'd9-star_col;
+            // 保留一格空白后标记，不允许长度加法溢出窗口。
+            if(pending && length<8)
+                pending_label[{reverse_col,3'b000} +: 8]="*";
         end
+    endfunction
+
+    reg [79:0] value_text [0:5];
+    reg [5:0] state_selected, state_editing, state_pending, state_action;
+    reg [2:0] value_kind [0:5];
+    reg [39:0] header_status_text;
+    reg [1:0] header_status; // 0 READY, 1 EDIT, 2 WAIT
+    integer state_index;
+    always @(posedge clk) begin
+        for(state_index=0;state_index<6;state_index=state_index+1) begin
+            state_selected[state_index]<=menu_active && cursor==state_index;
+            state_editing[state_index]<=menu_active && cursor==state_index &&
+                ((subtitle_page && subtitle_edit) || (screen_page && screen_edit));
+            state_pending[state_index]<=card_pending(state_page,state_index);
+            state_action[state_index]<=(state_page!=PAGE_PERIPHERAL || state_index==1);
+            value_kind[state_index]<=card_value_kind(state_page,state_index);
+            value_text[state_index]<=pending_label(
+                card_value_label(state_page,state_index,menu_active && cursor==state_index &&
+                    ((subtitle_page && subtitle_edit) || (screen_page && screen_edit))),
+                card_pending(state_page,state_index));
+        end
+        // 页眉只反映当前聚焦卡或二级编辑态，避免全局dirty泄漏到其他卡。
+        // 与各卡pending同拍计算，不能用上一拍state_pending配当前cursor。
+        // 不改变控制器、不冻结后续预览，也不延长WAIT的实际持续时间。
+        header_status<=cfg_busy ? 2'd2 :
+            ((screen_edit || subtitle_edit || card_pending(state_page,cursor)) ? 2'd1 : 2'd0);
+        header_status_text<=cfg_busy ? "WAIT " :
+            ((screen_edit || subtitle_edit || card_pending(state_page,cursor)) ? "EDIT " : "READY");
     end
 
     function [5:0] cjk_title_char;
@@ -254,7 +260,7 @@ module monitor_menu_renderer(
                     0:cjk_title_char=(pos==0) ? CJK_ZI : {1'b0,CJK_MU};
                     1:cjk_title_char=(pos==0) ? CJK_NEI : CJK_RONG;
                     2:cjk_title_char=(pos==0) ? CJK_SU : {1'b0,CJK_DU};
-                    default:cjk_title_char=(pos==0) ? {1'b0,CJK_TU} : {1'b0,CJK_CENG};
+                    default:cjk_title_char=(pos==0) ? {1'b0,CJK_BIAO} : {1'b0,CJK_TI};
                 endcase
             end else if (is_screen) begin
                 case (idx)
@@ -277,9 +283,9 @@ module monitor_menu_renderer(
                 endcase
             end else begin
                 case (idx)
-                    3'd0: cjk_title_char = (pos == 0) ? CJK_WAI : ((pos == 1) ? CJK_SHE : 5'd31);
+                    3'd0: cjk_title_char = (pos == 0) ? CJK_WAI : CJK_SHE;
                     3'd1: cjk_title_char = (pos == 0) ? CJK_FENG : ((pos == 1) ? CJK_MING : CJK_QI2);
-                    3'd2: cjk_title_char = (pos == 0) ? CJK_AN : ((pos == 1) ? CJK_JIAN3 : 5'd31);
+                    3'd2: cjk_title_char = (pos == 0) ? CJK_AN : CJK_JIAN3;
                     default: cjk_title_char = (pos == 0) ? CJK_BAN : ((pos == 1) ? CJK_ZAI : CJK_DENG);
                 endcase
             end
@@ -288,31 +294,54 @@ module monitor_menu_renderer(
 
     // 节目页严格两行三列；外设和 HDMI-B 设置页两行两列。
     wire wide_cards = page || screen_page || subtitle_page;
-    wire program_top = y < 9'd260;
+    wire program_top = y < 9'd272;
     wire [1:0] program_col = (x < 10'd220) ? 2'd0 : ((x < 10'd424) ? 2'd1 : 2'd2);
     wire [2:0] card_idx = wide_cards ?
-        ((x < 10'd320) ? ((y < 9'd260) ? 3'd0 : 3'd2) : ((y < 9'd260) ? 3'd1 : 3'd3)) :
+        ((x < 10'd320) ? ((y < 9'd272) ? 3'd0 : 3'd2) : ((y < 9'd272) ? 3'd1 : 3'd3)) :
         ({1'b0,program_col} + (program_top ? 3'd0 : 3'd3));
     wire [9:0] card_x0 = wide_cards ? ((x < 10'd320) ? 10'd32 : 10'd336) :
                         ((program_col == 0) ? 10'd24 : ((program_col == 1) ? 10'd228 : 10'd432));
-    wire [8:0] card_y0 = program_top ? 9'd88 : 9'd272;
+    wire [8:0] card_y0 = program_top ? 9'd96 : 9'd288;
     wire [9:0] card_w = wide_cards ? 10'd272 : 10'd184;
     wire [9:0] local_x = x - card_x0;
     wire [8:0] local_y = y - card_y0;
-    // 二级页文字直接用2x2坐标选行，避免借道六卡编号译码和页面mux。
-    wire [79:0] screen_card_text = (y<9'd260) ?
-                                  ((x<10'd320) ? screen_text0 : screen_text1) :
-                                  ((x<10'd320) ? screen_text2 : screen_text3);
+    // 每卡先按绝对字格独立选8位字符，再选择行/列；避免80位文本
+    // 先经卡片译码，再串入动态位选。低位偏移仅用必要位宽。
+    wire [4:0] left_grid = x[7:3]-5'd1;
+    wire [5:0] mid_grid = x[7:2]-6'd1;
+    wire [3:0] left_rev = 4'd11-left_grid[4:1];
+    wire [3:0] mid_rev = 4'd8-mid_grid[5:2];
+    wire [3:0] right_rev = 4'd5-x[7:4];
+    wire [3:0] wide_left_rev = 4'd12-x[7:4];
+    wire [3:0] wide_right_rev = 4'd15-x[7:4];
+    wire [7:0] p0=value_text[0][{left_rev,3'b000} +: 8];
+    wire [7:0] p1=value_text[1][{mid_rev,3'b000} +: 8];
+    wire [7:0] p2=value_text[2][{right_rev,3'b000} +: 8];
+    wire [7:0] p3=value_text[3][{left_rev,3'b000} +: 8];
+    wire [7:0] p4=value_text[4][{mid_rev,3'b000} +: 8];
+    wire [7:0] p5=value_text[5][{right_rev,3'b000} +: 8];
+    wire [7:0] w0=value_text[0][{wide_left_rev,3'b000} +: 8];
+    wire [7:0] w1=value_text[1][{wide_right_rev,3'b000} +: 8];
+    wire [7:0] w2=value_text[2][{wide_left_rev,3'b000} +: 8];
+    wire [7:0] w3=value_text[3][{wide_right_rev,3'b000} +: 8];
+    wire [7:0] pixel_value_char=wide_cards ?
+        (program_top ? ((x[9:6]<4'd5) ? w0 : w1) : ((x[9:6]<4'd5) ? w2 : w3)) :
+        (program_top ? ((x[9:2]<8'd55) ? p0 : (x[9:3]<7'd53) ? p1 : p2) :
+                       ((x[9:2]<8'd55) ? p3 : (x[9:3]<7'd53) ? p4 : p5));
+    wire selected=state_selected[card_idx];
+    wire editing=state_editing[card_idx];
+    wire pending=state_pending[card_idx];
+    wire actionable=state_action[card_idx];
+    wire [2:0] pixel_value_kind=value_kind[card_idx];
     wire card_area = wide_cards ? ((((x >= 10'd32) && (x < 10'd304)) ||
                               ((x >= 10'd336) && (x < 10'd608))) &&
-                             (((y >= 9'd88) && (y < 9'd248)) ||
-                              ((y >= 9'd272) && (y < 9'd432)))) :
+                             (((y >= 9'd96) && (y < 9'd256)) ||
+                              ((y >= 9'd288) && (y < 9'd448)))) :
                       ((((x >= 10'd24) && (x < 10'd208)) ||
                                       ((x >= 10'd228) && (x < 10'd412)) ||
                                       ((x >= 10'd432) && (x < 10'd616))) &&
-                                     (((y >= 9'd88) && (y < 9'd248)) ||
-                                      ((y >= 9'd272) && (y < 9'd432))));
-    wire selected = menu_active && card_area && (card_idx == cursor);
+                                     (((y >= 9'd96) && (y < 9'd256)) ||
+                                      ((y >= 9'd288) && (y < 9'd448))));
 
     wire header_hit = (x >= 10'd32) && (x < 10'd288) &&
                       (y >= 9'd16) && (y < 9'd48);
@@ -324,23 +353,24 @@ module monitor_menu_renderer(
                          (local_x < title_end) &&
                          (local_y >= 9'd16) && (local_y < 9'd48);
     wire card_value_hit = card_area && (local_x >= 10'd16) &&
-                          (local_x < 10'd176) && (local_y >= 9'd72) &&
-                          (local_y < 9'd104);
+                          (local_x < 10'd176) && (local_y >= 9'd104) &&
+                          (local_y < 9'd136);
+    wire arrow_hit=card_area && selected && actionable &&
+                   (local_x >= (wide_cards ? 10'd236 : 10'd148)) &&
+                   (local_x < (wide_cards ? 10'd252 : 10'd164)) &&
+                   (local_y >= 9'd16) && (local_y < 9'd48);
     wire footer_hit = !menu_active && (x >= 10'd32) && (x < 10'd288) &&
-                      (y >= 9'd444) && (y < 9'd476);
+                      (y >= 9'd456) && (y < 9'd472);
     wire [4:0] footer_pos = (x - 10'd32) >> 3;
-    wire footer_second = y >= 9'd460;
-    wire [255:0] footer_text = footer_second ? STR_PLAY_HINT : STR_PLAY_KEYS;
-    wire status_hit = (screen_page || subtitle_page) && menu_active && x >= 10'd432 && x < 10'd592 && y >= 9'd16 && y < 9'd48;
-    wire [79:0] status_text = cfg_busy ? "WAIT      " : ((screen_edit || subtitle_edit) ? "EDIT      " : "READY     ");
-    // Bound character indices before subtraction. Unsized integer subtraction
-    // in an indexed part-select otherwise infers a 32-bit pixel-path carry chain.
+    wire status_area = menu_active && x>=10'd496 && x<10'd608 && y>=9'd16 && y<9'd48;
+    wire status_hit = status_area && x>=10'd512 && x<10'd592;
     wire [3:0] header_pos = x[7:4] - 4'd2;
-    wire [3:0] status_pos = x[7:4] - 4'd11;
+    wire [2:0] status_pos = x[6:4];
     wire [3:0] value_pos = local_x[7:4] - 4'd1;
     wire [3:0] header_rev = 4'd15 - header_pos;
-    wire [3:0] status_rev = 4'd9 - status_pos;
+    wire [2:0] status_rev = 3'd4 - status_pos;
     wire [3:0] value_rev = 4'd9 - value_pos;
+    // 二级页用绝对字格边界；避免local_x减法串入常见状态字路径。
     wire [3:0] detail_pos = x[7:4] - ((x<10'd320) ? 4'd3 : 4'd6);
     wire [3:0] detail_rev = 4'd9 - detail_pos;
     wire [4:0] footer_rev = 5'd31 - footer_pos;
@@ -359,48 +389,60 @@ module monitor_menu_renderer(
                                x<10'd220 ? program_left_glyph : x<10'd424 ? program_mid_glyph : program_right_glyph;
 
     reg [7:0] req_char;
+    // 字符ROM允许在非文字区读取无关字符，输出仍由同拍glyph_hit_d屏蔽。
+    // ASCII值区、箭头区、页眉和提示按绝对行带选字，避免卡片命中/
+    // 中文优先级/焦点判断串入ASCII BRAM地址，像素延迟保持不变。
+    always @* begin
+        req_char = pixel_value_char;
+        if(y<9'd64) begin
+            if(x<10'd496)
+                req_char = !menu_active ? STR_PLAY[{header_rev,3'b000} +: 8] :
+                           subtitle_page ? STR_SUBTITLE[{header_rev,3'b000} +: 8] :
+                           screen_page ? STR_SCREEN[{header_rev,3'b000} +: 8] :
+                           page ? STR_PERI[{header_rev,3'b000} +: 8] :
+                                  STR_PROG[{header_rev,3'b000} +: 8];
+            else req_char = header_status_text[{status_rev,3'b000} +: 8];
+        end else if((y>=9'd112 && y<9'd144) || (y>=9'd304 && y<9'd336))
+            req_char = ">";
+        else if(!menu_active && y>=9'd456)
+            req_char = STR_PLAY_KEYS[{footer_rev,3'b000} +: 8];
+    end
     reg [3:0] req_row;
     reg [2:0] req_col;
-    reg [1:0] req_kind;
+    reg [2:0] req_kind;
     reg       req_cjk;
     reg [5:0] req_cjk_idx;
     reg [4:0] req_cjk_row;
     always @* begin
-        req_char = 8'h20;
         req_row  = 4'd0;
         req_col  = 3'd0;
-        req_kind = 2'd0;
+        req_kind = KIND_HEADER;
         req_cjk = 1'b0;
         req_cjk_idx = cjk_pixel_glyph;
         req_cjk_row = local_y[4:0] - 5'd16;
         if (header_hit) begin
-            req_kind = 2'd0;
+            req_kind = KIND_HEADER;
             req_col  = (x - 10'd32) >> 1;
             req_row  = (y - 9'd16) >> 1;
-            req_char = !menu_active ? STR_PLAY[{header_rev,3'b000} +: 8] :
-                       subtitle_page ? STR_SUBTITLE[{header_rev,3'b000} +: 8] :
-                       screen_page ? STR_SCREEN[{header_rev,3'b000} +: 8] :
-                       page ? STR_PERI[{header_rev,3'b000} +: 8] :
-                              STR_PROG[{header_rev,3'b000} +: 8];
         end else if (status_hit) begin
-            req_kind = 2'd0;
-            req_col = (x - 10'd432) >> 1;
+            req_kind = KIND_STATUS;
+            req_col = x[3:1];
             req_row = (y - 9'd16) >> 1;
-            req_char = status_text[{status_rev,3'b000} +: 8];
         end else if (cjk_title_hit) begin
-            req_kind = 2'd1;
+            req_kind = KIND_CJK;
             req_cjk = 1'b1;
+        end else if (arrow_hit) begin
+            req_kind = KIND_ARROW;
+            req_col = local_x[3:1] - (wide_cards ? 3'd6 : 3'd2);
+            req_row = local_y[4:1] - 4'd8;
         end else if (card_value_hit) begin
-            req_kind = 2'd2;
+            req_kind = KIND_VALUE;
             req_col  = (local_x - 10'd16) >> 1;
-            req_row  = (local_y - 9'd72) >> 1;
-            req_char = (screen_page || subtitle_page) ? screen_card_text[{detail_rev,3'b000} +: 8] :
-                                     value_char(page, card_idx, {1'b0,value_pos});
+            req_row  = local_y[4:1] - 4'd4;
         end else if (footer_hit) begin
-            req_kind = 2'd3;
+            req_kind = KIND_FOOTER;
             req_col  = x - 10'd32;
-            req_row  = footer_second ? (y - 9'd460) : (y - 9'd444);
-            req_char = footer_text[{footer_rev,3'b000} +: 8];
+            req_row  = y - 9'd456;
         end
     end
 
@@ -424,78 +466,49 @@ module monitor_menu_renderer(
     reg [8:0] local_y_d;
     reg [9:0] x_d;
     reg [8:0] y_d;
-    reg       de_d;
-    reg       card_area_d;
-    reg       selected_d;
-    reg [2:0] card_idx_d;
-    reg [9:0] card_w_d;
-    reg [1:0] kind_d;
+    reg de_d, card_area_d, selected_d, editing_d, pending_d, wide_d, status_area_d;
+    reg [2:0] kind_d, value_kind_d;
+    reg [1:0] status_d;
     reg [2:0] glyph_col_d;
-    reg       glyph_hit_d;
-    reg       page_d;
-    reg       cjk_d;
+    reg glyph_hit_d, cjk_d;
     reg [4:0] cjk_col_d;
     always @(posedge clk) begin
-        x_d          <= x;
-        y_d          <= y;
-        de_d         <= de;
-        card_area_d  <= card_area;
-        selected_d   <= selected;
-        card_idx_d   <= card_idx;
-        card_w_d     <= card_w;
-        kind_d       <= req_kind;
-        glyph_col_d  <= req_col;
-        glyph_hit_d  <= header_hit || status_hit || cjk_title_hit || card_value_hit || footer_hit;
-        page_d       <= page;
-        cjk_d        <= req_cjk;
-        cjk_col_d    <= local_x[4:0] - 5'd16;
-        local_x_d    <= local_x;
-        local_y_d    <= local_y;
+        x_d<=x; y_d<=y; de_d<=de;
+        card_area_d<=card_area;
+        selected_d<=selected; editing_d<=editing; pending_d<=pending;
+        wide_d<=wide_cards; status_area_d<=status_area;
+        kind_d<=req_kind; value_kind_d<=pixel_value_kind; status_d<=header_status;
+        glyph_col_d<=req_col;
+        glyph_hit_d<=header_hit || status_hit || cjk_title_hit || arrow_hit || card_value_hit || footer_hit;
+        cjk_d<=req_cjk; cjk_col_d<=local_x[4:0]-5'd16;
+        local_x_d<=local_x; local_y_d<=local_y;
     end
 
-    // 选中卡片右侧的黄色圆点。圆点使用 8x8 常量位图，每个逻辑像素
-    // 覆盖 4x4 画布像素。区域边界只比较坐标高位，避免把长减法器和
-    // 多组范围比较器放进 74.25MHz 视频关键路径。
-    reg [7:0] dot_row_mask;
-    always @* begin
-        case (local_y_d[4:2])
-            3'd0: dot_row_mask = 8'b00111100;
-            3'd1: dot_row_mask = 8'b01111110;
-            3'd2: dot_row_mask = 8'b11111111;
-            3'd3: dot_row_mask = 8'b11111111;
-            3'd4: dot_row_mask = 8'b11111111;
-            3'd5: dot_row_mask = 8'b11111111;
-            3'd6: dot_row_mask = 8'b01111110;
-            3'd7: dot_row_mask = 8'b00111100;
-            default: dot_row_mask = 8'd0;
-        endcase
-    end
-    wire dot_hit = selected_d &&
-                   (local_x_d >= (card_w_d - 10'd48)) &&
-                   (local_x_d < (card_w_d - 10'd16)) &&
-                   (local_y_d >= 9'd64) &&
-                   (local_y_d < 9'd96) &&
-                   dot_row_mask[(local_x_d - card_w_d + 10'd48) >> 2];
-    wire card_border = card_area_d && ((local_x_d < 3) || (local_x_d >= (card_w_d - 3)) ||
-                                       (local_y_d < 3) || (local_y_d >= 9'd157));
-    wire footer_area = (y_d >= 9'd440) && (y_d < 9'd480);
-    wire header_area = (y_d < 9'd64);
-    wire glyph_on = glyph_hit_d && (cjk_d ? cjk_glyph_bits[31 - cjk_col_d] :
-                                            glyph_bits[7 - glyph_col_d]);
-    wire [23:0] card_fill = selected_d ? CARD_SEL : CARD;
-    wire [23:0] value_fg = subtitle_page ? ((subtitle_edit && card_idx_d == cursor) ? ACCENT : ON) :
-                          screen_page ? ((screen_edit && card_idx_d == cursor) ? ACCENT : ON) :
-                          ((!page_d && card_idx_d >= 3) ? ACCENT :
-                          (!page_d && (card_idx_d < 3'd4) && cfg_shadow[card_idx_d]) ? ON :
-                           (!page_d ? OFF :
-                            ((card_idx_d == 2'd1 && buzzer_test) ? ON : ACCENT)));
-    wire [23:0] text_fg = (kind_d == 2'd2) ? value_fg : FG;
-    wire [23:0] base = header_area ? HEADER :
-                       footer_area ? FOOTER :
-                       card_area_d ? card_fill : BG;
-    wire [23:0] border = selected_d ? ACCENT : (cfg_dirty ? WARN : MUTED);
-    assign rgb = !de_d ? 24'd0 :
-                 dot_hit ? ACCENT :
-                 card_border ? border :
-                 glyph_on ? text_fg : base;
+    // 两种宽度、两种偶数线宽均用常量比较，1.5倍映射后恰为3/6像素。
+    wire thin_border=(local_x_d<10'd2) ||
+                     (local_x_d >= (wide_d ? 10'd270 : 10'd182)) ||
+                     (local_y_d<9'd2) || (local_y_d>=9'd158);
+    wire thick_border=(local_x_d<10'd4) ||
+                      (local_x_d >= (wide_d ? 10'd268 : 10'd180)) ||
+                      (local_y_d<9'd4) || (local_y_d>=9'd156);
+    wire card_border=card_area_d && (selected_d ? thick_border : thin_border);
+    wire header_area=y_d<9'd64;
+    wire header_rule=y_d>=9'd62 && y_d<9'd64;
+    wire glyph_on=glyph_hit_d && (cjk_d ? cjk_glyph_bits[31-cjk_col_d] : glyph_bits[7-glyph_col_d]);
+    wire [23:0] card_fill=selected_d ? SEL : SURF;
+    wire [23:0] value_fg=(value_kind_d==VALUE_ERROR) ? OFF :
+                         (editing_d || pending_d) ? AMBER :
+                         (value_kind_d==VALUE_ON) ? ON :
+                         (value_kind_d==VALUE_OFF) ? OFF :
+                         (value_kind_d==VALUE_WAIT) ? AMBER : VALUE;
+    wire [23:0] status_fg=(status_d==2) ? WAIT_FG : (status_d==1) ? AMBER : MUTED;
+    wire [23:0] text_fg=(kind_d==KIND_VALUE) ? value_fg :
+                        (kind_d==KIND_STATUS) ? status_fg :
+                        (kind_d==KIND_ARROW) ? (editing_d ? AMBER : FOCUS) :
+                        (kind_d==KIND_HEADER || kind_d==KIND_FOOTER) ? MUTED : FG;
+    wire [23:0] base=status_area_d ? ((status_d==2) ? AMBER : CHIP) :
+                     header_area ? HEADER : card_area_d ? card_fill : BG;
+    wire [23:0] border=selected_d ? (editing_d ? AMBER : FOCUS) : (pending_d ? AMBER : FRAME);
+    assign rgb=!de_d ? 24'd0 : header_rule ? RULE :
+               card_border ? border : glyph_on ? text_fg : base;
 endmodule

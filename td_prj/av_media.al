@@ -283,7 +283,7 @@
                     <Attr Name="UsedInSyn" Val="true"/>
                     <Attr Name="UsedInP&R" Val="true"/>
                     <Attr Name="BelongTo" Val="design_1"/>
-                    <Attr Name="CompileOrder" Val="78"/>
+                    <Attr Name="CompileOrder" Val="79"/>
                 </FileInfo>
             </File>
             <File Path="../rtl/hdmi/hdmi_video_only_640x480.v">
@@ -291,7 +291,7 @@
                     <Attr Name="UsedInSyn" Val="true"/>
                     <Attr Name="UsedInP&R" Val="true"/>
                     <Attr Name="BelongTo" Val="design_1"/>
-                    <Attr Name="CompileOrder" Val="79"/>
+                    <Attr Name="CompileOrder" Val="80"/>
                 </FileInfo>
             </File>
             <File Path="../rtl/pll/sys_pll.v">
@@ -373,7 +373,7 @@
                     <Attr Name="UsedInSyn" Val="true"/>
                     <Attr Name="UsedInP&R" Val="true"/>
                     <Attr Name="BelongTo" Val="design_1"/>
-                    <Attr Name="CompileOrder" Val="80"/>
+                    <Attr Name="CompileOrder" Val="81"/>
                 </FileInfo>
             </File>
             <File Path="../rtl/ctrl/monitor_menu_ctrl.v">
@@ -389,7 +389,7 @@
                     <Attr Name="UsedInSyn" Val="true"/>
                     <Attr Name="UsedInP&R" Val="true"/>
                     <Attr Name="BelongTo" Val="design_1"/>
-                    <Attr Name="CompileOrder" Val="81"/>
+                    <Attr Name="CompileOrder" Val="82"/>
                 </FileInfo>
             </File>
             <File Path="../rtl/mem/mem_mpu.v">

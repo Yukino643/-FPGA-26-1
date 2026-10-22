@@ -10,5 +10,5 @@ localparam [5:0] DIGIT_7=6'd30;
 localparam [5:0] DIGIT_8=6'd31;
 localparam [5:0] DIGIT_9=6'd32;
 localparam [5:0] COLON=6'd23;
-localparam [5:0] NOTICE_TONG=6'd53;
-localparam [5:0] NOTICE_ZHI=6'd54;
+localparam [5:0] BADGE_SHI=6'd48;
+localparam [5:0] BADGE_JIE=6'd49;

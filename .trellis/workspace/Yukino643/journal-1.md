@@ -270,3 +270,77 @@ CONTROL两行三列、HDMI-B亮度/对比度/色温/默认二级页、黄色圆�
 旧SDRAM全局setup -6.565ns继续单列，不声称全工程setup闭合。初版ASCII路径-0.732ns、textpath中文-0.003ns/缩放-0.037ns、seed13中文-1.270ns、glyphaddr OSD-0.499ns/显示FIFO-0.353ns均已隔离保留报告，未发布。最终parallel-osd采用原布局seed12并以RTL并行译码通过，不放宽约束或门限。
 发布：build/720p/releases/20261021-preset-subtitle/av_media.bit；SHA256 d23b57a95832bc495678556cb34280770719a576be76b46499aae94a826fe6f4。
 本轮尚未烧录、未双屏实物验证或Flash固化；重点检查字幕观感、菜单确认/取消、切图、音频与应急。按键详解docs/PRESET_SUBTITLE_20261021.md。保留工作区历史dirty/untracked，未自动Git提交。
+
+### 2026-10-21：标题配色与UI审美交接
+
+已备份当前工作区（含既有TD工程差异）；修改标题/时间颜色、图层标签改标题及同步字模映射，5/5定向回归通过。用户要求先将全局UI交由外部智能体评审，交付docs/ui-review-20261021完整现状报告、22张图、离线HTML、两份提示词与可上传ZIP。字幕文字保留旧版，最终文案及视觉方案待返回；本轮尚未完整TD构建、生成新bit、提交或推送Git。
+
+### 2026-10-21：UI方案P0菜单，RTL交付后停止
+
+按用户指定8.1–8.5执行，源文件修改前ZIP回读保存；renderer及独立像素/顶层相位测试、新check_menu_p0.py完成。9/9定向回归、10场景RGB、48卡3/6像素四边检查、14保护输入哈希、36字形及主屏字库检查通过。已查看6种RTL菜单PNG并比对方案主菜单效果图。逐项清单与后续TD命令见docs/ui-review-20261021/p0-result/P0_MENU_CHANGELOG.md；任务10-21-menu-ui-p0置review。保持按键/邮箱/顶层/主屏/字库bank，未做8.6/8.7、不运行综合/P&R/bitgen、无新bit或新资源时序结论，等用户确认；不提交/推送。
+
+### 2026-10-22：P0菜单复审修订
+
+确认并修复播放提示贴边：单行8×16在x32/y456..472，卡片下方与屏底各8px；EDIT移除全局cfg_dirty，取同拍聚焦卡pending或二级edit，WAIT优先。0档保留0。新增四页状态RGB和上下留白检查，9/9定向回归（变化项重跑）及最终依赖复核、10场景、48卡边框、14保护输入哈希通过；已查看新播放页PNG。备份build/720p/backups/20261022-before-menu-followup，清单及证据docs/ui-review-20261021/p0-result。保持不做8.6/8.7、不运行TD、无新bit；任务review等待确认。
+
+## 2026-10-22 当前源码构建与板验交付
+
+用户已授权生成新烧录文件并要求参考老师工程。此授权覆盖早期“只交付RTL、不运行TD”的停止点，范围仍为8.1–8.5，不实施8.6/8.7。
+
+- 修改前备份：`build/720p/backups/20261022-before-menu-build/source-and-previous-bit.zip`，源码与旧bit逐字节回读通过。
+- 老师资料实际对照与各轮物理证据：`.trellis/tasks/10-21-menu-ui-p0/teacher-review-20261022.md`。借鉴窄位宽地址和同步字模/命中对齐；本工程将每卡8位字符并行选择，再选卡，解耦字库地址与绘制命中。不增加字库bank、像素延迟、帧缓存或PLL。
+- 最终源码完整回归 **75/75 PASS**，`complete=true/filter=null`；未变化项按依赖哈希复用，菜单10整页像素及真实顶层三拍相位重新仿真。10场景、48卡四侧3/6像素、14受保护输入哈希另由独立脚本核验。
+- 当前源码完整综合、P&R、hold修复、bitgen通过；基础、菜单/字体和缩放定向时序检查通过。最终构建日志：`build/720p/td/20261022-menu-ui-p0-final`。布局使用工程既有seed11，不修改SDC、频率或验收门限。
+
+| 最终物理项 | 实测 |
+|---|---|
+| LUT | 15022/19600，76.64%，较旧14875增加147 |
+| 寄存器 | 9371/19600，47.81% |
+| BRAM9K / BRAM32K | 57/64，89.06% / 4/16 |
+| DSP / PLL | 13/29 / 3/4 |
+| video setup / hold | +0.184 / +0.024 ns，达到setup≥0.15ns |
+| HDMI 5x setup / hold | +0.962 / +0.049 ns |
+| ext_mem内部 setup / hold | +0.143 / +0.022 ns |
+| 全局hold | +0.022 ns |
+
+旧加密SDRAM跨域全局setup **−6.565ns**继续单列，不能宣称全工程setup闭合；本轮新增域内路径按非负门限验收。初始及中间失败bit已隔离，不能用于板验。
+
+新发布目标：`build/720p/releases/20261022-menu-ui-p0/av_media.bit`，完整SHA256、资源、日志、源码快照与回归证据随发布包归档；以该目录README及SHA256SUMS为准。
+当前尚未烧录或Flash固化；需用户验证七寸屏可读性、播放提示留白、EDIT随聚焦pending变化、确认/取消、双屏切图音频及应急。未提交或推送Git。
+
+## 2026-10-22 当前工程与字幕未实施项的外部审查交接
+
+用户要求继续写现有工程详细说明。新增docs/ui-review-20261022/CURRENT_PROJECT_REVIEW.md、同名离线HTML和REVIEW_PROMPT.txt，UI_REVIEW_20261022.zip含14图、27源码快照和发布证据。明确菜单P0已做，主屏8.6/文案8.7未做，通知与旧三句保留；比较用户暂选和外部方案不同的第二句，计算字集55/47/50单元。记录现有全局dirty提交与局部READY语义、时钟/波形16px交叠、循环窗口、LED2为WAV发现锁存等审查点。110构建输入/bit清单未变，所有引用、ZIP/哈希独立回读通过；未修改RTL/字库/约束/bit，未新跑仿真/TD/烧录，未Git提交。
+
+
+## Session 6: HDMI-B主屏与视界字幕完成，77项与严格时序通过，待板验
+
+**Date**: 2026-10-22
+**Task**: HDMI-B主屏与视界字幕完成，77项与严格时序通过，待板验
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+标题局部底板、右下时间、视界B组字幕和波形UI；官方映射及高扇出优化后LUT14161，BRAM57，video+.274ns；旧SDRAM跨域负余量单列。
+
+### Main Changes
+
+- 修改前574文件与旧bit已备份；菜单/按键/邮箱/SDRAM功能和约束哈希保持。
+- 新发布目标build/720p/releases/20261022-main-ui；bit SHA256 a87d1d0b280f66e6c12229b27f68e6bcd51586f8db23b489ae87097728723fbb。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 完整77/77；8组合3背景18滚动整圈；照片RTL2764800像素；完整TD和菜单/字幕/字体/缩放定向检查通过。
+- [OK] video+.274/.024ns，SD+.219/.022ns，ext内部+.313/.030ns；旧加密SDRAMglobal setup−6.565ns单列。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户双屏板验8开关组合、三句三速、明暗底图、切图音频及应急；未烧录、Flash或Git提交。

@@ -5,23 +5,12 @@ import hashlib
 import json
 from PIL import Image,ImageDraw
 import numpy as np
-from gen_font_720 import CHARS,WINDOWS
+from render_main_ui import reference
 
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=Path('D:/FPGA/音频/图片比例补偿/素材汇总_20261012/处理图')
 OUT=ROOT/'build/720p/previews'
 OUT.mkdir(parents=True,exist_ok=True)
-font_rows=[int(line,16) for line in (ROOT/'rtl/video/font_720.hex').read_text(encoding='ascii').splitlines()]
-def text(image,label,x,y):
-    pixels=image.load()
-    for col,ch in enumerate(label):
-        glyph=CHARS.index(ch)
-        for row in range(32):
-            bits=font_rows[glyph*32+row]
-            for bit in range(32):
-                if bits&(1<<(31-bit)): pixels[x+col*32+bit,y+row]=(0,0,0)
-    return image
-
 checks=[];thumbs=[]
 for name in ('BEACH720','NAIL720','ROOM720','NIGHT720','NAIL1720','NAIL2720','MONST720'):
     file=SOURCE/(name+'.BMP');data=file.read_bytes()
@@ -40,16 +29,17 @@ for name in ('BEACH720','NAIL720','ROOM720','NIGHT720','NAIL1720','NAIL2720','MO
         expanded[:,:,channel]=(value<<(8-bits))|(value>>(2*bits-8))
     image=Image.fromarray(expanded,'RGB')
     image.save(OUT/(name+'_565.png'))
-    text(image,WINDOWS[0],32,32);text(image,WINDOWS[1],1120,32);text(image,'运行 00:00:00',896,656)
     wave=Image.open(ROOT/'build/720p/regression/waveform_720.png') if (ROOT/'build/720p/regression/waveform_720.png').is_file() else None
     if wave is not None:
         wave=wave.convert('RGB');mask=Image.eval(wave.convert('L'),lambda value:0)
-        a=np.array(wave);selected=(a==[32,255,144]).all(axis=2)|(a==[64,96,96]).all(axis=2)
+        a=np.array(wave);selected=(a==[59,240,165]).all(axis=2)|(a==[42,78,88]).all(axis=2)
         mask=Image.fromarray((selected*255).astype(np.uint8));image.paste(wave,(112,568),mask)
-    image.save(OUT/(name+'_screen.png'))
+    # 软件合成明确标注REFERENCE；真实OSD RTL图由render_main_ui.py生成。
+    image=Image.fromarray(reference(np.array(image),True,True,True),'RGB')
+    image.save(OUT/(name+'_screen_REFERENCE.png'))
     thumb=image.resize((640,360),Image.Resampling.LANCZOS)
     thumbs.append(thumb)
-    checks.append({'name':file.name,'width':width,'height':height,'bits':bpp,'sha256':hashlib.sha256(data).hexdigest()})
+    checks.append({'name':file.name,'width':width,'height':height,'bits':bpp,'sha256':hashlib.sha256(data).hexdigest(),'evidence':'software reference; not RTL frame or board capture'})
 contact=Image.new('RGB',(1280,4*380),(245,245,245))
 d=ImageDraw.Draw(contact)
 for i,thumb in enumerate(thumbs):

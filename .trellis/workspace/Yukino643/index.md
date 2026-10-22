@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 5
-- **Last Active**: 2026-10-17
+- **Total Sessions**: 6
+- **Last Active**: 2026-10-22
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~148 | Active |
+| `journal-1.md` | ~346 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 6 | 2026-10-22 | HDMI-B主屏与视界字幕完成，77项与严格时序通过，待板验 | - | `feat/key2-next-prefetch` |
 | 6 | 2026-10-17 | 切图驻留颗粒：SDRAM刷新宏修复，74项检查通过，待板验 | 未提交 | `feat/key2-next-prefetch` |
 | 5 | 2026-10-17 | 多尺寸BMP、应急和菜单退出；72项回归，待板验 | 未提交 | `feat/key2-next-prefetch` |
 | 4 | 2026-10-14 | KEY2 next-frame prefetch and resource audit | `52cd68f` | `feat/key2-next-prefetch` |

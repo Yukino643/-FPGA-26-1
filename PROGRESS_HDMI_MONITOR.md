@@ -375,3 +375,80 @@ CONTROL两行三列、HDMI-B亮度/对比度/色温/默认二级页、黄色圆�
 旧SDRAM全局setup -6.565ns继续单列，不声称全工程setup闭合。初版ASCII路径-0.732ns、textpath中文-0.003ns/缩放-0.037ns、seed13中文-1.270ns、glyphaddr OSD-0.499ns/显示FIFO-0.353ns均已隔离保留报告，未发布。最终parallel-osd采用原布局seed12并以RTL并行译码通过，不放宽约束或门限。
 发布：build/720p/releases/20261021-preset-subtitle/av_media.bit；SHA256 d23b57a95832bc495678556cb34280770719a576be76b46499aae94a826fe6f4。
 本轮尚未烧录、未双屏实物验证或Flash固化；重点检查字幕观感、菜单确认/取消、切图、音频与应急。按键详解docs/PRESET_SUBTITLE_20261021.md。保留工作区历史dirty/untracked，未自动Git提交。
+
+## 2026-10-21 文字配色与外部UI审美评审交接
+
+- 修改前备份build/720p/backups/20261021-before-title-polish已逐字节回读。
+- 当前源码：固定标题/模式天蓝#38BDF8，运行时间黄绿#C8F75A；OSD颜色标记与同步字库同拍，不增加流水级；图层标签改为标题，复用菜单字库槽6/31，bank尺寸不变。
+- 5项定向回归全部通过；已查看主菜单和字幕页RTL截图。此轮不代表全量75项重跑，也尚未生成新bit。
+- 用户希望外部智能体先评审审美，字幕文案与通知标记保持旧版；视界+A组仅候选。
+- 交接资料docs/ui-review-20261021/REPORT.md与REPORT.html，22张图片、全局审美/字幕两份提示词；可上传包docs/UI_REVIEW_20261021.zip。文件引用、ZIP CRC与SHA256回读通过。
+- 后续根据返回方案评估资源/时序/交互兼容，再统一完整构建，不能将旧发布bit声明为新配色版本。
+
+## 2026-10-21 UI方案P0菜单（RTL交付完成，等待确认）
+
+已按docs/ui-review-20261021/proposal/UI_DESIGN_PROPOSAL.md §8前置上下文及8.1–8.5完成菜单色板、逐卡pending、青色焦点/琥珀编辑、箭头、页眉状态块、96/288新网格、偶数边框和值文案统一。原按键语义、36字形bank、640×480逻辑画布/1.5倍居中映射及三拍输出保持。
+定向9/9通过；10场景RGB、48卡全部逻辑边框/物理四面3或6像素检查通过。真实顶层921605像素样本、屏幕参数62208样本通过。14个禁止修改输入相对修改前哈希一致，包括HDMI-B/顶层/控制器/字库/TD工程入口。截图已查看，非板拍。
+清单及用户后续命令：docs/ui-review-20261021/p0-result/P0_MENU_CHANGELOG.md；同目录保存截图、验证JSON及9项日志。修改前备份build/720p/backups/20261021-before-menu-p0/source-before-menu-p0.zip。
+未运行综合/P&R/bitgen，无P0新bit，资源和视频setup≥0.15ns尚待用户构建验收；旧bit不能验证此菜单。未做8.6/8.7 HDMI-B、未新增WAIT保持/灯图示/字库bank。停在review等待用户确认，不提交或推送Git，历史dirty/untracked保持。
+
+## 2026-10-22 P0复审：播放提示与聚焦状态修正
+
+用户指出的两项问题均存在：播放两行提示从y448开始贴卡片底边，页眉EDIT依赖全局cfg_dirty。已合并为单行8×16、x32/y456..472、文案K2 NEXT K3 AUTO HOLD K3 MENU，上下各8逻辑像素（输出12px）留白；页眉按当前聚焦卡pending或二级edit显示EDIT，WAIT优先，同拍计算避免旧pending配新cursor。亮度零档仍为0。
+新增四页聚焦/未确认/全局dirty残留/显式编辑/WAIT的真实RGB检查及底部留白检查。9/9定向回归与最终依赖哈希复核通过（改变的菜单与顶层相位重跑，未变项复用），10场景及48卡检查通过；14保护输入哈希一致，已查看播放页720p预览。清单/证据同docs/ui-review-20261021/p0-result；修改前备份build/720p/backups/20261022-before-menu-followup。
+未改8.6/8.7，未运行综合/P&R/bitgen，无新bit或板验结论。当前等待用户确认，资源/时序仍需实际构建。
+
+## 2026-10-22 当前源码构建与板验交付
+
+用户已授权生成新烧录文件并要求参考老师工程。此授权覆盖早期“只交付RTL、不运行TD”的停止点，范围仍为8.1–8.5，不实施8.6/8.7。
+
+- 修改前备份：`build/720p/backups/20261022-before-menu-build/source-and-previous-bit.zip`，源码与旧bit逐字节回读通过。
+- 老师资料实际对照与各轮物理证据：`.trellis/tasks/10-21-menu-ui-p0/teacher-review-20261022.md`。借鉴窄位宽地址和同步字模/命中对齐；本工程将每卡8位字符并行选择，再选卡，解耦字库地址与绘制命中。不增加字库bank、像素延迟、帧缓存或PLL。
+- 最终源码完整回归 **75/75 PASS**，`complete=true/filter=null`；未变化项按依赖哈希复用，菜单10整页像素及真实顶层三拍相位重新仿真。10场景、48卡四侧3/6像素、14受保护输入哈希另由独立脚本核验。
+- 当前源码完整综合、P&R、hold修复、bitgen通过；基础、菜单/字体和缩放定向时序检查通过。最终构建日志：`build/720p/td/20261022-menu-ui-p0-final`。布局使用工程既有seed11，不修改SDC、频率或验收门限。
+
+| 最终物理项 | 实测 |
+|---|---|
+| LUT | 15022/19600，76.64%，较旧14875增加147 |
+| 寄存器 | 9371/19600，47.81% |
+| BRAM9K / BRAM32K | 57/64，89.06% / 4/16 |
+| DSP / PLL | 13/29 / 3/4 |
+| video setup / hold | +0.184 / +0.024 ns，达到setup≥0.15ns |
+| HDMI 5x setup / hold | +0.962 / +0.049 ns |
+| ext_mem内部 setup / hold | +0.143 / +0.022 ns |
+| 全局hold | +0.022 ns |
+
+旧加密SDRAM跨域全局setup **−6.565ns**继续单列，不能宣称全工程setup闭合；本轮新增域内路径按非负门限验收。初始及中间失败bit已隔离，不能用于板验。
+
+新发布目标：`build/720p/releases/20261022-menu-ui-p0/av_media.bit`，完整SHA256、资源、日志、源码快照与回归证据随发布包归档；以该目录README及SHA256SUMS为准。
+当前尚未烧录或Flash固化；需用户验证七寸屏可读性、播放提示留白、EDIT随聚焦pending变化、确认/取消、双屏切图音频及应急。未提交或推送Git。
+
+
+## 2026-10-22 HDMI-B主屏与视界字幕完成（用户已确认）
+
+
+全部本机发布门限通过；2026-10-22用户反馈“我检查了，修改都完成了”，本轮作为用户实机确认的稳定基线。确认范围见`docs/MAIN_UI_20261022_BOARD_CHECK.md`，不推定逐项压力测试或Flash固化通过。正式文件：`build/720p/releases/20261022-main-ui/av_media.bit`；SHA256：`a87d1d0b280f66e6c12229b27f68e6bcd51586f8db23b489ae87097728723fbb`。
+
+|项目|最终实测|
+|---|---|
+|完整回归|77/77：75项功能/生成检查＋当前源码报告与缩放物理时序2项；complete=true、filter=null、sim_only=false；只复用依赖哈希完全一致项|
+|LUT|14161/19600，72.25%；比修改前15022减少861|
+|寄存器|9366/19600，47.79%|
+|BRAM9K / BRAM32K|57/64，89.06% / 4/16，25%|
+|DSP / PLL|13/29 / 3/4|
+|video_clk setup / hold|+0.274 / +0.024ns，满足setup≥+0.150ns|
+|sd_card_clk setup / hold|+0.219 / +0.022ns|
+|ext_mem_clk域内 setup / hold|+0.313 / +0.030ns|
+|HDMI 5x域内 setup / hold|+0.958 / +0.223ns；local时钟汇总含其他检查的hold最低+0.041ns|
+|全局hold|+0.022ns|
+|旧加密SDRAM跨域全局setup|−6.565ns，必须单列；不声称全工程时序闭合|
+|菜单/邮箱/渲染/颜色/OSD寄存器及字体RAM定向|全部通过；字体RAM入出检查均非负|
+|缩放器寄存器/RAM定向|全部通过|
+|字幕独立像素检查|8开关组合×3背景、3文案×3速度×2窗口共18整圈；4030991检查、21507VS，一拍ROM相位|
+|真实顶层图层管线|两种字幕配置各12800像素/10行通过，RGB/DE/TLAST相位正确|
+|明暗照片|三张照片输入OSD RTL，共2764800像素核对通过；波形关闭，非板拍|
+|保护范围|菜单/中文字库/按键/邮箱/SDRAM读取及约束11文件与修改前备份哈希一致；原发布bit哈希不变|
+
+最终完整构建日志：`build/720p/td/20261022-main-ui-logiclevel-hfn13`。最终flow使用TD本机官方LogicLevelOptimize综合选项，并开启官方TimingUltra中的`place hfn_opt_effort high`；seed13，route effort routability。中间失败策略全部撤下，未修改SDC、频率、引脚或RTL功能，不新增字体bank、帧缓存、PLL。原老师工程窄位宽/同步ROM/命中对齐经验延续；本轮最终资源数字来自实际P&R报告，不以估算替代。
+
+助手未执行烧录或Flash固化，没有提交或推送Git；用户已自行验证并确认本轮修改。默认标题/字幕仍关闭，需要在原有“字幕”二级页开启。正式发布目录及原始构建报告保持不变，用户确认另行记录。

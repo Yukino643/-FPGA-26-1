@@ -28,18 +28,53 @@ module tb_video_pipeline_720;
 
     reg [3:0] valid_pipe=0, last_pipe=0;
     reg [23:0] data_pipe[0:3];
+    reg [31:0] font[0:2047];
+    integer title_cells[0:13],mode_cells[0:3];
     integer i, x, row, got=0, lines=0;
+    integer glyph,cell_col,glyph_row,glyph_x;
+    reg [31:0] ink_bits;
+    reg glyph_hit;
+    reg [23:0] ink;
     always @(posedge video_clk) begin
         if (rst_video) begin valid_pipe=0; last_pipe=0; end
         else begin
             // 色彩、波形、OSD、AXIS 共四拍；在沿后检查寄存输出。
             for(i=3;i>0;i=i-1) data_pipe[i]=data_pipe[i-1];
             data_pipe[0]=vout_data;
-            if(SUBTITLES && mix_y==710 && mix_x>=32 && mix_x<1248) begin
-                if(mix_x<36) data_pipe[0]=24'h38BDF8;
-                else if(mix_x<144) data_pipe[0]=24'h124E70;
-                else data_pipe[0]={1'b0,vout_data[23:17],1'b0,vout_data[15:9],1'b0,vout_data[7:1]};
+            // 波形无已发布采样时仍画中轴，几何必须跟真实顶层88高一致。
+            if(mix_y==620 && mix_x>=128 && mix_x<1152) data_pipe[0]=24'h2A4E58;
+            if((mix_y>=16 && mix_y<64 &&
+                ((mix_x>=16 && mix_x<496) || (mix_x>=1104 && mix_x<1264))) ||
+               (mix_y>=664 && mix_y<712 && mix_x<1248 &&
+                ((SUBTITLES && mix_x>=32) || mix_x>=848)))
+                data_pipe[0]={2'b0,vout_data[23:18],2'b0,vout_data[15:10],2'b0,vout_data[7:2]};
+            if(SUBTITLES && mix_y>=664 && mix_y<712 && mix_x>=32 && mix_x<128)
+                data_pipe[0]=24'h0E3A4C;
+            glyph=0;glyph_row=0;glyph_x=0;glyph_hit=0;ink=24'hF2FAFF;
+            if(mix_y>=24 && mix_y<56) begin
+                glyph_row=mix_y-24;glyph_x=mix_x%32;
+                if(mix_x>=32 && mix_x<480)begin glyph=title_cells[(mix_x-32)/32];glyph_hit=1;end
+                else if(mix_x>=1120 && mix_x<1248)begin
+                    glyph=mode_cells[(mix_x-1120)/32];glyph_hit=1;ink=24'h8FD5FA;
+                end
             end
+            if(mix_y>=672 && mix_y<704) begin
+                glyph_row=mix_y-672;
+                if(mix_x>=864 && mix_x<1216)begin
+                    glyph_hit=1;glyph_x=(mix_x-864)%32;cell_col=(mix_x-864)/32;ink=24'hC8F75A;
+                    case(cell_col)
+                        0:glyph=20;1:glyph=21;2:glyph=0;5,8:glyph=23;default:glyph=22;
+                    endcase
+                end else if(SUBTITLES && mix_x>=48 && mix_x<112)begin
+                    glyph_hit=1;glyph_x=(mix_x-48)%32;glyph=mix_x<80?48:49;
+                end else if(SUBTITLES && mix_x>=144 && mix_x<832)begin
+                    glyph_hit=1;glyph_x=(mix_x-144)%32;cell_col=(mix_x-144)/32;
+                    glyph=cell_col<14 ? title_cells[cell_col] : 0;
+                end
+            end
+            ink_bits=font[glyph*32+glyph_row];
+            if(glyph_hit && ink_bits[31-glyph_x])data_pipe[0]=ink;
+            if(SUBTITLES && mix_y>=664 && mix_y<666 && mix_x>=32 && mix_x<1248)data_pipe[0]=24'h38BDF8;
             valid_pipe={valid_pipe[2:0],mix_de};
             last_pipe={last_pipe[2:0],mix_de && mix_x==1279};
             #1;
@@ -56,18 +91,26 @@ module tb_video_pipeline_720;
         end
     end
     initial begin
+        $readmemh("D:/FPGA/code/example/rtl/video/font_720.hex",font);
+        for(i=0;i<14;i=i+1)title_cells[i]=i+1;
+        mode_cells[0]=15;mode_cells[1]=16;mode_cells[2]=5;mode_cells[3]=17;
         repeat(5) @(negedge video_clk); rst_video=0;
         repeat(10) @(negedge video_clk);
-        for(row=0;row<2;row=row+1) begin
+        for(row=0;row<10;row=row+1) begin
             for(x=0;x<1280;x=x+1) begin
-                @(negedge video_clk); mix_de=1; mix_x=x; mix_y=row==0 ? (SUBTITLES ? 120 : 100):710;
+                @(negedge video_clk); mix_de=1; mix_x=x;
+                case(row)
+                    0:mix_y=100;1:mix_y=710;2:mix_y=24;3:mix_y=40;
+                    4:mix_y=55;5:mix_y=620;6:mix_y=664;7:mix_y=672;
+                    8:mix_y=687;9:mix_y=703;
+                endcase
                 vout_data={x[7:0],x[9:2],8'h5a^x[7:0]};
             end
             @(negedge video_clk); mix_de=0; vout_data=24'hffffff;
             repeat(160) @(negedge video_clk);
         end
-        if(got!=2560 || lines!=2) begin $display("FAIL coverage pixels=%0d lines=%0d",got,lines); $fatal(1); end
+        if(got!=12800 || lines!=10) begin $display("FAIL coverage pixels=%0d lines=%0d",got,lines); $fatal(1); end
         $display("TB_VIDEO_PIPELINE_720 PASS pixels=%0d lines=%0d",got,lines); $finish;
     end
-    initial begin #200000; $display("FAIL video pipeline timeout"); $fatal(1); end
+    initial begin #400000; $display("FAIL video pipeline timeout"); $fatal(1); end
 endmodule

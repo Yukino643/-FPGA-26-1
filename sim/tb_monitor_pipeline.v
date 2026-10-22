@@ -21,6 +21,8 @@ module tb_monitor_pipeline;
     reg [10:0] x_ref0=0, x_ref1=0, x_ref2=0;
     reg [9:0] y_ref0=0, y_ref1=0, y_ref2=0;
     integer logical_x, logical_y, pixels=0, border_pixels=0, blank_pixels=0;
+    integer column,row,idx,x0,y0,w,thickness,left_count=0,right_count=0,top_count=0,bottom_count=0;
+    reg [23:0] expected_border;
     always @(posedge video_clk) begin
         if(rst_video) begin de_ref=0; hs_ref=0; vs_ref=0; end
         else begin
@@ -37,11 +39,36 @@ module tb_monitor_pipeline;
                     blank_pixels=blank_pixels+1;
                 end else begin
                     logical_x=((x_ref2-160)*2)/3; logical_y=(y_ref2*2)/3;
-                    // 独立按逻辑卡片边界核对，覆盖放大后的第一/最后像素。
-                    if(logical_x>=24 && logical_x<208 && logical_y>=88 && logical_y<248 &&
-                       (logical_x<27 || logical_x>=205 || logical_y<91 || logical_y>=245)) begin
-                        if(mon_rgb!==24'hFFD166) $fatal(1,"selected border x=%0d y=%0d RGB=%h",x_ref2,y_ref2,mon_rgb);
-                        border_pixels=border_pixels+1;
+                    // 独立网格参考：核对六卡四面内缘与第一列填充，
+                    // 同时确认1.5倍映射后焦点为6px、常规为3px。
+                    column=(logical_x<220) ? 0 : (logical_x<424) ? 1 : 2;
+                    row=(logical_y<272) ? 0 : 1;
+                    idx=row*3+column;
+                    x0=(column==0) ? 24 : (column==1) ? 228 : 432;
+                    y0=(row==0) ? 96 : 288;
+                    w=184; thickness=(idx==0) ? 4 : 2;
+                    expected_border=(idx==0) ? 24'h38BDF8 : 24'h3A6478;
+                    if(logical_x>=x0 && logical_x<x0+w && logical_y>=y0 && logical_y<y0+160) begin
+                        if(logical_x<x0+thickness || logical_x>=x0+w-thickness ||
+                           logical_y<y0+thickness || logical_y>=y0+160-thickness) begin
+                            if(mon_rgb!==expected_border)
+                                $fatal(1,"border width/phase idx=%0d xy=%0d,%0d rgb=%h",idx,x_ref2,y_ref2,mon_rgb);
+                            border_pixels=border_pixels+1;
+                        end
+                        // 卡片中线没有文字，恰好验证边框后立即恢复填充。
+                        if(logical_y==y0+80 && logical_x>=x0+thickness && logical_x<x0+w-thickness &&
+                           mon_rgb!==((idx==0) ? 24'h1B4658 : 24'h142F40))
+                            $fatal(1,"border overdraw idx=%0d",idx);
+                    end
+                    if(y_ref2==264 && x_ref2>=196 && x_ref2<472) begin
+                        if(mon_rgb==24'h38BDF8) begin
+                            if(x_ref2<334) left_count=left_count+1; else right_count=right_count+1;
+                        end
+                    end
+                    if(x_ref2==334 && y_ref2>=144 && y_ref2<384) begin
+                        if(mon_rgb==24'h38BDF8) begin
+                            if(y_ref2<264) top_count=top_count+1; else bottom_count=bottom_count+1;
+                        end
                     end
                 end
             end else if(mon_rgb!==0) $fatal(1,"blanking RGB alignment");
@@ -51,7 +78,9 @@ module tb_monitor_pipeline;
         repeat(5) @(negedge video_clk); rst_video=0;
         repeat(1650*750+8) @(negedge video_clk);
         if(pixels<921600 || border_pixels==0 || blank_pixels<230400) $fatal(1,"monitor coverage");
-        $display("TB_MONITOR_PIPELINE PASS pixels=%0d borders=%0d",pixels,border_pixels); $finish;
+        if(left_count!=6 || right_count!=6 || top_count!=6 || bottom_count!=6)
+            $fatal(1,"physical selected sides L/R/T/B=%0d/%0d/%0d/%0d",left_count,right_count,top_count,bottom_count);
+        $display("TB_MONITOR_PIPELINE PASS pixels=%0d borders=%0d selected_edges=6px regular_edges=3px latency=3",pixels,border_pixels); $finish;
     end
     initial begin #13000000; $fatal(1,"monitor pipeline timeout"); end
 endmodule
