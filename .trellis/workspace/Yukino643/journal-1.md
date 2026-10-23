@@ -406,3 +406,152 @@ CONTROL两行三列、HDMI-B亮度/对比度/色温/默认二级页、黄色圆�
 ### Next Steps
 
 - 用户显示器取消静音后烧录，检查音量、静音恢复、波形和警笛旁路；未操作TF卡、未Flash、未Git提交或推送。
+
+
+## Session 9: 轮播周期2/3/5/10秒修复，89项与完整P&R通过
+
+**Date**: 2026-10-23
+**Task**: 轮播周期2/3/5/10秒修复，89项与完整P&R通过
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+忙时清零改为真实经过时间；改档重启、过期饱和不补切；FAT32 LBA拆拍，seed14完整构建通过。独立发布20261023-autoplay-period，四档菜单/提交/真实顶层转场测时通过，仍待真实TF卡板验。未提交Git。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 89/89完整回归；video/SD/ext_mem setup +0.680/+0.138/+0.190ns，旧SDRAM跨域-6.565ns单列；源码/bit/ZIP哈希回读通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户下载新bit，用同一转场标志逐档连续5次秒表计时，音频开启并混排720/640/960图片。
+
+
+## Session 10: 周期用户板验确认与赛题重新审计
+
+**Date**: 2026-10-23
+**Task**: 周期用户板验确认与赛题重新审计
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+重新提取并目视核对官方PDF14/15页，检查老师6/8/10页与当前顶层；官方五扩展均已有对应实现，更新旧审计口径，新增20261023审计和周期板验独立记录。只改文档，不改RTL/bit。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 核对89/89发布证据、源码连接、用户板验范围；UTF8/LF及原发布SHA256SUMS回读通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 优先Flash脱机断电启动、双屏长稳、最终材料；小范围代码完善可选菜单跨卡预览确认防误操作。
+
+
+## Session 11: 当前UI严格审美外部审查资料包
+
+**Date**: 2026-10-23
+**Task**: 当前UI严格审美外部审查资料包
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+按用户三分钟视频目标和严格美观优先要求整理；28张新RTL取证图、30份源码快照、完整几何配色字体状态/按键说明、审查提示词与返回模板、9.53MB ZIP。仅资料整理，未修改产品或提交Git。
+
+### Main Changes
+
+- docs/ui-review-20261023与离线ZIP，覆盖全部菜单、8种主屏组合、三句字幕和独立波形；明确夹具/照片输入/板验边界。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 主屏/字幕10321920像素独立参考、13菜单状态逐像素/字索引及波形参考通过；215产品文件保护；30快照匹配发布版；链接/编码/图片/清单/ZIP CRC复核通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 等待外部AI以美观为主要返回proposal/UI_AESTHETIC_REVIEW.md；未授权自动实施其建议。
+
+
+## Session 12: C方向640x360全幅菜单RTL及仿真完成
+
+**Date**: 2026-10-24
+**Task**: C方向640x360全幅菜单RTL及仿真完成
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+六项UI RTL/生成器修改完成。完整纯仿真86/86；18完整字幕周期、13菜单与16主屏图、64连续帧；保护范围215文件回读。未综合/P&R/烧录/Git，资源时序未测。
+
+### Main Changes
+
+- 640x360整数2x、右对齐/无星号、状态纯字、统一16px主屏内框、64格有限字幕循环、统一粗体ASCII。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 完整--sim-only回归86/86；字幕71200590次像素核对、18圈；连续64帧5242880像素；照片16组14745600像素。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 当前仅交付源码和仿真；用户另行授权实际TD构建后验收BRAM9K≤57及video setup≥0.15ns，并记录LUT增量。
+
+
+## Session 13: 全幅菜单完整物理构建与Git发布
+
+**Date**: 2026-10-24
+**Task**: 全幅菜单完整物理构建与Git发布
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+用户追加授权后完成当前源码综合/P&R/bitgen和88/88回归；LUT14837（-2）、BRAM9K57，video setup/hold +0.290/+0.020ns，菜单/OSD/字体/缩放器定向时序通过。独立发布20261024-menu-16x9，bit SHA256 afe5562c7740a7d93a4e1c3884770b9572332b8cb2a349fc5e2ea125922b138c，提交源码/证据/bit。
+
+### Main Changes
+
+- 640x360整数2x全幅；13菜单RTL图和16主屏组合、18字幕周期证据纳入提交。旧周期已板验版本保留。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `741d715` | (see git log) |
+
+### Testing
+
+- [OK] 完整86功能/生成检查按输入SHA复用并通过，2项当前源码物理检查新跑通过；111个Git暂存构建输入与实际manifest字节一致，新旧发布包SHA逐文件回读通过。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户烧录新bit检查7寸屏与双HDMI；本轮未烧录、未推送。旧SDRAM跨域-6.565ns单列，不宣称全局闭合。
