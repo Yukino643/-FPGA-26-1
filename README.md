@@ -3,8 +3,9 @@
 数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 帧缓存 → 图层/转场合成 → 双 HDMI 异显（主通道节目 / 副通道控制台），并提供 WAV/警笛音频、PCM波形和帧边界应急切换。当前顶层未接入FFT/Goertzel频谱，不能将波形描述为已实现频谱分析。
 
 - 平台：HX4S20C 开发板（EG4S20BG256，TD 6.2.1）
-- 当前版本（2026-10-22，20261022-main-ui）：HDMI-B输出1280×720/60Hz，HDMI-A显示全屏放大的中文控制台；六卡菜单、图片/波形/时间开关、可调轮播周期、HDMI-B亮度/对比度/色温、外设测试及预设滚动字幕已接入。菜单P0与主屏局部暗板、右下时间、“视界”字幕及新文案已完成，用户反馈本轮修改检查完成，作为稳定基线；[用户确认记录](docs/MAIN_UI_20261022_BOARD_CHECK.md)列明证据边界。后台预取保留，连续快按仍受读卡吞吐限制。
-- 最新烧录文件：[主屏UI稳定版 av_media.bit](releases/20261022-main-ui/av_media.bit)；[发布索引与板验状态](releases/README.md)、[发布原始记录与完整证据](releases/20261022-main-ui/README.md)、[实现说明](docs/MAIN_UI_20261022.md)。修改前菜单版本保留于`releases/20261022-menu-ui-p0`，本地源码与旧bit备份位于`build/720p/backups/20261022-before-main-ui/source-and-previous-bit.zip`。Git中的发布副本与本地`build/720p/releases`逐文件SHA256一致，原始归档记录保持原样。
+- 历史已板验回退（2026-10-22，20261022-main-ui）：HDMI-B输出1280×720/60Hz，HDMI-A显示全屏放大的中文控制台；六卡菜单、图片/波形/时间开关、可调轮播周期、HDMI-B亮度/对比度/色温、外设测试及预设滚动字幕已接入。菜单P0与主屏局部暗板、右下时间、“视界”字幕及新文案已完成，用户反馈该轮修改检查完成，作为稳定基线；[用户确认记录](docs/MAIN_UI_20261022_BOARD_CHECK.md)列明证据边界。后台预取保留，连续快按仍受读卡吞吐限制。
+- 最新已板验版本（2026-10-23，20261023-audio-volume）：[音量与音频菜单 av_media.bit](releases/20261023-audio-volume/av_media.bit)，[操作与验收说明](docs/AUDIO_VOLUME_20261022.md)。原“波形”卡改为“音频”入口，二级页提供0..100%音量、独立静音、波形、恢复默认；含WAV目录直达启动优化。85/85完整回归与完整P&R/bitgen通过；LUT14817/19600、BRAM9K57/64、DSP15/29、PLL3/4，video/SD/ext_mem域内setup分别+0.280/+0.147/+0.318ns。旧加密SDRAM跨域全局setup仍为−6.565ns，不代表全工程setup闭合。用户已确认不同分辨率适配、音频快速出声和音量控制正常；[本轮板验记录](docs/AUDIO_VOLUME_20261023_BOARD_CHECK.md)注明范围，首声秒数未计时；音量配置不掉电保存。
+- 已板验回退：[主屏UI稳定版 av_media.bit](releases/20261022-main-ui/av_media.bit)；[发布索引与板验状态](releases/README.md)、[主屏发布原始记录与完整证据](releases/20261022-main-ui/README.md)、[主屏实现说明](docs/MAIN_UI_20261022.md)。修改前菜单版本保留于`releases/20261022-menu-ui-p0`，本地源码与旧bit备份位于`build/720p/backups/20261022-before-main-ui/source-and-previous-bit.zip`。主屏/菜单P0发布副本与本地`build/720p/releases`逐文件SHA256一致，原始归档记录保持原样。
 - 操作与验收：[字幕按键教学](docs/PRESET_SUBTITLE_20261021.md)、[屏幕设置](docs/HDMIB_SCREEN_MENU_20261021.md)、[SDRAM颗粒修复](docs/SDRAM_REFRESH_FIX_20261017.md)、[多尺寸测试素材](docs/MULTISIZE_IMAGES_20261017.md)、[赛题缺项审计](docs/REQUIREMENTS_AUDIT_20261021.md)、[构建进度](PROGRESS_HDMI_MONITOR.md)。旧720p历史资料见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
 - 实施计划：[docs/计划书-基于EG4S20的HDMI多媒体播放系统.md](docs/计划书-基于EG4S20的HDMI多媒体播放系统.md)
 - 参考工程：`D:\FPGA\ref\lab_ex5_i2s`（官方赛题样例，自 `D:\FPGA\HX4S20_Contest_202606\7_lab_ex_2026_nosoft` 解压）
@@ -40,7 +41,7 @@ docs\          计划书 / 设计说明书 / 测试报告
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-10-22）：完整回归77/77（75项功能/生成检查及2项当前源码物理检查），TD综合/P&R/bitgen及严格发布门限通过。LUT14161/19600（72.25%）、寄存器9366/19600、BRAM9K57/64、BRAM32K4/16、DSP13/29、PLL3/4；video setup/hold为+0.274/+0.024ns，SD卡域为+0.219/+0.022ns，ext_mem域内为+0.313/+0.030ns，HDMI5x域内为+0.958/+0.223ns。旧加密SDRAM跨域全局setup仍为−6.565ns，不能声称全工程setup闭合。用户确认UI修改完成，不等同于全部压力测试或Flash固化已验证。
+- 当前构建（2026-10-23）：音量版本85/85（83项功能/生成检查及2项当前源码物理检查），TD综合/P&R/bitgen及严格发布门限通过。LUT14817/19600（75.60%）、寄存器9750/19600、BRAM9K57/64、BRAM32K4/16、DSP15/29、PLL3/4；video setup/hold为+0.280/+0.030ns，SD卡域为+0.147/+0.024ns，ext_mem域内为+0.318/+0.024ns，HDMI5x域内为+1.060/+0.239ns。旧加密SDRAM跨域全局setup仍为−6.565ns，不能声称全工程setup闭合。用户于2026-10-23确认多分辨率适配、音频启动和音量控制正常；本轮确认不代替全部压力测试或Flash断电启动验收。
 - 历史修复（2026-10-01）：D3 照片 `WR/SCALE=01/4C` 对应 scaler 等待 C 口命令接受，已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
 
 ## 回归门（每轮改动后必跑）

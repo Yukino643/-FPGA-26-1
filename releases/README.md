@@ -1,6 +1,16 @@
 # 正式烧录版本索引
 
-## 当前稳定基线：20261022-main-ui
+## 最新已板验版本：20261023-audio-volume
+
+- [音量与音频二级页烧录文件](20261023-audio-volume/av_media.bit)
+- SHA256：`8e3930111f9329802128d4e9b56c3eec628c9ef264899636245f87d1db93ad68`
+- [详细操作、资源与时序](../docs/AUDIO_VOLUME_20261022.md)、[发布说明](20261023-audio-volume/README.md)。
+- 主页原“波形”卡改为“音频”，二级页提供音量0..100%、独立静音、波形、恢复默认；保留WAV目录直达启动优化。85/85完整回归、完整TD综合/P&R/bitgen、定向路径和发布门限通过。LUT14817、BRAM9K57、DSP15、PLL3；video域内setup +0.280ns，SD +0.147ns，ext_mem +0.318ns。旧加密SDRAM跨域全局setup −6.565ns单列。
+- 用户于2026-10-23确认不同分辨率适配、音频快速出声、音量控制正常；见[本轮板验记录](../docs/AUDIO_VOLUME_20261023_BOARD_CHECK.md)。未报告首声秒数、长稳或Flash固化结果；运行期音量设置不掉电保存。
+
+上一轮独立音频启动候选保留于[20261022-audio-startup](20261022-audio-startup/README.md)，bit SHA256 `ec260a8984beee5a5b439deee676bd4fd7b45ddbc906b9ae976601165b6ca47e`；82/82完整回归及物理检查通过，实机首声时间仍待计时。已板验稳定回退基线如下。
+
+## 历史稳定回退：20261022-main-ui
 
 - [烧录文件](20261022-main-ui/av_media.bit)
 - SHA256：`a87d1d0b280f66e6c12229b27f68e6bcd51586f8db23b489ae87097728723fbb`

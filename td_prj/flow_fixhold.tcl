@@ -176,9 +176,9 @@ proc opt_place_fun {} {
   }
 
 ### Editable zone for opt_place ###
-  # 主屏UI：seed11域内违例，seed12/13视频未达+0.150ns，seed14域内违例；官方seed接口重布局。
+  # 音频菜单：保持原时钟约束，使用官方seed接口重布局；各候选实际门限见独立验收报告。
   # 时钟、SDC与时序验收门限保持不变，失败报告单独归档。
-  set_param place seed 13
+  set_param place seed 17
   # 官方TimingUltra的高扇出优化选项；针对SD数据78扇出连线。
   set_param place hfn_opt_effort high
   place

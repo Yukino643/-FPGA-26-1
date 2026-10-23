@@ -344,3 +344,65 @@ CONTROL两行三列、HDMI-B亮度/对比度/色温/默认二级页、黄色圆�
 ### Next Steps
 
 - 用户双屏板验8开关组合、三句三速、明暗底图、切图音频及应急；未烧录、Flash或Git提交。
+
+
+## Session 7: WAV目录直达启动优化完成，82项与完整P&R通过
+
+**Date**: 2026-10-22
+**Task**: WAV目录直达启动优化完成，82项与完整P&R通过
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+复用FAT32根目录直接定位WAV，取消首图等待和LBA0原始扫描；根目录寻址分拍，LUT14267/BRAM57，严格域内时序通过，已独立归档。
+
+### Main Changes
+
+- WAV启动模型首PCM前总扇区请求2162降至8；真实出声时间待上板计时。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 82/82完整回归；完整综合/P&R/bitgen；音频发布门限、缩放及字幕定向时序、缓存负向控制、ZIP与逐文件SHA256回读。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户烧录releases/20261022-audio-startup/av_media.bit，保持同一根目录WAV，冷上电至少5次记录首图/首声，播放期间切图20次。
+
+
+## Session 8: HDMI-B音量和音频菜单完成，85项与完整P&R通过
+
+**Date**: 2026-10-23
+**Task**: HDMI-B音量和音频菜单完成，85项与完整P&R通过
+**Branch**: `feat/key2-next-prefetch`
+
+### Summary
+
+音量0..100%、独立静音、波形和恢复默认二级页；双声道平滑增益与警笛旁路；目录簇号提前比较后严格域内时序收敛。
+
+### Main Changes
+
+- 修改前备份保留；新bit SHA256 8e3930111f9329802128d4e9b56c3eec628c9ef264899636245f87d1db93ad68，发布releases/20261023-audio-volume。
+
+### Git Commits
+
+(No commits - planning session)
+
+### Testing
+
+- [OK] 85/85完整回归，15929音量样本与13菜单场景；完整TD和字体/音量/缩放定向时序通过。LUT14817，BRAM9K57，DSP15，PLL3；video+.280/SD+.147/ext+.318ns；旧SDRAM跨域−6.565ns单列。
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 用户显示器取消静音后烧录，检查音量、静音恢复、波形和警笛旁路；未操作TF卡、未Flash、未Git提交或推送。

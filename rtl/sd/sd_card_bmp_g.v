@@ -8,7 +8,8 @@ module sd_card_bmp_g #(
     parameter [3:0]   SCAN_TARGET_COUNT = 4'd8,
     parameter EXACT_WIDTH = 0, EXACT_HEIGHT = 0,
     parameter MAX_WIDTH = 2047, MAX_HEIGHT = 2047,
-    parameter PREFETCH_NEXT = 0
+    parameter PREFETCH_NEXT = 0,
+    parameter INDEX_WAV = 0
 )(
     input  wire        clk,
     input  wire        rst,
@@ -31,6 +32,8 @@ module sd_card_bmp_g #(
     output wire        display_commit_pulse,  // SD同域成功事件，立即锁住装载
     output wire        source_restart, // 新事务或错误时清空像素打包残留
     output wire [31:0] debug_status,  // 只读状态总线，供板级诊断使用
+    output wire        wav_index_found,
+    output wire [31:0] wav_index_sector,
 
     input  wire        write_finish_toggle,
     output reg  [1:0]  write_buf_idx,
@@ -735,7 +738,8 @@ module sd_card_bmp_g #(
 
     fat32_bmp_index #(
         .MAX_IMAGES (8),
-        .MAX_ROOT_CLUSTERS (256)
+        .MAX_ROOT_CLUSTERS (256),
+        .INDEX_WAV (INDEX_WAV)
     ) u_fat32_bmp_index (
         .clk (clk),
         .rst (rst | ~sd_init_done),
@@ -754,6 +758,8 @@ module sd_card_bmp_g #(
         .found_valid (scan_found_valid),
         .found_cluster (scan_found_cluster),
         .found_size (scan_found_size),
+        .wav_found (wav_index_found),
+        .wav_sector (wav_index_sector),
         .sector_req (fs_sector_req),
         .sector_lba (fs_sector_lba),
         .sector_busy (physical_read_active),

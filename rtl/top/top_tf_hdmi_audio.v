@@ -181,6 +181,8 @@ wire [3:0]  cfg_shadow_sd;
 wire [3:0]  cfg_payload_sd;
 wire [9:0]  screen_shadow_sd, screen_payload_sd;
 wire [4:0]  subtitle_shadow_sd, subtitle_payload_sd;
+wire [4:0]  audio_shadow_sd, audio_payload_sd;
+wire        monitor_audio_page_sd, monitor_audio_edit_sd;
 wire        monitor_subtitle_page_sd, monitor_subtitle_edit_sd;
 wire        monitor_screen_page_sd, monitor_screen_edit_sd, monitor_cfg_busy_sd;
 wire        cfg_commit_toggle_sd;
@@ -244,6 +246,8 @@ monitor_menu_ctrl #(.CLK_FREQ_HZ(100_000_000), .DEBOUNCE_MS(20),
     .cfg_payload(cfg_payload_sd),
     .period_shadow(monitor_period_shadow_sd),
     .period_active(monitor_period_active_sd),
+    .audio_page(monitor_audio_page_sd), .audio_edit(monitor_audio_edit_sd),
+    .audio_shadow(audio_shadow_sd), .audio_payload(audio_payload_sd),
     .screen_page(monitor_screen_page_sd), .screen_edit(monitor_screen_edit_sd),
     .screen_shadow(screen_shadow_sd), .screen_payload(screen_payload_sd),
     .subtitle_page(monitor_subtitle_page_sd), .subtitle_edit(monitor_subtitle_edit_sd),
@@ -273,6 +277,7 @@ wire [3:0]  cfg_active_video;
 wire [3:0]  cfg_preview_video;
 wire [9:0]  screen_active_video, screen_preview_video;
 wire [4:0]  subtitle_active_video, subtitle_preview_video;
+wire [4:0]  audio_active_video, audio_preview_video;
 // HDMI-B 专用参数；不作用于 HDMI-A 菜单。
 wire [7:0] screen_contrast_video = 8'd64 + {screen_active_video[7:4], 4'b0000};
 wire signed [7:0] screen_brightness_video = {screen_active_video[3:0], 4'b0000} - 8'd64;
@@ -475,6 +480,8 @@ wire        packed_wr_en;
 wire [31:0] packed_wr_data;
 
 wire bmp_source_restart;
+wire wav_index_found;
+wire [31:0] wav_index_sector;
 // 同一稳定ACK同时供解析器接收握手；raw ACK仍送gate内部相同两级同步。
 reg [1:0] source_write_ack_sync_sd;
 always @(posedge sd_card_clk or posedge rst_sd) begin
@@ -484,7 +491,7 @@ end
 sd_card_bmp_g #(
     .CLK_FREQ_HZ       (100_000_000),
     .SCAN_TARGET_COUNT (4'd8),
-    .MAX_WIDTH(1280), .MAX_HEIGHT(720), .PREFETCH_NEXT(1)
+    .MAX_WIDTH(1280), .MAX_HEIGHT(720), .PREFETCH_NEXT(1), .INDEX_WAV(1)
 ) sd_card_bmp_g_m0(
     .clk               (sd_card_clk),
     .rst               (rst_sd),
@@ -497,6 +504,8 @@ sd_card_bmp_g #(
     .hold_load         (display_submit_pending_sd | tr_hold_sync_sd[1] | resize_busy_sync_sd[1]),
     .state_code        (state_code),
     .debug_status      (tf_bmp_debug),
+    .wav_index_found   (wav_index_found),
+    .wav_index_sector  (wav_index_sector),
     .img_count         (img_count),
     .cur_img_w         (cur_img_w),
     .cur_img_h         (cur_img_h),
@@ -626,6 +635,10 @@ monitor_config_regs u_monitor_config_regs(
     .cfg_payload_sd         (cfg_payload_sd),
     .screen_shadow_sd       (screen_shadow_sd),
     .screen_payload_sd      (screen_payload_sd),
+    .audio_shadow_sd        (audio_shadow_sd),
+    .audio_payload_sd       (audio_payload_sd),
+    .audio_active_video     (audio_active_video),
+    .audio_preview_video    (audio_preview_video),
     .subtitle_shadow_sd     (subtitle_shadow_sd),
     .subtitle_payload_sd    (subtitle_payload_sd),
     .cfg_commit_toggle_sd   (cfg_commit_toggle_sd),
@@ -885,7 +898,9 @@ sdram U3(
 );
 
 // ===================== WAV 播放链路 =====================
-// 首图提交后再扫描 WAV，避免启动阶段与图片索引/装载争用 SD 带宽。
+// 复用 FAT32 根目录索引直接定位 WAV，仅验证候选的一个扇区。
+// 不等首图提交，也不从 LBA0 扫描媒体数据；无候选时保持静音。
+// 与 BMP 保持单扇区轮转，PCM仍使用原有小FIFO流式播放。
 reg wav_scan_start_r, wav_load_start_r;
 reg wav_scan_kicked, wav_load_running;
 wire wav_rst = rst_sd | ~sd_init_done;
@@ -902,7 +917,7 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
             wav_scan_kicked  <= 1'b0;
             wav_load_running <= 1'b0;
         end else begin
-            if (!wav_scan_kicked && wav_ready && display_valid) begin
+            if (!wav_scan_kicked && wav_ready && wav_index_found) begin
                 wav_scan_start_r <= 1'b1;
                 wav_scan_kicked  <= 1'b1;
             end
@@ -916,12 +931,12 @@ always @(posedge sd_card_clk or posedge rst_sd) begin
     end
 end
 
-wav_read u_wav_read(
+wav_read #(.SCAN_MAX_SECTORS(1)) u_wav_read(
     .clk                   (sd_card_clk),
     .rst                   (wav_rst),
     .ready                 (wav_ready),
     .scan_start            (wav_scan_start_r),
-    .scan_start_sector     (32'd0),
+    .scan_start_sector     (wav_index_sector),
     .scan_done             (wav_scan_done),
     .scan_found_valid      (wav_scan_found),
     .scan_found_sector     (wav_scan_sector),
@@ -1203,18 +1218,23 @@ siren_gen u_siren_gen(
 );
 
 // 音频源选择：应急模式 → 警笛，正常模式 → WAV（已在顶部前向声明）
-assign audio_valid_final = emergency_mode ? siren_valid : audio_valid;
-assign audio_left_final  = emergency_mode ? siren_left  : audio_left_data;
-assign audio_right_final = emergency_mode ? siren_right : audio_right_data;
-// HDMI 包节拍包含 FIFO 空时的静音；波形采集只接受真实 PCM 样本事件。
-assign waveform_pcm_valid = emergency_mode ? siren_valid : audio_sample_data_valid;
+// 正常节目增益与警笛旁路共用流水；valid和波形真实样本资格同时延迟。
+pcm_volume_control u_pcm_volume_control(
+    .clk(video_clk), .rst(rst_video), .audio_config(audio_active_video),
+    .in_valid(audio_valid), .in_data_valid(audio_sample_data_valid),
+    .in_left(audio_left_data), .in_right(audio_right_data),
+    .emergency_mode(emergency_mode), .siren_valid(siren_valid),
+    .siren_left(siren_left), .siren_right(siren_right),
+    .out_valid(audio_valid_final), .out_data_valid(waveform_pcm_valid),
+    .out_left(audio_left_final), .out_right(audio_right_final)
+);
 
-// ===================== HDMI-A 640x480 监视与控制台 =====================
 // 控制域状态均以稳定电平跨入视频域；配置正文由 monitor_config_regs
 // 在视频帧边界提交，避免多位组合总线在像素路径中产生撕裂。
 reg [1:0]  mon_menu_active_sync, mon_menu_page_sync;
 reg [1:0]  mon_screen_page_sync, mon_screen_edit_sync, mon_cfg_busy_sync;
 reg [1:0]  mon_subtitle_page_sync, mon_subtitle_edit_sync;
+reg [1:0]  mon_audio_page_sync, mon_audio_edit_sync;
 reg [2:0]  mon_cursor_sync0, mon_cursor_sync1;
 reg [1:0]  mon_period_shadow_sync0, mon_period_shadow_sync1;
 reg [1:0]  mon_period_active_sync0, mon_period_active_sync1;
@@ -1229,6 +1249,7 @@ always @(posedge video_clk or posedge rst_video) begin
         mon_menu_page_sync   <= 2'b00;
         mon_screen_page_sync <= 2'b00;
         mon_screen_edit_sync <= 2'b00;
+        mon_audio_page_sync<=0; mon_audio_edit_sync<=0;
         mon_subtitle_page_sync <= 2'b00;
         mon_subtitle_edit_sync <= 2'b00;
         mon_cfg_busy_sync <= 2'b00;
@@ -1254,6 +1275,8 @@ always @(posedge video_clk or posedge rst_video) begin
         mon_menu_page_sync   <= {mon_menu_page_sync[0], monitor_menu_page_sd};
         mon_screen_page_sync <= {mon_screen_page_sync[0], monitor_screen_page_sd};
         mon_screen_edit_sync <= {mon_screen_edit_sync[0], monitor_screen_edit_sd};
+        mon_audio_page_sync<={mon_audio_page_sync[0], monitor_audio_page_sd};
+        mon_audio_edit_sync<={mon_audio_edit_sync[0], monitor_audio_edit_sd};
         mon_subtitle_page_sync <= {mon_subtitle_page_sync[0], monitor_subtitle_page_sd};
         mon_subtitle_edit_sync <= {mon_subtitle_edit_sync[0], monitor_subtitle_edit_sd};
         mon_cfg_busy_sync <= {mon_cfg_busy_sync[0], monitor_cfg_busy_sd};
@@ -1334,6 +1357,8 @@ monitor_menu_renderer u_mon_menu_renderer(
     .clk(video_clk), .de(mon_de_view_q), .x(mon_x), .y(mon_y),
     .menu_active(mon_menu_active_v),
     .page(mon_menu_page_v), .cursor(mon_cursor_v),
+    .audio_page(mon_audio_page_sync[1]), .audio_edit(mon_audio_edit_sync[1]),
+    .audio_shadow(audio_preview_video), .audio_active(audio_active_video),
     .screen_page(mon_screen_page_sync[1]), .screen_edit(mon_screen_edit_sync[1]),
     .screen_shadow(screen_preview_video), .screen_active(screen_active_video),
     .subtitle_page(mon_subtitle_page_sync[1]), .subtitle_edit(mon_subtitle_edit_sync[1]),

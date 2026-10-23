@@ -10,6 +10,9 @@ module monitor_cjk_rom(
     reg [31:0] extra_rom [0:127];
     reg [31:0] base_bits, extra_bits;
     reg extra_selected;
+    reg audio_selected;
+    reg [31:0] audio_bits;
+    wire [31:0] audio_row_mask = 32'b1 << I_row;
     integer init_index;
     initial begin
         for (init_index = 0; init_index < 1024; init_index = init_index + 1)
@@ -341,10 +344,45 @@ module monitor_cjk_rom(
         extra_rom[120]=32'h03183800; extra_rom[121]=32'h07C03800; extra_rom[122]=32'h0FF80000; extra_rom[123]=32'h3C7FFFFC;
         extra_rom[124]=32'h181FFFF8; extra_rom[125]=32'h00003FF8; extra_rom[126]=32'h00000000; extra_rom[127]=32'h00000000;
     end
+    wire [31:0] audio_logic;
+    assign audio_logic[31] = 1'b0;
+    assign audio_logic[30] = 1'b0;
+    assign audio_logic[29] = ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h04000000)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h00002000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00002040));
+    assign audio_logic[28] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h00006000)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h0C181800)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h18003000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h1FFF6060));
+    assign audio_logic[27] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h000060C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h0E1E1FF0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h18003000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h3FFF2640));
+    assign audio_logic[26] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h000060C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h0E0F9FF0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h19003000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h1FFF2640));
+    assign audio_logic[25] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h000060C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h06039FF0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B3FB000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h01932640));
+    assign audio_logic[24] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h3FFE60C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h07001800)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B7FB7F0)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h01933FF8));
+    assign audio_logic[23] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h3FFE60C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h03801800)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B7FB7F0)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h01933FF8));
+    assign audio_logic[22] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h3FFE62C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h01FFDFFC)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h01933FF8));
+    assign audio_logic[21] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC67FC0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h01FFDFFC)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h39932640));
+    assign audio_logic[20] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC67EC0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h00F018C0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h19BB2640));
+    assign audio_logic[19] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC678C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h007C18C0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h1FFF2640));
+    assign audio_logic[18] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC660C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h001F18C0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h0FFF2640));
+    assign audio_logic[17] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC660F8)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h080F18C0)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h000064E0));
+    assign audio_logic[16] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC660FC)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h08031800)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1FFFB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00030E00));
+    assign audio_logic[15] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC660F8)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h1C000018)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1FFFB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00630F80));
+    assign audio_logic[14] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC660C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h0C3FFE18)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h08631BE0));
+    assign audio_logic[13] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC660C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h0E3FFE18)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h386319F8));
+    assign audio_logic[12] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC678C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h07000618)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h386318F8));
+    assign audio_logic[11] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC67FC0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h03C00798)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h3C6318D8));
+    assign audio_logic[10] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h0CC66FC0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h01FFE7F8)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h1FFFF8C0));
+    assign audio_logic[9] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h3FFE62C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h007FE7F8)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B6DB490)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h0FFFFEC0));
+    assign audio_logic[8] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h3FFE60C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h000FE618)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B7FB7F0)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00631FC0));
+    assign audio_logic[7] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h3FFE60C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h03000618)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B7FB7F0)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00631BC0));
+    assign audio_logic[6] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h000060C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h03000618)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h1B3FB000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h006318C0));
+    assign audio_logic[5] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h000060C0)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h073FFE18)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h18003000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00FFF800));
+    assign audio_logic[4] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h00006000)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h0E7FFE18)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h18003000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00FFF800));
+    assign audio_logic[3] = ((I_index[1:0]==2'd0) && |(audio_row_mask & 32'h00006000)) | ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h1C3FFE18)) | ((I_index[1:0]==2'd2) && |(audio_row_mask & 32'h18003000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00030000));
+    assign audio_logic[2] = ((I_index[1:0]==2'd1) && |(audio_row_mask & 32'h08000000)) | ((I_index[1:0]==2'd3) && |(audio_row_mask & 32'h00030000));
+    assign audio_logic[1] = 1'b0;
+    assign audio_logic[0] = 1'b0;
     always @(posedge I_clk) begin
         base_bits <= glyph_rom[{I_index[4:0], I_row}];
         extra_bits <= extra_rom[{I_index[1:0], I_row}];
         extra_selected <= I_index[5];
+        audio_selected <= I_index[5:2]==4'd9;
+        audio_bits <= audio_logic;
     end
-    assign O_bits = extra_selected ? extra_bits : base_bits;
+    assign O_bits = audio_selected ? audio_bits : extra_selected ? extra_bits : base_bits;
 endmodule

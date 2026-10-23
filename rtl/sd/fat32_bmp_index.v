@@ -2,7 +2,8 @@
 module fat32_bmp_index #(
     parameter integer MAX_IMAGES = 8,
     parameter integer MAX_ROOT_CLUSTERS = 256,
-    parameter integer TIMEOUT_CYCLES = 11_000_000
+    parameter integer TIMEOUT_CYCLES = 11_000_000,
+    parameter integer INDEX_WAV = 0
 ) (
     input  wire        clk,
     input  wire        rst,
@@ -21,6 +22,8 @@ module fat32_bmp_index #(
     output reg         found_valid,
     output reg  [31:0] found_cluster,
     output reg  [31:0] found_size,
+    output reg         wav_found,
+    output reg  [31:0] wav_sector,
     output reg         sector_req,
     output reg  [31:0] sector_lba,
     input  wire        sector_busy,
@@ -60,6 +63,8 @@ module fat32_bmp_index #(
     reg [31:0] timeout_count;
     reg [31:0] root_cluster;
     reg [31:0] root_lba;
+    reg [1:0]  root_address_phase;
+    reg [31:0] root_cluster_base, root_sector_offset;
     reg [7:0]  root_sector_index;
     reg [8:0]  fat_entry_offset;
     reg [31:0] root_chain_steps;
@@ -96,7 +101,40 @@ module fat32_bmp_index #(
     reg [7:0]  fat_byte0, fat_byte1, fat_byte2, fat_byte3;
     reg [7:0]  dir_name0, dir_ext0, dir_ext1, dir_ext2, dir_attr;
     reg [15:0] dir_cluster_hi, dir_cluster_lo;
+    reg        dir_cluster_valid;
     reg [31:0] dir_size_23_0;
+    reg        wav_candidate_valid;
+    reg [31:0] wav_candidate_cluster;
+    reg [31:0] wav_cluster_base, wav_sector_offset;
+    reg        wav_publish_d1, wav_publish_d2;
+
+    // 与扫描器同一时钟域；减法、移位和加法分拍，不延长目录项判定路径。
+    // 扫描成功后才发布地址，失败扇区/超时不能把部分元数据交给播放器。
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            wav_cluster_base <= 0;
+            wav_sector_offset <= 0;
+            wav_sector <= 0;
+            wav_publish_d1 <= 0;
+            wav_publish_d2 <= 0;
+            wav_found <= 0;
+        end else if ((state == ST_IDLE) && scan_start) begin
+            wav_cluster_base <= 0;
+            wav_sector_offset <= 0;
+            wav_sector <= 0;
+            wav_publish_d1 <= 0;
+            wav_publish_d2 <= 0;
+            wav_found <= 0;
+        end else begin
+            wav_cluster_base <= wav_candidate_cluster - 32'd2;
+            wav_sector_offset <= wav_cluster_base << sectors_per_cluster_shift;
+            wav_sector <= data_start_lba + wav_sector_offset;
+            wav_publish_d1 <= INDEX_WAV && scan_done && wav_candidate_valid &&
+                              ((error_code == ERR_NONE) || (error_code == ERR_NO_BMP));
+            wav_publish_d2 <= wav_publish_d1;
+            wav_found <= wav_publish_d2;
+        end
+    end
 
     wire wait_sector = (state == ST_MBR_WAIT) || (state == ST_BPB_WAIT) ||
                        (state == ST_ROOT_WAIT) || (state == ST_FAT_WAIT);
@@ -163,15 +201,6 @@ module fat32_bmp_index #(
                 8'd128: spc_shift = 3'd7;
                 default: spc_shift = 3'd0;
             endcase
-        end
-    endfunction
-
-    function [31:0] cluster_to_lba;
-        input [31:0] cluster;
-        input [31:0] data_base;
-        input [2:0] shift;
-        begin
-            cluster_to_lba = data_base + ((cluster - 32'd2) << shift);
         end
     endfunction
 
@@ -253,10 +282,15 @@ module fat32_bmp_index #(
             found_valid <= 1'b0;
             found_cluster <= 32'd0;
             found_size <= 32'd0;
+            wav_candidate_valid <= 1'b0;
+            wav_candidate_cluster <= 32'd0;
             sector_req <= 1'b0;
             sector_lba <= 32'd0;
             root_cluster <= 32'd0;
             root_lba <= 32'd0;
+            root_address_phase <= 2'd0;
+            root_cluster_base <= 32'd0;
+            root_sector_offset <= 32'd0;
             root_sector_index <= 8'd0;
             fat_entry_offset <= 9'd0;
             root_chain_steps <= 32'd0;
@@ -295,6 +329,7 @@ module fat32_bmp_index #(
             dir_ext1 <= 8'd0; dir_ext2 <= 8'd0;
             dir_attr <= 8'd0;
             dir_cluster_hi <= 16'd0; dir_cluster_lo <= 16'd0;
+            dir_cluster_valid <= 1'b0;
             dir_size_23_0 <= 32'd0;
         end else begin
             sector_req <= 1'b0;
@@ -355,18 +390,37 @@ module fat32_bmp_index #(
                             5'd21: dir_cluster_hi[15:8] <= sector_byte;
                             5'd26: dir_cluster_lo[7:0] <= sector_byte;
                             5'd27: dir_cluster_lo[15:8] <= sector_byte;
-                            5'd28: dir_size_23_0[7:0] <= sector_byte;
+                            // 簇号在字节27接收完成。字节28提前比较，字节31才
+                            // 发布目录项，切断宽比较到found_*写使能的组合路径。
+                            // 即使sector_valid连续每拍有效，也有三个完整周期。
+                            5'd28: begin
+                                dir_size_23_0[7:0] <= sector_byte;
+                                dir_cluster_valid <=
+                                    ({dir_cluster_hi[11:0], dir_cluster_lo} >= 28'd2) &&
+                                    ({dir_cluster_hi[11:0], dir_cluster_lo} <= max_cluster);
+                            end
                             5'd29: dir_size_23_0[15:8] <= sector_byte;
                             5'd30: dir_size_23_0[23:16] <= sector_byte;
                             5'd31: begin
                                 dir_size_23_0[31:24] <= sector_byte;
+                                // 只索引根目录中的首个真实短文件项；遇00后的残留项无效。
+                                if (INDEX_WAV && !wav_candidate_valid && !dir_end_marker &&
+                                    (dir_name0 != 8'd0) && (dir_name0 != 8'he5) &&
+                                    (dir_attr != 8'h0f) && !dir_attr[4] && !dir_attr[3] &&
+                                    ((dir_ext0 == "W") || (dir_ext0 == "w")) &&
+                                    ((dir_ext1 == "A") || (dir_ext1 == "a")) &&
+                                    ((dir_ext2 == "V") || (dir_ext2 == "v")) &&
+                                    dir_cluster_valid &&
+                                    ({sector_byte, dir_size_23_0[23:0]} >= 32'd44)) begin
+                                    wav_candidate_valid <= 1'b1;
+                                    wav_candidate_cluster <= {4'd0, dir_cluster_hi[11:0], dir_cluster_lo};
+                                end
                                 if ((dir_name0 != 8'd0) && (dir_name0 != 8'he5) &&
                                     (dir_attr != 8'h0f) && !dir_attr[4] && !dir_attr[3] &&
                                     ((dir_ext0 == "B") || (dir_ext0 == "b")) &&
                                     ((dir_ext1 == "M") || (dir_ext1 == "m")) &&
                                     ((dir_ext2 == "P") || (dir_ext2 == "p")) &&
-                                    ({dir_cluster_hi[11:0], dir_cluster_lo} >= 28'd2) &&
-                                    ({dir_cluster_hi[11:0], dir_cluster_lo} <= max_cluster) &&
+                                    dir_cluster_valid &&
                                     ({sector_byte, dir_size_23_0[23:0]} != 0) &&
                                     (found_total < MAX_IMAGES)) begin
                                     found_cluster <= {dir_cluster_hi[11:0], dir_cluster_lo};
@@ -400,6 +454,8 @@ module fat32_bmp_index #(
                         scan_done <= 1'b0;
                         error_code <= ERR_NONE;
                         found_total <= 4'd0;
+                        wav_candidate_valid <= 1'b0;
+                        wav_candidate_cluster <= 32'd0;
                         partition_lba <= 32'd0;
                         bpb_parse_final <= 1'b0;
                         sector_lba <= 32'd0;
@@ -449,9 +505,7 @@ module fat32_bmp_index #(
                                 data_start_lba <= bpb_data_start_r[31:0];
                                 max_cluster <= bpb_max_cluster_candidate[31:0];
                                 root_cluster <= bpb_root_cluster_r;
-                                root_lba <= cluster_to_lba(bpb_root_cluster_r,
-                                                           bpb_data_start_r[31:0],
-                                                           bpb_spc_shift_r);
+                                root_address_phase <= 2'd0;
                                 root_sector_index <= 8'd0;
                                 root_chain_steps <= 32'd1;
                                 state <= ST_ROOT_REQ;
@@ -497,17 +551,36 @@ module fat32_bmp_index #(
                         bpb_parse_final <= 1'b1;
                         state <= ST_BPB_CHECK;
                     end
-                    ST_ROOT_REQ: if (!sector_busy) begin
-                        dir_end_marker <= 1'b0;
-                        sector_lba <= root_lba + root_sector_index;
-                        sector_req <= 1'b1;
-                        state <= ST_ROOT_WAIT;
+                    ST_ROOT_REQ: begin
+                        // 根目录跨簇与WAV地址一样分拍；新簇在phase3前不得发请求。
+                        // 同簇后续扇区复用已计算的root_lba，不重复计算。
+                        case (root_address_phase)
+                            2'd0: begin
+                                root_cluster_base <= root_cluster - 32'd2;
+                                root_address_phase <= 2'd1;
+                            end
+                            2'd1: begin
+                                root_sector_offset <= root_cluster_base << sectors_per_cluster_shift;
+                                root_address_phase <= 2'd2;
+                            end
+                            2'd2: begin
+                                root_lba <= data_start_lba + root_sector_offset;
+                                root_address_phase <= 2'd3;
+                            end
+                            default: if (!sector_busy) begin
+                                dir_end_marker <= 1'b0;
+                                sector_lba <= root_lba + root_sector_index;
+                                sector_req <= 1'b1;
+                                state <= ST_ROOT_WAIT;
+                            end
+                        endcase
                     end
                     ST_ROOT_WAIT: if (sector_done) begin
                         if (sector_error != 0)
                             finish_scan(ERR_SECTOR);
                         else if (dir_end_marker ||
-                                 ((target_count != 0) && (found_total >= target_count))) begin
+                                 ((target_count != 0) && (found_total >= target_count) &&
+                                  (!INDEX_WAV || wav_candidate_valid))) begin
                             finish_scan((found_total == 0) ? ERR_NO_BMP : ERR_NONE);
                         end else if (root_sector_index + 1'b1 < sectors_per_cluster) begin
                             root_sector_index <= root_sector_index + 1'b1;
@@ -538,9 +611,7 @@ module fat32_bmp_index #(
                             finish_scan(ERR_CHAIN);
                         end else begin
                             root_cluster <= {fat_byte3[3:0], fat_byte2, fat_byte1, fat_byte0};
-                            root_lba <= cluster_to_lba(
-                                {fat_byte3[3:0], fat_byte2, fat_byte1, fat_byte0},
-                                data_start_lba, sectors_per_cluster_shift);
+                            root_address_phase <= 2'd0;
                             root_sector_index <= 8'd0;
                             root_chain_steps <= root_chain_steps + 1'b1;
                             state <= ST_ROOT_REQ;

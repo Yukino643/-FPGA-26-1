@@ -25,6 +25,8 @@ module monitor_menu_ctrl #(
     output wire [3:0] cfg_payload,
     output reg [1:0]  period_shadow,
     output reg [1:0]  period_active,
+    output reg        audio_page, audio_edit,
+    output reg [4:0]  audio_shadow, audio_payload,
     output reg        screen_page,
     output reg        screen_edit,
     output reg [9:0]  screen_shadow,
@@ -143,6 +145,8 @@ module monitor_menu_ctrl #(
             cfg_committed <= 4'b0111;
             period_shadow <= 2'd0;
             period_active <= 2'd0;
+            audio_page <= 1'b0; audio_edit <= 1'b0;
+            audio_shadow <= 5'h0A; audio_payload <= 5'h0A;
             screen_page <= 1'b0;
             screen_edit <= 1'b0;
             screen_shadow <= SCREEN_DEFAULT;
@@ -184,9 +188,11 @@ module monitor_menu_ctrl #(
                     cfg_dirty <= 1'b0;
                     cfg_shadow <= cfg_committed;
                     period_shadow <= period_active;
+                    audio_page <= 1'b0; audio_edit <= 1'b0;
                     screen_page <= 1'b0;
                     screen_edit <= 1'b0;
                     screen_shadow <= screen_payload;
+                    audio_shadow <= audio_payload;
                     subtitle_page <= 1'b0;
                     subtitle_edit <= 1'b0;
                     subtitle_shadow <= subtitle_payload;
@@ -197,7 +203,10 @@ module monitor_menu_ctrl #(
             end else begin
                 if (next_long) begin
                     // 逐级返回：编辑取消 -> 二级页返回 -> 播放按键。
-                    if (subtitle_edit) subtitle_edit <= 1'b0;
+                    if (audio_edit) audio_edit <= 1'b0;
+                    else if (audio_page) begin
+                        audio_page <= 1'b0; cursor <= 3'd1;
+                    end else if (subtitle_edit) subtitle_edit <= 1'b0;
                     else if (subtitle_page) begin
                         subtitle_page <= 1'b0;
                         cursor <= 3'd3;
@@ -210,12 +219,14 @@ module monitor_menu_ctrl #(
                     cfg_shadow <= cfg_committed;
                     period_shadow <= period_active;
                     screen_shadow <= screen_payload;
+                    audio_shadow <= audio_payload;
                     subtitle_shadow <= subtitle_payload;
                 end else if (auto_long) begin
                     // Long KEY3 switches between the two monitor pages while
                     // the menu is open. This keeps KEY4 available for commit
                     // and for the emergency long-press path.
-                    menu_page <= (screen_page || subtitle_page) ? 1'b0 : ~menu_page;
+                    menu_page <= (audio_page || screen_page || subtitle_page) ? 1'b0 : ~menu_page;
+                    audio_page <= 1'b0; audio_edit <= 1'b0;
                     screen_page <= 1'b0;
                     screen_edit <= 1'b0;
                     cursor <= 3'd0;
@@ -225,11 +236,19 @@ module monitor_menu_ctrl #(
                     cfg_shadow <= cfg_committed;
                     period_shadow <= period_active;
                     screen_shadow <= screen_payload;
+                    audio_shadow <= audio_payload;
                     subtitle_page <= 1'b0;
                     subtitle_edit <= 1'b0;
                     subtitle_shadow <= subtitle_payload;
                 end else if (next_short) begin
-                    if (subtitle_edit) begin
+                    if (audio_edit) begin
+                        case(cursor)
+                            0: if(audio_shadow[3:0]>0) audio_shadow[3:0]<=audio_shadow[3:0]-1'b1;
+                            1: audio_shadow[4]<=1'b0;
+                            2: cfg_shadow[1]<=1'b0;
+                            default: begin end
+                        endcase
+                    end else if (subtitle_edit) begin
                         case (cursor)
                             0: subtitle_shadow[0] <= 1'b0;
                             1: if (subtitle_shadow[2:1] > 0) subtitle_shadow[2:1] <= subtitle_shadow[2:1] - 1'b1;
@@ -243,9 +262,16 @@ module monitor_menu_ctrl #(
                             2: if (screen_shadow[9:8] > 0) screen_shadow[9:8] <= screen_shadow[9:8] - 1'b1;
                             default: begin end // 恢复默认预览不可逐档编辑。
                         endcase
-                    end else cursor <= cursor_up(cursor, menu_page || screen_page || subtitle_page);
+                    end else cursor <= cursor_up(cursor, menu_page || audio_page || screen_page || subtitle_page);
                 end else if (auto_short) begin
-                    if (subtitle_edit) begin
+                    if (audio_edit) begin
+                        case(cursor)
+                            0: if(audio_shadow[3:0]<10) audio_shadow[3:0]<=audio_shadow[3:0]+1'b1;
+                            1: audio_shadow[4]<=1'b1;
+                            2: cfg_shadow[1]<=1'b1;
+                            default: begin end
+                        endcase
+                    end else if (subtitle_edit) begin
                         case (cursor)
                             0: subtitle_shadow[0] <= 1'b1;
                             1: if (subtitle_shadow[2:1] < 2) subtitle_shadow[2:1] <= subtitle_shadow[2:1] + 1'b1;
@@ -259,9 +285,20 @@ module monitor_menu_ctrl #(
                             2: if (screen_shadow[9:8] < 2) screen_shadow[9:8] <= screen_shadow[9:8] + 1'b1;
                             default: begin end
                         endcase
-                    end else cursor <= cursor_down(cursor, menu_page || screen_page || subtitle_page);
+                    end else cursor <= cursor_down(cursor, menu_page || audio_page || screen_page || subtitle_page);
                 end else if (emg_short) begin
-                    if (subtitle_page) begin
+                    if (audio_page) begin
+                        if (!audio_edit) begin
+                            audio_edit<=1'b1; cfg_dirty<=1'b1;
+                            if(cursor==3) begin
+                                audio_shadow<=5'h0A; cfg_shadow[1]<=1'b1;
+                            end
+                        end else if (!cfg_commit_busy) begin
+                            audio_payload<=audio_shadow; cfg_committed<=cfg_shadow;
+                            cfg_commit_toggle<=~cfg_commit_toggle;
+                            audio_edit<=1'b0; cfg_dirty<=1'b0;
+                        end
+                    end else if (subtitle_page) begin
                         if (!subtitle_edit) begin
                             subtitle_edit <= 1'b1;
                             cfg_dirty <= 1'b1;
@@ -284,6 +321,11 @@ module monitor_menu_ctrl #(
                             screen_edit <= 1'b0;
                             cfg_dirty <= 1'b0;
                         end
+                    end else if (!menu_page && cursor == 3'd1) begin
+                        audio_page<=1'b1; audio_edit<=1'b0; cursor<=3'd0; cfg_dirty<=1'b0;
+                        cfg_shadow<=cfg_committed; period_shadow<=period_active;
+                        screen_shadow<=screen_payload; subtitle_shadow<=subtitle_payload;
+                        audio_shadow<=audio_payload;
                     end else if (!menu_page && cursor == 3'd3) begin
                         subtitle_page <= 1'b1;
                         subtitle_edit <= 1'b0;
@@ -292,6 +334,7 @@ module monitor_menu_ctrl #(
                         cfg_shadow <= cfg_committed;
                         period_shadow <= period_active;
                         screen_shadow <= screen_payload;
+                    audio_shadow <= audio_payload;
                         subtitle_shadow <= subtitle_payload;
                     end else if (!menu_page && cursor == 3'd5) begin
                         screen_page <= 1'b1;
@@ -301,6 +344,7 @@ module monitor_menu_ctrl #(
                         cfg_shadow <= cfg_committed;
                         period_shadow <= period_active;
                         screen_shadow <= screen_payload;
+                    audio_shadow <= audio_payload;
                     end else if (!menu_page) begin
                         if (!cfg_dirty) begin
                             // 第一次短按只改 shadow，监视画面立即显示预览。

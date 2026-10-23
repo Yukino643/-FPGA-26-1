@@ -218,6 +218,24 @@ module tb_fat32_bmp_index;
             $finish;
         end
 
+        // 连续每拍一个字节：提前寄存的簇号校验必须属于本目录项。
+        // 相邻项覆盖下界外、上界外、两个合法边界，防止沿用上一项结果。
+        put_entry(7, 0, 8'h53, 8'h20, "B", "M", "P", 32'd1, 32'd100);
+        put_entry(7, 1, 8'h41, 8'h20, "B", "M", "P", 32'd51, 32'd100);
+        put_entry(7, 2, 8'h53, 8'h20, "B", "M", "P", 32'd2, 32'd300);
+        put_entry(7, 3, 8'h41, 8'h20, "B", "M", "P", 32'd50, 32'd400);
+        @(negedge clk); seen_count = 0;
+        pulse_scan();
+        if (error_code != 0 || seen_count != 2 || found_total != 2 ||
+            seen_cluster0 != 2 || seen_size0 != 300 ||
+            seen_cluster1 != 50 || seen_size1 != 400)
+            $fatal(1, "FAIL directory cluster bounds/stale qualification");
+        put_entry(7, 0, 8'h53, 8'h20, "B", "M", "P", 32'd5, 32'd921654);
+        put_entry(7, 1, 8'h41, 8'h20, "b", "m", "p", 32'd9, 32'd543);
+
+        put_entry(7, 2, 8'he5, 8'h20, "B", "M", "P", 32'd2, 32'd300);
+        put_entry(7, 3, 8'he5, 8'h20, "B", "M", "P", 32'd50, 32'd400);
+
         // SPC legality is captured with BPB byte 13 and must reject malformed values.
         for (spc_test = 0; spc_test < 3; spc_test = spc_test + 1) begin
             case (spc_test)

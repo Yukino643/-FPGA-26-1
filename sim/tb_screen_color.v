@@ -7,6 +7,8 @@ module tb_screen_color;
     reg [9:0] screen_shadow_sd=10'h144, screen_payload_sd=10'h144;
     wire [4:0] subtitle_shadow_sd=5'h08, subtitle_payload_sd=5'h08;
     wire [4:0] subtitle_active_video, subtitle_preview_video;
+    wire [4:0] audio_shadow_sd=10, audio_payload_sd=10;
+    wire [4:0] audio_active_video,audio_preview_video;
     reg cfg_commit_toggle_sd=0;
     wire [3:0] cfg_active_video, cfg_preview_video;
     wire [9:0] screen_active_video, screen_preview_video;

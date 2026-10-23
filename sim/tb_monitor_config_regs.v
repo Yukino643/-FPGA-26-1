@@ -11,6 +11,7 @@ module tb_monitor_config_regs;
     wire [3:0] active_video, preview_video;
     wire commit_seen, applied_toggle;
     monitor_config_regs dut(
+        .audio_shadow_sd(5'h0A),.audio_payload_sd(5'h0A),
         .video_clk(video_clk), .video_rst(video_rst), .vs_rise(vs_rise),
         .cfg_shadow_sd(shadow_sd), .cfg_payload_sd(payload_sd),
         .screen_shadow_sd(screen_shadow_sd), .screen_payload_sd(screen_payload_sd),

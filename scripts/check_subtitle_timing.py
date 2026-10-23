@@ -17,7 +17,7 @@ def main():
     OUT.mkdir(parents=True, exist_ok=True)
     targets = {'menu': 'u_monitor_menu_ctrl/*', 'config': 'u_monitor_config_regs/*',
                'renderer': 'u_mon_menu_renderer/*', 'color': 'u_color_adjust/*',
-               'osd': 'u_osd/*'}
+               'osd': 'u_osd/*', 'volume': 'u_pcm_volume_control/*'}
     commands = ['import_device eagle_s20.db -package EG4S20BG256',
                 f'import_db {{{(PHY / "av_media_pr.db").as_posix()}}}',
                 'update_timing -mode final']
@@ -78,7 +78,7 @@ def main():
     print(json.dumps(result, indent=2))
     if not check_reports.manifest_matches() or failures:
         raise RuntimeError(f'字幕或菜单时序检查失败: {failures}')
-    print('SUBTITLE_TIMING PASS current-source menu/config/renderer/color/OSD and font RAM pins')
+    print('SUBTITLE_TIMING PASS current-source menu/config/renderer/color/OSD/volume and font RAM pins')
 
 
 if __name__ == '__main__':

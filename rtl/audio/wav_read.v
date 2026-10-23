@@ -5,7 +5,9 @@
 //
 // WAV 假设: PCM(format=1)、48kHz、16bit、双声道、标准 44 字节头
 // 简化: 头部解析在第一个扇区完成（44 字节 < 512），data 从偏移 44 开始
-module wav_read(
+module wav_read #(
+    parameter integer SCAN_MAX_SECTORS = 65536
+)(
     input  wire        clk,
     input  wire        rst,
     output wire        ready,
@@ -245,7 +247,7 @@ module wav_read(
                     end else begin
                         scan_sec <= scan_sec + 32'd1;
                         scan_cnt <= scan_cnt + 32'd1;
-                        if (scan_cnt >= 32'd65535) begin
+                        if (scan_cnt >= SCAN_MAX_SECTORS - 1) begin
                             scan_done <= 1'b1;
                             state     <= S_IDLE;
                         end else

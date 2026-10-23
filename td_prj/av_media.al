@@ -525,6 +525,14 @@
                     <Attr Name="CompileOrder" Val="55"/>
                 </FileInfo>
             </File>
+            <File Path="../rtl/audio/pcm_volume_control.v">
+                <FileInfo>
+                    <Attr Name="UsedInSyn" Val="true"/>
+                    <Attr Name="UsedInP&R" Val="true"/>
+                    <Attr Name="BelongTo" Val="design_1"/>
+                    <Attr Name="CompileOrder" Val="84"/>
+                </FileInfo>
+            </File>
             <File Path="../rtl/video/color_adjust.v">
                 <FileInfo>
                     <Attr Name="UsedInSyn" Val="true"/>

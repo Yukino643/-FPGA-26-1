@@ -9,6 +9,8 @@ module monitor_config_regs(
     input  wire [3:0] cfg_payload_sd,
     input  wire [9:0] screen_shadow_sd,
     input  wire [9:0] screen_payload_sd,
+    input  wire [4:0] audio_shadow_sd, audio_payload_sd,
+    output reg  [4:0] audio_active_video, audio_preview_video,
     input  wire [4:0] subtitle_shadow_sd,
     input  wire [4:0] subtitle_payload_sd,
     input  wire       cfg_commit_toggle_sd,
@@ -26,10 +28,13 @@ module monitor_config_regs(
     reg [3:0] preview_sync1;
     reg [9:0] screen_payload_sync1, screen_payload_sync2, screen_preview_sync1;
     reg [4:0] subtitle_payload_sync1, subtitle_payload_sync2, subtitle_preview_sync1;
+    reg [4:0] audio_payload_sync1, audio_payload_sync2, audio_preview_sync1;
     reg commit_pending;
 
     always @(posedge video_clk or posedge video_rst) begin
         if (video_rst) begin
+            audio_payload_sync1<=5'h0A; audio_payload_sync2<=5'h0A;
+            audio_preview_sync1<=5'h0A; audio_active_video<=5'h0A; audio_preview_video<=5'h0A;
             commit_sync <= 3'b000;
             payload_sync1 <= 4'b0111;
             payload_sync2 <= 4'b0111;
@@ -50,6 +55,8 @@ module monitor_config_regs(
             cfg_commit_seen_video <= 1'b0;
             cfg_applied_toggle_video <= 1'b0;
         end else begin
+            audio_payload_sync1<=audio_payload_sd; audio_payload_sync2<=audio_payload_sync1;
+            audio_preview_sync1<=audio_shadow_sd; audio_preview_video<=audio_preview_sync1;
             commit_sync <= {commit_sync[1:0], cfg_commit_toggle_sd};
             payload_sync1 <= cfg_payload_sd;
             payload_sync2 <= payload_sync1;
@@ -67,6 +74,7 @@ module monitor_config_regs(
             if (commit_sync[2] ^ commit_sync[1])
                 commit_pending <= 1'b1;
             if (vs_rise && commit_pending) begin
+                audio_active_video<=audio_payload_sync2;
                 cfg_active_video <= payload_sync2;
                 screen_active_video <= screen_payload_sync2;
                 subtitle_active_video <= subtitle_payload_sync2;

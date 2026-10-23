@@ -1,9 +1,14 @@
 `timescale 1ns/1ps
 // 独立坐标/色值/ASCII字模参考；整页逐像素检查，不以DUT内部命中信号作判据。
-module tb_monitor_menu_renderer;
+module tb_monitor_menu_renderer #(
+    parameter integer FIRST_SCENE=0,
+    parameter integer LAST_SCENE=12
+);
     reg clk=0; always #5 clk=~clk;
     reg de=1, page=0, menu_active=1;
     reg screen_page=0, screen_edit=0, subtitle_page=0, subtitle_edit=0;
+    reg audio_page=0,audio_edit=0;
+    reg [4:0] audio_shadow=10,audio_active=10;
     reg cfg_busy=0, cfg_dirty=0, buzzer_test=0, sd_init_done=1;
     reg [2:0] cursor=0;
     reg [3:0] cfg_shadow=7, cfg_active=7;
@@ -19,6 +24,7 @@ module tb_monitor_menu_renderer;
         .cfg_shadow(cfg_shadow),.cfg_active(cfg_active),.period_shadow(period_shadow),.period_active(period_active),
         .screen_page(screen_page),.screen_edit(screen_edit),.screen_shadow(screen_shadow),.screen_active(screen_active),
         .subtitle_page(subtitle_page),.subtitle_edit(subtitle_edit),.subtitle_shadow(subtitle_shadow),.subtitle_active(subtitle_active),
+        .audio_page(audio_page),.audio_edit(audio_edit),.audio_shadow(audio_shadow),.audio_active(audio_active),
         .cfg_busy(cfg_busy),.cfg_dirty(cfg_dirty),.commit_seen(1'b0),.buzzer_test(buzzer_test),
         .sd_init_done(sd_init_done),.key_state(3'd0),.key_events(key_events),.img_count(4'd7),.led_state(led_state),.rgb(rgb));
     localparam [23:0] BG=24'h07131D, HEADER=24'h0B1D28, RULE=24'h2A5A70,
@@ -56,15 +62,16 @@ module tb_monitor_menu_renderer;
     task scene;
         input integer n;
         begin
+            audio_page=0;audio_edit=0;audio_shadow=10;audio_active=10;
             page=0;menu_active=1;screen_page=0;screen_edit=0;subtitle_page=0;subtitle_edit=0;
             cfg_busy=0;cfg_dirty=0;buzzer_test=0;sd_init_done=1;
             cfg_shadow=7;cfg_active=7;period_shadow=0;period_active=0;
             screen_shadow=10'h144;screen_active=10'h144;subtitle_shadow=5'h09;subtitle_active=5'h09;
             cursor=0;pending_bits=0;editing_bits=0;
             heading="PROGRAM CONTROL ";status_label="READY";status_ink=MUTED;status_fill=CHIP;
-            labels[0]="ON        ";labels[1]="ON        ";labels[2]="ON        ";
+            labels[0]="ON        ";labels[1]="100%      ";labels[2]="ON        ";
             labels[3]="ON        ";labels[4]="1S        ";labels[5]="HDMI-B    ";
-            for(i=0;i<6;i=i+1) value_colors[i]=(i<4) ? ON : VALUE;
+            for(i=0;i<6;i=i+1) value_colors[i]=(i<4 && i!=1) ? ON : VALUE;
             if(n==1) begin
                 page=1;heading="PERIPHERAL TEST ";
                 labels[0]="READY     ";labels[1]="IDLE      ";labels[2]="CNTAB     ";labels[3]="LED3      ";
@@ -96,6 +103,19 @@ module tb_monitor_menu_renderer;
                     status_label="EDIT ";status_ink=AMBER;
                 end
             end
+            if(n>=10)begin
+                audio_page=1;heading="HDMI-B AUDIO    ";
+                labels[0]="100%      ";labels[1]="OFF       ";labels[2]="ON        ";labels[3]="RESET     ";
+                value_colors[0]=VALUE;value_colors[1]=OFF;value_colors[2]=ON;value_colors[3]=VALUE;
+                if(n==11)begin
+                    audio_shadow=5;audio_edit=1;pending_bits=1;editing_bits=1;
+                    labels[0]="50% *     ";value_colors[0]=AMBER;status_label="EDIT ";status_ink=AMBER;
+                end
+                if(n==12)begin
+                    audio_shadow=5'h18;audio_active=5'h18;cursor=1;
+                    labels[0]="80%       ";labels[1]="ON        ";value_colors[1]=ON;
+                end
+            end
             if(n==9)begin cfg_busy=1;status_label="WAIT ";status_ink=WAIT_FG;status_fill=AMBER;end
             settle;
         end
@@ -106,7 +126,7 @@ module tb_monitor_menu_renderer;
         input integer xx,yy;
         begin
             verify_pixel=1;expected=BG;ink=FG;character=" ";ref_col=0;ref_row=0;
-            wide=page || screen_page || subtitle_page;
+            wide=page || screen_page || subtitle_page || audio_page;
             column=wide ? ((xx<320) ? 0 : 1) : ((xx<220) ? 0 : ((xx<424) ? 1 : 2));
             card_row=(yy<272) ? 0 : 1;
             idx=card_row*(wide ? 2 : 3)+column;
@@ -140,7 +160,9 @@ module tb_monitor_menu_renderer;
             end
             bits=reference_font[{character[6:0],4'b0}+ref_row];
             if(bits[7-ref_col])expected=ink;
-            title_width=screen_page ? ((idx==3) ? 128 : ((idx==1) ? 96 : 64)) :
+            if(audio_page && idx==0 && card && lx>=16 && lx<216 && ly>=72 && ly<84 && ((lx-16)%20)<16)
+                expected=(lx<16+20*audio_shadow[3:0]) ? (audio_shadow[4] ? MUTED : ON) : FRAME;
+            title_width=audio_page ? ((idx==3) ? 128 : 64) : screen_page ? ((idx==3) ? 128 : ((idx==1) ? 96 : 64)) :
                          ((page && (idx==1 || idx==3)) ? 96 : 64);
             if(card && lx>=16 && lx<16+title_width && ly>=16 && ly<48)begin
                 // 第一字独立常量参考；其他中文字形在字符索引测试核对。
@@ -209,6 +231,9 @@ module tb_monitor_menu_renderer;
         scene(1);cjk_at(48,112,9);cjk_at(416,112,13);cjk_at(48,304,14);cjk_at(416,304,18);
         scene(3);cjk_at(48,112,21);cjk_at(416,112,22);cjk_at(448,304,30);
         scene(6);cjk_at(48,112,32);cjk_at(384,112,34);cjk_at(48,304,35);cjk_at(352,304,6);cjk_at(384,304,31);
+        scene(10);cjk_at(48,112,36);cjk_at(80,112,38);cjk_at(352,112,39);cjk_at(384,112,36);
+        cjk_at(48,304,2);cjk_at(80,304,3);cjk_at(448,304,30);
+        scene(0);cjk_at(244,112,36);cjk_at(276,112,37);
         // 固定坐标只切状态，覆盖组合敏感列表与状态寄存边界。
         scene(3);cursor=3;settle;check_cell(352,392,"RESET     ",VALUE,SEL);
         screen_edit=1;settle;check_cell(352,392,"CONFIRM   ",AMBER,SEL);
@@ -241,13 +266,15 @@ module tb_monitor_menu_renderer;
         subtitle_edit=1;settle;check_status("EDIT ",AMBER,CHIP);
         subtitle_edit=0;subtitle_page=0;page=1;settle;check_status("READY",MUTED,CHIP);
         cfg_busy=1;settle;check_status("WAIT ",WAIT_FG,AMBER);
-        for(mode=0;mode<10;mode=mode+1)begin
+        for(mode=FIRST_SCENE;mode<=LAST_SCENE;mode=mode+1)begin
             scene(mode);
             case(mode)
                 0:dump=$fopen("menu_program.ppm","w");1:dump=$fopen("menu_peripheral.ppm","w");
                 2:dump=$fopen("menu_playback.ppm","w");3:dump=$fopen("menu_screen.ppm","w");
                 4:dump=$fopen("menu_screen_edit.ppm","w");5:dump=$fopen("menu_program_screen.ppm","w");
                 6:dump=$fopen("menu_subtitle.ppm","w");7:dump=$fopen("menu_subtitle_edit.ppm","w");
+                10:dump=$fopen("menu_audio.ppm","w");11:dump=$fopen("menu_audio_edit.ppm","w");
+                12:dump=$fopen("menu_audio_mute.ppm","w");
                 8:dump=$fopen("menu_screen_pending.ppm","w");9:dump=$fopen("menu_wait.ppm","w");
             endcase
             if(!dump)$fatal(1,"cannot open screenshot");
@@ -266,7 +293,7 @@ module tb_monitor_menu_renderer;
             $display("P0 scene %0d RGB PASS",mode);
         end
         @(negedge clk);de=0;@(posedge clk);#1;if(rgb!==0)$fatal(1,"blanking");
-        $display("TB_MONITOR_MENU_RENDERER PASS P0 scenes=10 state_colors stars arrows borders footer native32");$finish;
+        $display("TB_MONITOR_MENU_RENDERER PASS P0 scenes=13 state_colors stars arrows borders footer native32");$finish;
     end
     initial begin #40000000;$fatal(1,"P0 renderer timeout");end
 endmodule

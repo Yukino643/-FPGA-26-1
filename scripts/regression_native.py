@@ -8,6 +8,7 @@ import json
 import shutil
 import time
 import hashlib
+from concurrent.futures import ThreadPoolExecutor
 from PIL import Image
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -46,6 +47,14 @@ def prepare():
     (OUTPUT/'reg_top_scaler_block.vh').write_text(extract(fixture,'wire scaler_start_tgl;','wire video_read_en_unused;'),encoding='utf-8',newline='\n')
     # 当前720p顶层的图层流水，真实连接与回归同步。
     top=(ROOT/'rtl/top/top_tf_hdmi_audio.v').read_text(encoding='utf-8')
+    (OUTPUT/'reg_wav_startup.vh').write_text(
+        extract(top,'reg wav_scan_start_r, wav_load_start_r;','audio_player #('),
+        encoding='utf-8',newline='\n')
+    (OUTPUT/'reg_wav_arbiter.vh').write_text(extract_instance(top,'sd_arbiter #('),
+        encoding='utf-8',newline='\n')
+    (OUTPUT/'reg_wav_startup_legacy.vh').write_text(
+        (ROOT/'sim/fixtures/wav_startup_legacy.v.txt').read_text(encoding='utf-8'),
+        encoding='utf-8',newline='\n')
     # 核对当前顶层的真实邮箱/档位译码/颜色实例，避免测试桩掩盖错接 HDMI。
     screen_blocks=[extract(top,'// HDMI-B 专用参数','wire        cfg_commit_seen_video;'),
                    extract_instance(top,'monitor_config_regs u_monitor_config_regs('),
@@ -101,11 +110,26 @@ def sim(name,args,reuse=False):
         dependencies.append(ROOT/'rtl/mem/include/global_def.v')
     dependencies+=list(OUTPUT.glob('reg_*.vh'))+list((ROOT/'sim/fixtures').glob('*.hex'))
     dependencies+=list((ROOT/'sim').glob('*.hex'))+list(OUTPUT.glob('*.hex'))
+    # 新增的WAV提取头只属于启动用例。保留完整旧签名作为缓存迁移候选，
+    # 但仅当所有输入/旧生成头都没有引用reg_wav_时，才允许匹配去掉这些新头的签名。
+    # 这不排除任何RTL/字库/约束依赖，避免未改菜单因新增无关头而重复渲染。
+    previous_fingerprint=fingerprint.copy()
+    wav_headers={file for file in dependencies if file.name.startswith('reg_wav_')}
+    references_wav=any('reg_wav_' in file.read_text(encoding='utf-8')
+                       for file in set(dependencies)-wav_headers
+                       if file.suffix in ('.v','.vh'))
     for file in sorted(set(dependencies)):
-        fingerprint.update(file.as_posix().encode('utf-8'));fingerprint.update(file.read_bytes())
+        encoded_path=file.as_posix().encode('utf-8')
+        data=file.read_bytes()
+        fingerprint.update(encoded_path);fingerprint.update(data)
+        if file not in wav_headers:
+            previous_fingerprint.update(encoded_path);previous_fingerprint.update(data)
     signature=fingerprint.hexdigest()
+    accepted_signatures={signature}
+    if not references_wav:
+        accepted_signatures.add(previous_fingerprint.hexdigest())
     stamp=OUTPUT/(name+'.pass.sha256')
-    if reuse and stamp.is_file() and stamp.read_text(encoding='ascii')==signature:
+    if reuse and stamp.is_file() and stamp.read_text(encoding='ascii') in accepted_signatures:
         print(f'[REG][PASS] {name} verified input hash unchanged',flush=True)
         return
     command([IV,'-g2005','-I',OUTPUT.as_posix(),'-I',(ROOT/'sim').as_posix(),'-o',out,*files],name+'_compile')
@@ -115,12 +139,28 @@ def sim(name,args,reuse=False):
     stamp.write_text(signature,encoding='ascii',newline='\n')
     print(f'[REG][PASS] {name} ({elapsed:.1f}s)',flush=True)
 
+def monitor_rasters(parts,reuse):
+    # 场景输出文件互不重叠；四个原生仿真进程检查同一RTL，不裁掉任何像素。
+    groups=((0,3),(4,6),(7,9),(10,12))
+    names=[f'monitor_menu_renderer_{n}' for n in range(len(groups))]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        jobs=[pool.submit(sim,name,[
+            f'-Ptb_monitor_menu_renderer.FIRST_SCENE={first}',
+            f'-Ptb_monitor_menu_renderer.LAST_SCENE={last}']+parts,reuse)
+            for name,(first,last) in zip(names,groups)]
+        for job in jobs:job.result()
+    (OUTPUT/'monitor_menu_renderer.log').write_text(
+        '\n'.join((OUTPUT/(name+'.log')).read_text(encoding='utf-8') for name in names),
+        encoding='utf-8',newline='\n')
+
+
 def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--full',action='store_true')
     parser.add_argument('--sim-only',action='store_true')
     parser.add_argument('--filter')
     parser.add_argument('--reuse',action='store_true',help='只复用当前输入hash完全一致的通过结果')
+    parser.add_argument('--jobs',type=int,default=1,choices=(1,2,3,4),help='额外独立仿真并行数；各用例独立输出')
     args=parser.parse_args()
     prepare()
     results=[]
@@ -141,6 +181,7 @@ def main():
         save_results()
     run('constraints',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/check_constraints.py')],'constraints'))
     run('font720_generated',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/gen_font_720.py'),'--check'],'font720_generated'))
+    run('monitor_font_generated',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/gen_monitor_cjk.py'),'--check'],'monitor_font_generated'))
     run('legacy_generated',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/verify_generated.py'),'--output',str(OUTPUT/'generated')],'legacy_generated'))
     # 原有每个模块/边界用例保留，旧顶层提取用例明确作为640基线fixture回归。
     shell=(ROOT/'scripts/regression.sh').read_text(encoding='utf-8')
@@ -149,6 +190,17 @@ def main():
             parts=shlex.split(line)[1:]; name=parts.pop(0)
             run('legacy_'+name,lambda name=name,parts=parts:sim(name,parts,args.reuse))
     extra={
+        'audio_volume':['-s','tb_audio_volume','tb_audio_volume.v','../rtl/audio/pcm_volume_control.v'],
+        'audio_menu':['-s','tb_audio_menu','tb_audio_menu.v','../rtl/ctrl/monitor_menu_ctrl.v','../rtl/ctrl/monitor_config_regs.v'],
+        'wav_index':['-s','tb_wav_index','tb_wav_index.v','../rtl/sd/fat32_bmp_index.v'],
+        'wav_startup':['-DSIMULATION','-s','tb_wav_startup','tb_wav_startup.v',
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+        'wav_startup_legacy':['-DSIMULATION','-s','tb_wav_startup','-Ptb_wav_startup.LEGACY=1','tb_wav_startup.v',
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+        'wav_startup_bad':['-DSIMULATION','-s','tb_wav_startup','-Ptb_wav_startup.BAD_HEADER=1','tb_wav_startup.v',
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+        'wav_startup_missing':['-DSIMULATION','-s','tb_wav_startup','-Ptb_wav_startup.NO_WAV=1','tb_wav_startup.v',
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
         'sdram_refresh':['-I',(ROOT/'rtl/mem/include').as_posix(),'-s','tb_sdram_refresh',
                          'tb_sdram_refresh.v',(OUTPUT/'reg_sdram_refresh.v').as_posix()],
         'sdram_refresh_disabled':['-I',(ROOT/'rtl/mem/include').as_posix(),'-s','tb_sdram_refresh',
@@ -221,8 +273,24 @@ def main():
                        '../rtl/sd/sd_card_bmp.v','../rtl/sd/sd_card_bmp_g.v','../rtl/sd/bmp_read_g.v','../rtl/sd/fat32_bmp_index.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'audio720':['-DSIMULATION','tb_audio720.v','../rtl/audio/audio_player.v','../rtl/mem/afifo_simple.v'],
     }
-    for name,parts in extra.items(): run(name,lambda name=name,parts=parts:sim(name,parts,args.reuse))
-    for ppm in OUTPUT.glob('*.ppm'): Image.open(ppm).save(ppm.with_suffix('.png'))
+    raster=extra.pop('monitor_menu_renderer')
+    def extra_action(name,parts):
+        try:
+            sim(name,parts,args.reuse)
+            return {'name':name,'pass':True}
+        except (RuntimeError,subprocess.TimeoutExpired) as exc:
+            print(f'[REG][FAIL] {name}: {exc}',flush=True)
+            return {'name':name,'pass':False,'error':str(exc)}
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        jobs=[pool.submit(extra_action,name,parts) for name,parts in extra.items()
+              if not args.filter or re.search(args.filter,name)]
+        for job in jobs:
+            results.append(job.result());save_results()
+    run('monitor_menu_renderer',lambda:monitor_rasters(raster,args.reuse))
+    # 分组并行回归时，其他进程可能正在写栅格；仅在本轮完整通过渲染后转换。
+    renderer_pass=any(item['name']=='monitor_menu_renderer' and item['pass'] for item in results)
+    if renderer_pass and all(item['pass'] for item in results):
+        for ppm in OUTPUT.glob('menu_*.ppm'): Image.open(ppm).save(ppm.with_suffix('.png'))
     sim_pass=all(item['pass'] for item in results)
     if args.full and sim_pass:
         run('TD_BUILD',lambda:command([PY,'-X','utf8',str(ROOT/'td_prj/build_native.py'),'--output',str(ROOT/'build/720p/td')],'td_build',3600))

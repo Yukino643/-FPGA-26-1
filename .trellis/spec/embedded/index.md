@@ -6,6 +6,8 @@
 - For the HDMI-B 720p branch, read [hdmi-b-720p.md](hdmi-b-720p.md); its pixel packing and native Windows gates supersede the legacy 640 path.
 - Keep RGB, coordinates and DE at the same pipeline phase.
 - Identify source and destination clocks for every handshake.
+- 修改TF音频启动或WAV索引时，读取 [audio-startup.md](audio-startup.md)。
+- 修改节目音量、静音或音频二级菜单时，读取 [audio-volume.md](audio-volume.md)。
 
 ## Quality check
 - Frame page ownership changes only during vertical blanking after all scaler writes finish.

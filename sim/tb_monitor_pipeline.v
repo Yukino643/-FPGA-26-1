@@ -12,6 +12,8 @@ module tb_monitor_pipeline;
     wire [3:0] mon_img_count_sync1=7, mon_led_state_sync1=3;
     wire [3:0] cfg_preview_video=7, cfg_active_video=7;
     wire cfg_commit_seen_video=0;
+    wire [1:0] mon_audio_page_sync=0, mon_audio_edit_sync=0;
+    wire [4:0] audio_preview_video=10,audio_active_video=10;
     wire [1:0] mon_screen_page_sync=0, mon_screen_edit_sync=0, mon_cfg_busy_sync=0;
     wire [9:0] screen_preview_video=10'h144, screen_active_video=10'h144;
     wire [1:0] mon_subtitle_page_sync=0, mon_subtitle_edit_sync=0;

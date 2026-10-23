@@ -50,6 +50,7 @@ module resize_frame_720(
     reg [7:0] read_burst_len;
     wire [10:0] fetch_remaining=row_words-{1'b0,fetch_index};
     reg [10:0] out_x, source_x, x_phase;
+    reg [10:0] x_step_threshold;
     reg pixel_valid, pixel_inside, pixel_odd;
     reg [10:0] pixel_x;
     reg [15:0] even_pixel;
@@ -111,7 +112,7 @@ module resize_frame_720(
             wide_fit<=0; div_work<=0; div_quotient<=0; div_rem<=0; divisor<=1; div_count<=0;
             out_y<=0; source_y<=0; y_phase<=0; cache_valid<=0; cache_y<=0;
             fetch_index<=0; burst_left<=0; read_burst_addr<=0; read_burst_len<=0;
-            out_x<=0; source_x<=0; x_phase<=0;
+            out_x<=0; source_x<=0; x_phase<=0; x_step_threshold<=0;
             pixel_valid<=0; pixel_inside<=0; pixel_odd<=0; pixel_x<=0;
             even_pixel<=0; write_index<=0;
             output_valid<=0; output_addr<=0; output_pack<=0;
@@ -166,6 +167,10 @@ module resize_frame_720(
                     end else div_count<=div_count+1'b1;
                 end
                 RECT: begin
+                    // 输入不超过1280x720，等比适配只放大/等大，fit_w>=width。
+                    // phase+width>=fit_w 等价 phase>=fit_w-width；阈值预存，
+                    // 移除每像素加法后再比较的8ns关键路径，不降低吞吐。
+                    x_step_threshold<=fit_w-width;
                     left<=(1280-fit_w)>>1; top<=(720-fit_h)>>1;
                     right<=((1280-fit_w)>>1)+fit_w; bottom<=((720-fit_h)>>1)+fit_h;
                     out_y<=0; source_y<=0; y_phase<=0;
@@ -198,8 +203,8 @@ module resize_frame_720(
                 BUILD: begin
                     pixel_inside<=inside_pixel; pixel_odd<=source_x[0]; pixel_x<=out_x;
                     if(inside_pixel) begin
-                        if(next_x_phase>={1'b0,fit_w}) begin
-                            x_phase<=next_x_phase-fit_w; source_x<=source_x+1'b1;
+                        if(x_phase>=x_step_threshold) begin
+                            x_phase<=x_phase-x_step_threshold; source_x<=source_x+1'b1;
                         end else x_phase<=next_x_phase[10:0];
                     end
                     if(out_x==1279) state<=FLUSH;
