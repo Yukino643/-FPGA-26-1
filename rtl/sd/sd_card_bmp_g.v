@@ -18,7 +18,7 @@ module sd_card_bmp_g #(
     input  wire        key_event_override,
     input  wire        key_next_event,
     input  wire        key_auto_event,
-    input  wire [1:0]  auto_period_sel, // 1/2/5/10 seconds
+    input  wire [1:0]  auto_period_sel, // 预取模式2/3/5/10秒；历史非预取模式保持1/2/5/10
     input  wire        hold_load,     // 转场期间暂缓新装载（W5 transition_ctrl）
     output [3:0]       state_code,
     output reg  [3:0]  img_count,      // 扫描到的图片数
@@ -111,6 +111,7 @@ module sd_card_bmp_g #(
     reg              first_image_committed;
     reg              auto_play_en;
     reg [31:0]       auto_cnt;
+    reg [1:0]        auto_period_seen;
     reg [3:0]        img_found_count;
     reg [3:0]        img_idx;             // 当前显示中的图片编号
     reg [3:0]        load_idx;            // 当前正在装载的图片编号
@@ -167,20 +168,34 @@ module sd_card_bmp_g #(
         (fs_scan_error == 8'h25) ? 4'd6 :
         (fs_scan_error == 8'h30) ? 4'd7 : 4'hf;
     // Four bounded presets avoid a runtime multiplier and keep the automatic
-    // playback cadence deterministic: 1 s, 2 s, 5 s, or 10 s.
+    // playback cadence deterministic: 2 s, 3 s, 5 s, or 10 s in prefetch mode.
     function [31:0] period_cycles;
         input [1:0] sel;
         begin
             case (sel)
-                2'd1: period_cycles = CLK_FREQ_HZ * 2 - 1;
+                2'd1: period_cycles = CLK_FREQ_HZ * (PREFETCH_NEXT ? 3 : 2) - 1;
                 2'd2: period_cycles = CLK_FREQ_HZ * 5 - 1;
                 2'd3: period_cycles = CLK_FREQ_HZ * 10 - 1;
-                default: period_cycles = CLK_FREQ_HZ - 1;
+                default: period_cycles = CLK_FREQ_HZ * (PREFETCH_NEXT ? 2 : 1) - 1;
             endcase
         end
     endfunction
-    wire [31:0] auto_period_limit = period_cycles(auto_period_sel);
-    assign auto_tick  = (auto_cnt == auto_period_limit);
+    // 未连接端口选择默认档；历史非预取实例保持1秒，当前预取模式为2秒。
+    function [1:0] normalized_period;
+        input [1:0] sel;
+        begin
+            case (sel)
+                2'd1: normalized_period = 2'd1;
+                2'd2: normalized_period = 2'd2;
+                2'd3: normalized_period = 2'd3;
+                default: normalized_period = 2'd0;
+            endcase
+        end
+    endfunction
+    wire [1:0] auto_period_current = normalized_period(auto_period_sel);
+    wire auto_period_changed = (auto_period_current != auto_period_seen);
+    wire [31:0] auto_period_limit = period_cycles(auto_period_current);
+    assign auto_tick  = (auto_cnt >= auto_period_limit);
     assign first_good_image  = first_good_index(img_found_count, failed_mask);
     assign any_good_image    = has_good_image(img_found_count, failed_mask);
 
@@ -211,7 +226,7 @@ module sd_card_bmp_g #(
                           && (write_finish_seen || write_finish_pulse);
     wire cached_publish = PREFETCH_NEXT && sd_init_done && scan_kicked && prefetch_ready && !hold_load
                           && ((next_req_count != 0) || manual_next_press ||
-                              (auto_request_pending && !(key_auto_press && auto_play_en)));
+                              (auto_request_pending && !auto_period_changed && !(key_auto_press && auto_play_en)));
     wire manual_next_consume = PREFETCH_NEXT ?
                               cached_publish && ((next_req_count != 0) || manual_next_press) : manual_next_start;
     assign display_commit_pulse = PREFETCH_NEXT ?
@@ -421,6 +436,7 @@ module sd_card_bmp_g #(
             display_commit_toggle <= 1'b0;
             auto_play_en          <= 1'b0;
             auto_cnt              <= 32'd0;
+            auto_period_seen      <= 2'd0;
             img_found_count       <= 4'd0;
             img_idx               <= 4'd0;
             load_idx              <= 4'd0;
@@ -451,6 +467,7 @@ module sd_card_bmp_g #(
             auto_request_pending  <= 1'b0;
             display_valid         <= 1'b0;
         end else begin
+            auto_period_seen <= auto_period_current;
             wrfin_tgl_sync   <= {wrfin_tgl_sync[1:0], write_finish_toggle};
             scan_start_pulse <= 1'b0;
             load_start_pulse <= 1'b0;
@@ -594,7 +611,6 @@ module sd_card_bmp_g #(
                     if (PREFETCH_NEXT && manual_next_consume) begin
                         // 同拍新增与消费抵消；直接热请求不先入队，不允许0减1回绕。
                         if (!manual_next_press) next_req_count <= next_req_count - 8'd1;
-                        auto_cnt <= 0;
                     end
 
                     // 全部图片被本轮错误屏蔽后，新的手动按键开启一次有界重试。
@@ -608,14 +624,27 @@ module sd_card_bmp_g #(
                         auto_request_pending <= 1'b0;
                     end
 
-                    if (scan_done && auto_play_en && display_valid && (!load_busy || PREFETCH_NEXT)
-                        && first_image_committed && (img_found_count > 4'd1)
-                        && (!PREFETCH_NEXT || (!hold_load && !display_commit_pulse && !key_auto_press))) begin
+                    if (PREFETCH_NEXT) begin
+                        // 周期从本次发布计至下次发布，缩放/转场/读卡均计入真实经过时间。
+                        // 到期只挂一个请求并停表；慢图就绪后发布，不追赶积压的周期。
+                        if (!scan_done || !auto_play_en || !display_valid || !first_image_committed
+                            || (img_found_count <= 4'd1) || key_auto_press || auto_period_changed
+                            || display_commit_pulse) begin
+                            auto_cnt <= 32'd0;
+                            auto_request_pending <= 1'b0;
+                        end else if (!auto_request_pending) begin
+                            if (auto_tick)
+                                auto_request_pending <= 1'b1;
+                            else
+                                auto_cnt <= auto_cnt + 32'd1;
+                        end
+                    end else if (scan_done && auto_play_en && display_valid && !load_busy
+                                 && first_image_committed && (img_found_count > 4'd1)
+                                 && !auto_period_changed && !key_auto_press) begin
                         if (auto_tick)
                             auto_cnt <= 32'd0;
                         else
                             auto_cnt <= auto_cnt + 32'd1;
-                        if (PREFETCH_NEXT && auto_tick) auto_request_pending <= 1'b1;
                     end else begin
                         auto_cnt <= 32'd0;
                     end
@@ -671,7 +700,7 @@ module sd_card_bmp_g #(
                         auto_cnt         <= 32'd0;
                     end
                     else if (!PREFETCH_NEXT && !next_index_settle && scan_done && bmp_ready && display_valid && !load_busy && auto_play_en && auto_tick
-                             && (img_found_count > 4'd1) && any_good_image && !hold_load) begin
+                             && (img_found_count > 4'd1) && any_good_image && !hold_load && !auto_period_changed && !key_auto_press) begin
                         load_idx         <= next_from_current;
                         load_select_idx  <= next_from_current;
                         load_sector      <= 32'd0;

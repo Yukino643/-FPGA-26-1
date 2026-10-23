@@ -45,10 +45,10 @@ module tb_video_pipeline_720;
             if(mix_y==620 && mix_x>=128 && mix_x<1152) data_pipe[0]=24'h2A4E58;
             if((mix_y>=16 && mix_y<64 &&
                 ((mix_x>=16 && mix_x<496) || (mix_x>=1104 && mix_x<1264))) ||
-               (mix_y>=664 && mix_y<712 && mix_x<1248 &&
-                ((SUBTITLES && mix_x>=32) || mix_x>=848)))
+               (mix_y>=664 && mix_y<712 && mix_x<1264 &&
+                ((SUBTITLES && mix_x>=16) || mix_x>=880)))
                 data_pipe[0]={2'b0,vout_data[23:18],2'b0,vout_data[15:10],2'b0,vout_data[7:2]};
-            if(SUBTITLES && mix_y>=664 && mix_y<712 && mix_x>=32 && mix_x<128)
+            if(SUBTITLES && mix_y>=664 && mix_y<712 && mix_x>=16 && mix_x<112)
                 data_pipe[0]=24'h0E3A4C;
             glyph=0;glyph_row=0;glyph_x=0;glyph_hit=0;ink=24'hF2FAFF;
             if(mix_y>=24 && mix_y<56) begin
@@ -60,21 +60,20 @@ module tb_video_pipeline_720;
             end
             if(mix_y>=672 && mix_y<704) begin
                 glyph_row=mix_y-672;
-                if(mix_x>=864 && mix_x<1216)begin
-                    glyph_hit=1;glyph_x=(mix_x-864)%32;cell_col=(mix_x-864)/32;ink=24'hC8F75A;
+                if(mix_x>=896 && mix_x<1248)begin
+                    glyph_hit=1;glyph_x=(mix_x-896)%32;cell_col=(mix_x-896)/32;ink=24'hC9DBE5;
                     case(cell_col)
                         0:glyph=20;1:glyph=21;2:glyph=0;5,8:glyph=23;default:glyph=22;
                     endcase
-                end else if(SUBTITLES && mix_x>=48 && mix_x<112)begin
-                    glyph_hit=1;glyph_x=(mix_x-48)%32;glyph=mix_x<80?48:49;
-                end else if(SUBTITLES && mix_x>=144 && mix_x<832)begin
-                    glyph_hit=1;glyph_x=(mix_x-144)%32;cell_col=(mix_x-144)/32;
-                    glyph=cell_col<14 ? title_cells[cell_col] : 0;
+                end else if(SUBTITLES && mix_x>=32 && mix_x<96)begin
+                    glyph_hit=1;glyph_x=(mix_x-32)%32;glyph=mix_x<64?48:49;
+                end else if(SUBTITLES && mix_x>=128 && mix_x<864)begin
+                    glyph_hit=1;glyph_x=(mix_x+1184)%32;glyph=0;
                 end
             end
             ink_bits=font[glyph*32+glyph_row];
             if(glyph_hit && ink_bits[31-glyph_x])data_pipe[0]=ink;
-            if(SUBTITLES && mix_y>=664 && mix_y<666 && mix_x>=32 && mix_x<1248)data_pipe[0]=24'h38BDF8;
+            if(SUBTITLES && mix_y>=664 && mix_y<666 && mix_x>=16 && mix_x<1264)data_pipe[0]=24'h38BDF8;
             valid_pipe={valid_pipe[2:0],mix_de};
             last_pipe={last_pipe[2:0],mix_de && mix_x==1279};
             #1;

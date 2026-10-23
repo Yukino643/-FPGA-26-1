@@ -25,13 +25,13 @@ def reference(bg, subtitle, text, clock, phase=0, preset=0):
         mask[16:64,16:496] = True
         mask[16:64,1104:1264] = True
     if clock:
-        mask[664:712,848:1248] = True
+        mask[664:712,880:1264] = True
     if subtitle:
-        mask[664:712,32:1248] = True
+        mask[664:712,16:1264] = True
     out[mask] = bg[mask] >> 2
     if subtitle:
-        out[664:712,32:128] = (14,58,76)
-        out[664:666,32:1248] = (56,189,248)
+        out[664:712,16:112] = (14,58,76)
+        out[664:666,16:1264] = (56,189,248)
     rows = [int(s,16) for s in (ROOT/'rtl/video/font_720.hex').read_text(encoding='ascii').splitlines()]
 
     def draw(label, left, top, ink):
@@ -46,19 +46,19 @@ def reference(bg, subtitle, text, clock, phase=0, preset=0):
         draw(LABEL,32,24,(242,250,255))
         draw('广告模式',1120,24,(143,213,250))
     if clock:
-        draw('运行 12:34:56',864,672,(200,247,90))
+        draw('运行 12:34:56',896,672,(201,219,229))
     if subtitle:
-        draw('视界',48,672,(242,250,255))
-        # 离线参考按完整1024环形位图裁剪，不依赖RTL的地址或命中。
-        strip=np.zeros((32,1024),dtype=bool)
+        draw('视界',32,672,(242,250,255))
+        # 离线参考按2048像素完整位图与屏幕窗口裁剪，不依赖RTL的地址或命中。
+        strip=np.zeros((32,2048),dtype=bool)
         for i,ch in enumerate(PRESETS[preset]):
             gid=CHARS.index(ch)
             for row in range(32):
                 for col in range(32):
                     strip[row,32*i+col]=bool(rows[gid*32+row] & (1<<(31-col)))
-        width=688 if clock else 1024
-        visible=strip[:,(np.arange(width)+phase)%1024]
-        target=out[672:704,144:144+width]
+        width=736 if clock else 1024
+        visible=strip[:,(128+np.arange(width)+(1184 if clock else 896)+phase)%2048]
+        target=out[672:704,128:128+width]
         target[visible]=(242,250,255)
     return out
 
@@ -71,7 +71,11 @@ def main():
     output.mkdir(parents=True,exist_ok=True)
     font=(ROOT/'rtl/video/font_720.hex').read_bytes()
     results=[]
-    for scene,photo,subtitle in (('light','BEACH720',1),('dark','NIGHT720',1),('subtitle_off','NIGHT720',0)):
+    for photo in ('BEACH720','NIGHT720'):
+      for combo in range(8):
+        subtitle=combo&1; clock=(combo>>1)&1; text=(combo>>2)&1
+        scene=f'{photo}_T{text}C{clock}S{subtitle}'
+        phase=768 if clock else 1056
         path=SOURCE/(photo+'.BMP')
         rgb=np.array(Image.open(path).convert('RGB'),dtype=np.uint8)
         if rgb.shape!=(720,1280,3): raise RuntimeError(f'素材尺寸不符: {path}')
@@ -86,17 +90,18 @@ def main():
         raw=output/f'{scene}.rgb'
         bench.write_text(f'''`timescale 1ns/1ps
 module tb_main_photo;
-reg clk=0,rst=1;always #5 clk=~clk;
+reg clk=0,rst=1,vs=0;always #5 clk=~clk;
 reg [10:0] x=0;reg [9:0] y=0;
 reg [23:0] bg=0;wire [23:0] rgb;
 reg [23:0] pixels[0:921599];
 integer i,f;
-osd_engine_720 dut(.I_clk(clk),.I_rst(rst),.I_vs_pulse(1'b0),
+osd_engine_720 dut(.I_clk(clk),.I_rst(rst),.I_vs_pulse(vs),
 .I_subtitle_cfg(5'd{8+subtitle}),.I_x(x),.I_y(y),.I_bg_rgb(bg),
-.I_uptime_bcd(24'h123456),.I_mode(2'd1),.I_clock_enable(1'b1),.I_text_enable(1'b1),.O_rgb(rgb));
+.I_uptime_bcd(24'h123456),.I_mode(2'd1),.I_clock_enable(1'b{clock}),.I_text_enable(1'b{text}),.O_rgb(rgb));
 initial begin
 $readmemh("{fixture.as_posix()}",pixels);
 repeat(3)@(negedge clk);rst=0;repeat(3)@(negedge clk);
+repeat({phase})begin @(negedge clk);vs=1;@(negedge clk);vs=0;end
 f=$fopen("{raw.as_posix()}","wb");if(!f)$fatal(1,"open failed");
 for(i=0;i<921600;i=i+1)begin
 @(negedge clk);x=i%1280;y=i/1280;bg=pixels[i];
@@ -112,13 +117,13 @@ endmodule
         data=raw.read_bytes()
         if len(data)!=1280*720*3: raise RuntimeError(f'RGB输出长度错误 {scene}: {len(data)}')
         actual=np.frombuffer(data,dtype=np.uint8).reshape(720,1280,3)
-        expected=reference(rgb,subtitle,True,True)
+        expected=reference(rgb,subtitle,text,clock,phase)
         if not np.array_equal(actual,expected):
             bad=np.argwhere(np.any(actual!=expected,axis=2))[0]
             raise RuntimeError(f'照片独立像素参考失败 {scene}: yx={bad.tolist()}')
         Image.fromarray(actual).save(output/f'{scene}_OSD_RTL.png')
         results.append({'scene':scene,'source':str(path),'source_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
-                        'pixel_checks':921600,'subtitle':bool(subtitle),'title':True,'clock':True,
+                        'pixel_checks':921600,'subtitle':bool(subtitle),'title':bool(text),'clock':bool(clock),'position':phase if subtitle else 0,
                         'evidence':'photo-fed OSD RTL; waveform disabled; not board capture; not complete SDRAM/HDMI simulation'})
         print('MAIN_UI_PHOTO PASS',scene,'921600 pixels',flush=True)
     if hashlib.sha256(font).digest()!=hashlib.sha256((ROOT/'rtl/video/font_720.hex').read_bytes()).digest():

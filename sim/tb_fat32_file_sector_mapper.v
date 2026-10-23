@@ -34,7 +34,8 @@ module tb_fat32_file_sector_mapper;
     reg [31:0] lba_log [0:63];
     integer physical_count = 0;
     integer client_data_count = 0;
-    integer i, cycles;
+    integer i, cycles, shift_test;
+    reg [31:0] expected_lba;
 
     fat32_file_sector_mapper #(
         .MAX_CHAIN_STEPS(32), .TIMEOUT_CYCLES(2000)
@@ -208,6 +209,23 @@ module tb_fat32_file_sector_mapper;
         @(negedge clk); first_cluster = 32'd5; file_size = 32'hffffffff;
         pulse_file_start();
         request_error(32'd8388608);
+
+        // 拆拍LBA运算的独立乘法参考：全部合法簇大小、簇内首尾及32位进位。
+        // 只在sector_req时采样最终地址；不得把流水中间值当成实际读请求。
+        for (shift_test = 0; shift_test < 8; shift_test = shift_test + 1) begin
+            @(negedge clk);
+            first_cluster = 32'h001fffff;
+            max_cluster = 32'h0ffffff6;
+            sectors_per_cluster = 8'd1 << shift_test;
+            sectors_per_cluster_shift = shift_test;
+            file_size = sectors_per_cluster * 512;
+            data_start_lba = 32'h70fffffe;
+            pulse_file_start();
+            expected_lba = data_start_lba + (first_cluster - 2) * sectors_per_cluster;
+            request_sector(0, expected_lba);
+            expected_lba = expected_lba + sectors_per_cluster - 1;
+            request_sector(sectors_per_cluster - 1, expected_lba);
+        end
 
         // 超时路径：外部不返回扇区数据，映射器必须有界报错。
         @(negedge clk); first_cluster = 32'd5; stall_card = 1'b1;

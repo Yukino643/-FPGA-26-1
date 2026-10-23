@@ -1,0 +1,18 @@
+--- before/sim/tb_autoplay_labels.v
++++ after/sim/tb_autoplay_labels.v
+@@ -26,12 +26,12 @@
+         for(sel=0;sel<4;sel=sel+1)begin
+             @(negedge clk);period_sel=sel;
+             case(sel)
+-                0:label="2S        ";1:label="3S        ";
+-                2:label="5S        ";3:label="10S       ";
++                0:label="        2S";1:label="        3S";
++                2:label="        5S";3:label="       10S";
+             endcase
+             for(yy=0;yy<32;yy=yy+1)begin
+                 for(xx=0;xx<160;xx=xx+1)begin
+-                    @(negedge clk);x=244+xx;y=392+yy;
++                    @(negedge clk);x=236+xx;y=282+yy;
+                     repeat(4)@(negedge clk);
+                     ch=label[(9-xx/16)*8 +: 8];
+                     bits=font[ch[6:0]*16+yy/2];

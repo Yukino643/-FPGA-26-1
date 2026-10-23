@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>A 石墨矩阵</title>
+<style>
+  :root{
+    --bg:#060A0D; --cell:#0A1015; --cell-focus:#0D1A22; --rule:#1D2A33;
+    --text:#E8F2F7; --muted:#7C93A2; --value:#A8BECB;
+    --on:#5BE39B; --off:#FF7B72; --accent:#38BDF8;
+    --cjk:"SimHei","Heiti SC",sans-serif;
+    --mono:"Consolas","Courier New",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#000;width:1280px;height:720px;overflow:hidden}
+  .screen{position:relative;width:1280px;height:720px;background:#000}
+  .canvas{position:absolute;left:160px;top:0;width:960px;height:720px;background:var(--bg);overflow:hidden}
+  /* 页眉：无底色，只有字与一条细分隔线 */
+  .eyebrow{position:absolute;left:48px;top:38px;font:400 44px/1 var(--mono);letter-spacing:6px;color:var(--muted)}
+  .state{position:absolute;right:48px;top:38px;font:400 44px/1 var(--mono);letter-spacing:5px;color:var(--muted)}
+  .state b{font-weight:400;color:var(--text)}
+  .bar{position:absolute;left:48px;top:96px;width:864px;height:1px;background:var(--rule)}
+  /* 矩阵：无卡片填充，靠细分隔线组成整块面板 */
+  .matrix{position:absolute;left:48px;top:144px;width:864px;height:528px}
+  .cell{position:absolute;width:276px;height:240px}
+  .cell .t{position:absolute;left:0;top:18px;font:400 48px/1 var(--cjk);color:var(--text);letter-spacing:2px}
+  .cell .v{position:absolute;right:0;top:158px;font:400 48px/1 var(--mono);color:var(--value);letter-spacing:1px}
+  .cell.on .v{color:var(--on)}
+  .cell.off .v{color:var(--off)}
+  .cell.focus{background:var(--cell-focus)}
+  .cell.focus::before{content:"";position:absolute;left:0;top:0;width:4px;height:240px;background:var(--accent)}
+  .cell.focus .t{color:#F4FBFF}
+  .rail-v{position:absolute;top:0;width:1px;height:528px;background:var(--rule)}
+  .rail-h{position:absolute;left:0;top:264px;width:864px;height:1px;background:var(--rule)}
+  .mark{position:absolute;left:0;top:0;font:400 20px/1 var(--mono);color:#223642;letter-spacing:2px}
+</style>
+</head>
+<body>
+<div class="screen"><div class="canvas">
+  <div class="eyebrow">PROGRAM CONTROL</div>
+  <div class="state"><b>READY</b></div>
+  <div class="bar"></div>
+  <div class="matrix">
+    <div class="rail-v" style="left:291px"></div>
+    <div class="rail-v" style="left:597px"></div>
+    <div class="rail-h"></div>
+
+    <div class="cell focus" style="left:0;top:0">
+      <div class="t">图片</div><div class="v">ON</div>
+    </div>
+    <div class="cell on" style="left:306px;top:0">
+      <div class="t">音频</div><div class="v">100%</div>
+    </div>
+    <div class="cell on" style="left:612px;top:0">
+      <div class="t">时间</div><div class="v">ON</div>
+    </div>
+    <div class="cell on" style="left:0;top:288px">
+      <div class="t">字幕</div><div class="v">ON</div>
+    </div>
+    <div class="cell" style="left:306px;top:288px">
+      <div class="t">周期</div><div class="v">2S</div>
+    </div>
+    <div class="cell" style="left:612px;top:288px">
+      <div class="t">屏幕</div><div class="v">HDMI-B</div>
+    </div>
+  </div>
+</div></div>
+</body>
+</html>

@@ -17,23 +17,22 @@ module osd_engine_720(
     // 实际硬件只有 0/1，不改变正常综合逻辑。
     wire text_enable_i  = (I_text_enable  !== 1'b0);
     wire clock_enable_i = (I_clock_enable !== 1'b0);
-    localparam [9:0] SCROLL_ORIGIN = 10'd880; // -144 modulo 1024
     localparam [23:0] TITLE_FG=24'hF2FAFF, MODE_FG=24'h8FD5FA,
-                      CLOCK_FG=24'hC8F75A, BADGE_BG=24'h0E3A4C;
+                      CLOCK_FG=24'hC9DBE5, BADGE_BG=24'h0E3A4C;
     wire title_y=text_enable_i && I_y>=24 && I_y<56;
     wire subtitle_enable = (I_subtitle_cfg[0] === 1'b1);
     wire clock_y=clock_enable_i && I_y>=672 && I_y<704;
     wire title_x=I_x>=32 && I_x<480;
     wire mode_x=I_x>=1120 && I_x<1248;
-    wire clock_x=I_x>=864 && I_x<1216;
+    wire clock_x=I_x>=896 && I_x<1248;
     wire title_plate=text_enable_i && I_y>=16 && I_y<64 &&
                      ((I_x>=16 && I_x<496) || (I_x>=1104 && I_x<1264));
-    wire clock_plate=clock_enable_i && I_x>=848 && I_x<1248 && I_y>=664 && I_y<712;
+    wire clock_plate=clock_enable_i && I_x>=880 && I_x<1264 && I_y>=664 && I_y<712;
     // 三组文字并行译码，Y区域只在最后选字；避免clock_y先选列号，
     // 再串入整套文字/数字查表。三者仍共用下面唯一的同步字模ROM。
     wire [5:0] title_col = I_x[10:5]-6'd1;
     wire [5:0] mode_col = I_x[10:5]-6'd35;
-    wire [5:0] clock_col = I_x[10:5]-6'd27;
+    wire [5:0] clock_col = I_x[10:5]-6'd28;
     wire [5:0] title_glyph, mode_glyph, clock_static_glyph;
     osd_text_720 u_text(.win(2'd0),.col(title_col),.glyph(title_glyph));
     osd_text_720 u_mode_text(.win(I_mode==2 ? 2'd2:2'd1),.col(mode_col),.glyph(mode_glyph));
@@ -62,44 +61,50 @@ module osd_engine_720(
         endcase
     end
     wire text_hit=(title_y && (title_x || mode_x)) || (clock_y && clock_x);
-    // 与老师字幕例程一样，仅在帧消隐推进。1024像素循环天然回绕，
-    // 不在像素路径使用除法/取模；内容变更后从完整可读的起点重启。
-    reg [9:0] scroll_origin;
+    // 64格只增加文本索引位，不扩字模ROM。仅VS推进位置，离场留白后重启。
+    reg [10:0] scroll_position;
     reg slow_phase;
     reg [4:0] subtitle_seen;
+    reg clock_seen;
+    wire [10:0] scroll_base=clock_enable_i ? 11'd1184 : 11'd896;
+    wire [10:0] scroll_limit=clock_enable_i ? 11'd1248 : 11'd1536;
+    wire [10:0] scroll_origin=scroll_base+scroll_position;
     always @(posedge I_clk or posedge I_rst) begin
         if (I_rst) begin
-            scroll_origin <= SCROLL_ORIGIN;
-            slow_phase <= 1'b0;
-            subtitle_seen <= 5'h08;
-        end else if (!subtitle_enable || I_subtitle_cfg != subtitle_seen) begin
-            scroll_origin <= SCROLL_ORIGIN;
-            slow_phase <= 1'b0;
-            subtitle_seen <= I_subtitle_cfg;
+            scroll_position<=11'd0;
+            slow_phase<=1'b0;
+            subtitle_seen<=5'h08;
+            clock_seen<=1'b1;
+        end else if (!subtitle_enable || I_subtitle_cfg!=subtitle_seen || clock_enable_i!=clock_seen) begin
+            scroll_position<=11'd0;
+            slow_phase<=1'b0;
+            subtitle_seen<=I_subtitle_cfg;
+            clock_seen<=clock_enable_i;
         end else if (I_vs_pulse) begin
-            slow_phase <= ~slow_phase;
-            case (I_subtitle_cfg[4:3])
-                0: if (slow_phase) scroll_origin <= scroll_origin + 10'd1;
-                1: scroll_origin <= scroll_origin + 10'd1;
-                default: scroll_origin <= scroll_origin + 10'd2;
+            slow_phase<=~slow_phase;
+            if (scroll_position>=scroll_limit) scroll_position<=11'd0;
+            else case (I_subtitle_cfg[4:3])
+                0:if (slow_phase) scroll_position<=scroll_position+11'd1;
+                1:scroll_position<=scroll_position+11'd1;
+                default:scroll_position<=scroll_position+11'd2;
             endcase
         end
     end
-    wire subtitle_band = subtitle_enable && I_x>=32 && I_x<1248 && I_y>=664 && I_y<712;
-    wire subtitle_badge = subtitle_band && I_x<128;
+    wire subtitle_band = subtitle_enable && I_x>=16 && I_x<1264 && I_y>=664 && I_y<712;
+    wire subtitle_badge = subtitle_band && I_x<112;
     wire subtitle_line = subtitle_band && I_y<666;
     wire subtitle_y = I_y>=672 && I_y<704;
-    wire subtitle_badge_text = subtitle_band && subtitle_y && I_x>=48 && I_x<112;
-    // 右端严格排除：窗口不能宽于1024周期，否则同一源列会在一帧重复出现。
-    wire subtitle_message_text = subtitle_enable && subtitle_y && I_x>=144 &&
-                                 I_x<(clock_enable_i ? 11'd832 : 11'd1168);
-    wire [9:0] subtitle_source_x = I_x[9:0] + scroll_origin;
+    wire subtitle_badge_text = subtitle_band && subtitle_y && I_x>=32 && I_x<96;
+    // 右端严格排除；正文在2048周期内单次经过窗口，不两端分段。
+    wire subtitle_message_text = subtitle_enable && subtitle_y && I_x>=128 &&
+                                 I_x<(clock_enable_i ? 11'd864 : 11'd1152);
+    wire [10:0] subtitle_source_x = I_x + scroll_origin;
     wire [5:0] subtitle_glyph;
-    subtitle_text_720 u_subtitle_text(.preset(I_subtitle_cfg[2:1]), .col(subtitle_source_x[9:5]), .glyph(subtitle_glyph));
+    subtitle_text_720 u_subtitle_text(.preset(I_subtitle_cfg[2:1]), .col(subtitle_source_x[10:5]), .glyph(subtitle_glyph));
     // 地址只用分区选择，完整命中在输出屏蔽，避免矩形比较串入ROM地址。
     // 顶部和底部互斥，共享一个同步ROM；时间只在开启时占用正文右侧。
-    wire [5:0] bottom_glyph = (I_x<128) ? ((I_x<80) ? BADGE_SHI : BADGE_JIE) :
-                              (clock_enable_i && I_x>=864) ? clock_glyph : subtitle_glyph;
+    wire [5:0] bottom_glyph = (I_x<112) ? ((I_x<64) ? BADGE_SHI : BADGE_JIE) :
+                              (clock_enable_i && I_x>=896) ? clock_glyph : subtitle_glyph;
     wire [5:0] glyph = I_y[9] ? bottom_glyph : mode_x ? mode_glyph : title_glyph;
     wire [4:0] row = I_y[9] ? I_y[4:0] : I_y[4:0]-5'd24;
     wire [31:0] bits;
@@ -109,7 +114,7 @@ module osd_engine_720(
     reg band_q, badge_q, line_q, subtitle_text_q, glyph_hit_q;
     reg clock_text_q, mode_text_q;
     always @(posedge I_clk) begin
-        cell_x <= subtitle_badge_text ? I_x[4:0]-5'd16 :
+        cell_x <= subtitle_badge_text ? I_x[4:0] :
                   subtitle_message_text ? subtitle_source_x[4:0] : I_x[4:0];
         background <= I_bg_rgb;
         // 所有底板取并集，从原背景只压暗一次；不对已压暗像素再处理。

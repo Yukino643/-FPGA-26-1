@@ -45,6 +45,9 @@ module fat32_file_sector_mapper #(
     localparam [3:0] ST_DATA_WAIT   = 4'd6;
     localparam [3:0] ST_WAIT_RELEASE= 4'd7;
     localparam [3:0] ST_REQUEST_PREP= 4'd8;
+    localparam [3:0] ST_DATA_SHIFT  = 4'd9;
+    localparam [3:0] ST_DATA_BASE   = 4'd10;
+    localparam [3:0] ST_DATA_OFFSET = 4'd11;
 
     reg [3:0] state;
     reg [31:0] first_cluster_r;
@@ -186,11 +189,23 @@ module fat32_file_sector_mapper #(
                                      (current_cluster > max_cluster_r)) begin
                             finish_with_error(ERR_CLUSTER);
                         end else begin
-                            sector_lba <= data_start_lba_r +
-                                          ((current_cluster - 32'd2) << spc_shift_r) +
-                                          desired_sector_in_cluster;
-                            state <= ST_DATA_REQ;
+                            // 复用地址寄存器拆开减法、移位和两次加法，避免100MHz下串联。
+                            // 中间值不发sector_req；仅最终LBA稳定后才进入请求状态。
+                            sector_lba <= current_cluster - 32'd2;
+                            state <= ST_DATA_SHIFT;
                         end
+                    end
+                    ST_DATA_SHIFT: begin
+                        sector_lba <= sector_lba << spc_shift_r;
+                        state <= ST_DATA_BASE;
+                    end
+                    ST_DATA_BASE: begin
+                        sector_lba <= data_start_lba_r + sector_lba;
+                        state <= ST_DATA_OFFSET;
+                    end
+                    ST_DATA_OFFSET: begin
+                        sector_lba <= sector_lba + desired_sector_in_cluster;
+                        state <= ST_DATA_REQ;
                     end
                     ST_FAT_REQ: if (!sector_busy) begin
                         sector_req <= 1'b1;

@@ -170,7 +170,7 @@ module tb_prefetch720;
         // 自动计时在冷预取时继续，到期只记请求；关闭后不遗留自动切图。
         start_load;
         @(negedge sd_card_clk);autopulse=1;@(negedge sd_card_clk);autopulse=0;
-        repeat(1010) @(negedge sd_card_clk);
+        repeat(2010) @(negedge sd_card_clk);
         if(!loader.auto_request_pending || commits!=prior)$fatal(1,"FAIL cold auto deadline");
         @(negedge sd_card_clk);autopulse=1;@(negedge sd_card_clk);autopulse=0;
         if(loader.auto_request_pending || loader.auto_play_en)$fatal(1,"FAIL disable auto pending");
@@ -180,7 +180,7 @@ module tb_prefetch720;
         @(negedge sd_card_clk);autopulse=0;
         repeat(10) @(negedge sd_card_clk);if(commits!=prior)$fatal(1,"FAIL auto disable race");
         autopulse=1;@(negedge sd_card_clk);autopulse=0;
-        repeat(1010) @(negedge sd_card_clk);finish_transition;
+        repeat(2010) @(negedge sd_card_clk);finish_transition;
         // SD失效撤销缓存和请求；完成toggle历史不变，不能伪造新提交。
         start_load;complete(2); // 转场刚结束计时未到，保有缓存。
         extra_hold=1;prior=commits;
@@ -194,7 +194,7 @@ module tb_prefetch720;
         rst_sd=1;rst_video=1;repeat(5) @(negedge video_clk);rst_sd=0;rst_video=0;
         loader.scan_kicked=1;loader.img_found_count=7;loader.first_image_committed=1;
         loader.display_valid=1;loader.img_idx=0;loader.failed_mask=8'h7e;
-        loader.auto_play_en=1;loader.auto_cnt=999;
+        loader.auto_play_en=1;loader.auto_cnt=1999;
         start_load;
         if(loader.load_idx!=0 || !loader.auto_request_pending)$fatal(1,"FAIL unique-good auto recovery");
         complete(2);finish_transition;

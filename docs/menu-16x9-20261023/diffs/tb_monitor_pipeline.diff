@@ -1,0 +1,88 @@
+--- before/sim/tb_monitor_pipeline.v
++++ after/sim/tb_monitor_pipeline.v
+@@ -22,7 +22,8 @@
+     reg [2:0] de_ref=0, hs_ref=0, vs_ref=0;
+     reg [10:0] x_ref0=0, x_ref1=0, x_ref2=0;
+     reg [9:0] y_ref0=0, y_ref1=0, y_ref2=0;
+-    integer logical_x, logical_y, pixels=0, border_pixels=0, blank_pixels=0;
++    integer logical_x, logical_y, pixels=0, border_pixels=0, edge_pixels=0;
++    reg [23:0] first_in_pair, previous_row[0:1279];
+     integer column,row,idx,x0,y0,w,thickness,left_count=0,right_count=0,top_count=0,bottom_count=0;
+     reg [23:0] expected_border;
+     always @(posedge video_clk) begin
+@@ -36,40 +37,42 @@
+                 $fatal(1,"HDMI-A sync latency");
+             if(mon_de_d3) begin
+                 pixels=pixels+1;
+-                if(x_ref2<160 || x_ref2>=1120) begin
+-                    if(mon_rgb!==0) $fatal(1,"letterbox RGB alignment");
+-                    blank_pixels=blank_pixels+1;
+-                end else begin
+-                    logical_x=((x_ref2-160)*2)/3; logical_y=(y_ref2*2)/3;
+-                    // 独立网格参考：核对六卡四面内缘与第一列填充，
+-                    // 同时确认1.5倍映射后焦点为6px、常规为3px。
++                if(mon_rgb===24'd0 || ^mon_rgb===1'bx) $fatal(1,"full-width active pixel black/unknown");
++                if(x_ref2==0 || x_ref2==1279) edge_pixels=edge_pixels+1;
++                if(!x_ref2[0]) first_in_pair=mon_rgb;
++                else if(mon_rgb!==first_in_pair) $fatal(1,"horizontal 2x pair mismatch");
++                if(!y_ref2[0]) previous_row[x_ref2]=mon_rgb;
++                else if(mon_rgb!==previous_row[x_ref2]) $fatal(1,"vertical 2x pair mismatch");
++                begin
++                    logical_x=x_ref2/2; logical_y=y_ref2/2;
++                    // 独立640x360网格参考，全有效区像素2x2重复，边框4/8物理像素。
+                     column=(logical_x<220) ? 0 : (logical_x<424) ? 1 : 2;
+-                    row=(logical_y<272) ? 0 : 1;
++                    row=(logical_y<196) ? 0 : 1;
+                     idx=row*3+column;
+                     x0=(column==0) ? 24 : (column==1) ? 228 : 432;
+-                    y0=(row==0) ? 96 : 288;
++                    y0=(row==0) ? 64 : 204;
+                     w=184; thickness=(idx==0) ? 4 : 2;
+                     expected_border=(idx==0) ? 24'h38BDF8 : 24'h3A6478;
+-                    if(logical_x>=x0 && logical_x<x0+w && logical_y>=y0 && logical_y<y0+160) begin
++                    if(logical_x>=x0 && logical_x<x0+w && logical_y>=y0 && logical_y<y0+124) begin
+                         if(logical_x<x0+thickness || logical_x>=x0+w-thickness ||
+-                           logical_y<y0+thickness || logical_y>=y0+160-thickness) begin
++                           logical_y<y0+thickness || logical_y>=y0+124-thickness) begin
+                             if(mon_rgb!==expected_border)
+                                 $fatal(1,"border width/phase idx=%0d xy=%0d,%0d rgb=%h",idx,x_ref2,y_ref2,mon_rgb);
+                             border_pixels=border_pixels+1;
+                         end
+                         // 卡片中线没有文字，恰好验证边框后立即恢复填充。
+-                        if(logical_y==y0+80 && logical_x>=x0+thickness && logical_x<x0+w-thickness &&
++                        if(logical_y==y0+52 && logical_x>=x0+thickness && logical_x<x0+w-thickness &&
+                            mon_rgb!==((idx==0) ? 24'h1B4658 : 24'h142F40))
+                             $fatal(1,"border overdraw idx=%0d",idx);
+                     end
+-                    if(y_ref2==264 && x_ref2>=196 && x_ref2<472) begin
++                    if(y_ref2==232 && x_ref2>=48 && x_ref2<416) begin
+                         if(mon_rgb==24'h38BDF8) begin
+-                            if(x_ref2<334) left_count=left_count+1; else right_count=right_count+1;
++                            if(x_ref2<232) left_count=left_count+1; else right_count=right_count+1;
+                         end
+                     end
+-                    if(x_ref2==334 && y_ref2>=144 && y_ref2<384) begin
++                    if(x_ref2==232 && y_ref2>=128 && y_ref2<376) begin
+                         if(mon_rgb==24'h38BDF8) begin
+-                            if(y_ref2<264) top_count=top_count+1; else bottom_count=bottom_count+1;
++                            if(y_ref2<252) top_count=top_count+1; else bottom_count=bottom_count+1;
+                         end
+                     end
+                 end
+@@ -78,11 +81,12 @@
+     end
+     initial begin
+         repeat(5) @(negedge video_clk); rst_video=0;
+-        repeat(1650*750+8) @(negedge video_clk);
+-        if(pixels<921600 || border_pixels==0 || blank_pixels<230400) $fatal(1,"monitor coverage");
+-        if(left_count!=6 || right_count!=6 || top_count!=6 || bottom_count!=6)
++        repeat(1650*750+3) @(negedge video_clk);
++        if(pixels!=921600 || border_pixels==0 || edge_pixels!=1440)
++            $fatal(1,"monitor coverage pixels=%0d borders=%0d edge_pixels=%0d",pixels,border_pixels,edge_pixels);
++        if(left_count!=8 || right_count!=8 || top_count!=8 || bottom_count!=8)
+             $fatal(1,"physical selected sides L/R/T/B=%0d/%0d/%0d/%0d",left_count,right_count,top_count,bottom_count);
+-        $display("TB_MONITOR_PIPELINE PASS pixels=%0d borders=%0d selected_edges=6px regular_edges=3px latency=3",pixels,border_pixels); $finish;
++        $display("TB_MONITOR_PIPELINE PASS pixels=%0d borders=%0d selected_edges=8px regular_edges=4px full_width_2x2 latency=3",pixels,border_pixels); $finish;
+     end
+     initial begin #13000000; $fatal(1,"monitor pipeline timeout"); end
+ endmodule

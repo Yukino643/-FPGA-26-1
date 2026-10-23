@@ -1,5 +1,5 @@
 // HDMI-A menu renderer.
-// The logical canvas is 640x480. Card titles use the generated native32 CJK font;
+// The logical canvas is 640x360. Card titles use the generated native32 CJK font;
 // Values remain ASCII; menu pages deliberately omit footer instructions.
 module monitor_menu_renderer(
     input  wire       clk,
@@ -38,8 +38,7 @@ module monitor_menu_renderer(
     localparam [23:0] SURF=24'h142F40, SEL=24'h1B4658, FRAME=24'h3A6478;
     localparam [23:0] FG=24'hE9F4FA, VALUE=24'hC9DBE5, MUTED=24'h8FA9B8;
     localparam [23:0] FOCUS=24'h38BDF8, ON=24'h5BE39B, OFF=24'hFF7B72;
-    localparam [23:0] AMBER=24'hFFB84D, DIS=24'h6E8593, CHIP=24'h16394A;
-    localparam [23:0] WAIT_FG=24'h16232B;
+    localparam [23:0] AMBER=24'hFFB84D, DIS=24'h6E8593;
     localparam [2:0] PAGE_PROGRAM=0, PAGE_PERIPHERAL=1, PAGE_SCREEN=2, PAGE_SUBTITLE=3, PAGE_AUDIO=4;
     localparam [2:0] VALUE_NORMAL=0, VALUE_ON=1, VALUE_OFF=2, VALUE_WAIT=3, VALUE_ERROR=4;
     localparam [2:0] KIND_HEADER=0, KIND_CJK=1, KIND_VALUE=2, KIND_FOOTER=3,
@@ -159,10 +158,10 @@ module monitor_menu_renderer(
     function [79:0] volume_label;
         input [3:0] level;
         begin
-            if(level==10) volume_label="100%      ";
-            else if(level<10) volume_label={hex(level),"0%       "};
-            else volume_label="ERR       ";
-            if(level==0) volume_label="0%        ";
+            if(level==10) volume_label="      100%";
+            else if(level<10) volume_label={"       ",hex(level),"0%"};
+            else volume_label="       ERR";
+            if(level==0) volume_label="        0%";
         end
     endfunction
 
@@ -171,95 +170,75 @@ module monitor_menu_renderer(
         input [2:0] idx;
         input editing_this;
         begin
-            card_value_label="ERR       ";
+            card_value_label="       ERR";
             case(p)
                 PAGE_PROGRAM: case(idx)
-                    0,2:card_value_label=cfg_shadow[idx] ? "ON        " : "OFF       ";
-                    1:card_value_label=audio_shadow[4] ? "MUTE      " : volume_label(audio_shadow[3:0]);
-                    3:card_value_label=subtitle_shadow[0] ? "ON        " : "OFF       ";
+                    0,2:card_value_label=cfg_shadow[idx] ? "        ON" : "       OFF";
+                    1:card_value_label=audio_shadow[4] ? "      MUTE" : volume_label(audio_shadow[3:0]);
+                    3:card_value_label=subtitle_shadow[0] ? "        ON" : "       OFF";
                     4:case(period_shadow)
-                        0:card_value_label="1S        "; 1:card_value_label="2S        ";
-                        2:card_value_label="5S        "; 3:card_value_label="10S       ";
+                        0:card_value_label="        2S"; 1:card_value_label="        3S";
+                        2:card_value_label="        5S"; 3:card_value_label="       10S";
                     endcase
-                    5:card_value_label="HDMI-B    ";
+                    5:card_value_label="    HDMI-B";
                 endcase
                 PAGE_AUDIO: case(idx)
                     0:card_value_label=volume_label(audio_shadow[3:0]);
-                    1:card_value_label=audio_shadow[4] ? "ON        " : "OFF       ";
-                    2:card_value_label=cfg_shadow[1] ? "ON        " : "OFF       ";
-                    3:card_value_label=editing_this ? "CONFIRM   " : "RESET     ";
+                    1:card_value_label=audio_shadow[4] ? "        ON" : "       OFF";
+                    2:card_value_label=cfg_shadow[1] ? "        ON" : "       OFF";
+                    3:card_value_label=editing_this ? "   CONFIRM" : "     RESET";
                 endcase
                 PAGE_SUBTITLE: case(idx)
-                    0:card_value_label=subtitle_shadow[0] ? "ON        " : "OFF       ";
+                    0:card_value_label=subtitle_shadow[0] ? "        ON" : "       OFF";
                     1:case(subtitle_shadow[2:1])
-                        0:card_value_label="1/3       "; 1:card_value_label="2/3       ";
-                        2:card_value_label="3/3       "; default:card_value_label="ERR       ";
+                        0:card_value_label="       1/3"; 1:card_value_label="       2/3";
+                        2:card_value_label="       3/3"; default:card_value_label="       ERR";
                     endcase
                     2:case(subtitle_shadow[4:3])
-                        0:card_value_label="SLOW      "; 1:card_value_label="NORM      ";
-                        2:card_value_label="FAST      "; default:card_value_label="ERR       ";
+                        0:card_value_label="      SLOW"; 1:card_value_label="      NORM";
+                        2:card_value_label="      FAST"; default:card_value_label="       ERR";
                     endcase
-                    3:card_value_label=cfg_shadow[3] ? "ON        " : "OFF       ";
+                    3:card_value_label=cfg_shadow[3] ? "        ON" : "       OFF";
                 endcase
                 PAGE_SCREEN: case(idx)
                     0:case(screen_shadow[3:0])
-                        0:card_value_label="-64       "; 1:card_value_label="-48       ";
-                        2:card_value_label="-32       "; 3:card_value_label="-16       ";
-                        4:card_value_label="0         "; 5:card_value_label="+16       ";
-                        6:card_value_label="+32       "; 7:card_value_label="+48       ";
-                        8:card_value_label="+64       "; default:card_value_label="ERR       ";
+                        0:card_value_label="       -64"; 1:card_value_label="       -48";
+                        2:card_value_label="       -32"; 3:card_value_label="       -16";
+                        4:card_value_label="         0"; 5:card_value_label="       +16";
+                        6:card_value_label="       +32"; 7:card_value_label="       +48";
+                        8:card_value_label="       +64"; default:card_value_label="       ERR";
                     endcase
                     1:case(screen_shadow[7:4])
-                        0:card_value_label="50%       "; 1:card_value_label="63%       ";
-                        2:card_value_label="75%       "; 3:card_value_label="88%       ";
-                        4:card_value_label="100%      "; 5:card_value_label="113%      ";
-                        6:card_value_label="125%      "; 7:card_value_label="138%      ";
-                        8:card_value_label="150%      "; default:card_value_label="ERR       ";
+                        0:card_value_label="       50%"; 1:card_value_label="       63%";
+                        2:card_value_label="       75%"; 3:card_value_label="       88%";
+                        4:card_value_label="      100%"; 5:card_value_label="      113%";
+                        6:card_value_label="      125%"; 7:card_value_label="      138%";
+                        8:card_value_label="      150%"; default:card_value_label="       ERR";
                     endcase
                     2:case(screen_shadow[9:8])
-                        0:card_value_label="COOL      "; 1:card_value_label="NORM      ";
-                        2:card_value_label="WARM      "; default:card_value_label="ERR       ";
+                        0:card_value_label="      COOL"; 1:card_value_label="      NORM";
+                        2:card_value_label="      WARM"; default:card_value_label="       ERR";
                     endcase
-                    3:card_value_label=editing_this ? "CONFIRM   " : "RESET     ";
+                    3:card_value_label=editing_this ? "   CONFIRM" : "     RESET";
                 endcase
                 PAGE_PERIPHERAL: case(idx)
-                    0:card_value_label=sd_init_done ? "READY     " : "WAIT      ";
-                    1:card_value_label=buzzer_test ? "TEST      " : "IDLE      ";
+                    0:card_value_label=sd_init_done ? "     READY" : "      WAIT";
+                    1:card_value_label=buzzer_test ? "      TEST" : "      IDLE";
                     // 仅调整展示层；沿用既有事件计数高字节口径。
-                    2:card_value_label={"CNT",hex(key_events[15:12]),hex(key_events[11:8]),40'h2020202020};
-                    3:card_value_label={"LED",hex(led_state),48'h202020202020};
+                    2:card_value_label={40'h2020202020,"CNT",hex(key_events[15:12]),hex(key_events[11:8])};
+                    3:card_value_label={48'h202020202020,"LED",hex(led_state)};
                 endcase
             endcase
-        end
-    endfunction
-
-    function [79:0] pending_label;
-        input [79:0] label;
-        input pending;
-        integer col;
-        reg [3:0] length;
-        reg [3:0] star_col;
-        reg [3:0] reverse_col;
-        begin
-            length=0;
-            for(col=0;col<10;col=col+1)
-                if(label[(9-col)*8 +: 8]!=8'h20) length=col+1;
-            pending_label=label;
-            star_col=length+4'd1;
-            reverse_col=4'd9-star_col;
-            // 保留一格空白后标记，不允许长度加法溢出窗口。
-            if(pending && length<8)
-                pending_label[{reverse_col,3'b000} +: 8]="*";
         end
     endfunction
 
     reg [8:0] volume_bar_end;
     always @(posedge clk) begin
         case(audio_shadow[3:0])
-            0:volume_bar_end<=16; 1:volume_bar_end<=36; 2:volume_bar_end<=56;
-            3:volume_bar_end<=76; 4:volume_bar_end<=96; 5:volume_bar_end<=116;
-            6:volume_bar_end<=136; 7:volume_bar_end<=156; 8:volume_bar_end<=176;
-            9:volume_bar_end<=196; 10:volume_bar_end<=216;
+            0:volume_bar_end<=16; 1:volume_bar_end<=40; 2:volume_bar_end<=64;
+            3:volume_bar_end<=88; 4:volume_bar_end<=112; 5:volume_bar_end<=136;
+            6:volume_bar_end<=160; 7:volume_bar_end<=184; 8:volume_bar_end<=208;
+            9:volume_bar_end<=232; 10:volume_bar_end<=256;
             default:volume_bar_end<=16;
         endcase
     end
@@ -277,10 +256,8 @@ module monitor_menu_renderer(
             state_pending[state_index]<=card_pending(state_page,state_index);
             state_action[state_index]<=(state_page!=PAGE_PERIPHERAL || state_index==1);
             value_kind[state_index]<=card_value_kind(state_page,state_index);
-            value_text[state_index]<=pending_label(
-                card_value_label(state_page,state_index,menu_active && cursor==state_index &&
-                    ((audio_page && audio_edit) || (subtitle_page && subtitle_edit) || (screen_page && screen_edit))),
-                card_pending(state_page,state_index));
+            value_text[state_index]<=card_value_label(state_page,state_index,menu_active && cursor==state_index &&
+                    ((audio_page && audio_edit) || (subtitle_page && subtitle_edit) || (screen_page && screen_edit)));
         end
         // 页眉只反映当前聚焦卡或二级编辑态，避免全局dirty泄漏到其他卡。
         // 与各卡pending同拍计算，不能用上一拍state_pending配当前cursor。
@@ -347,26 +324,30 @@ module monitor_menu_renderer(
 
     // 节目页严格两行三列；外设和 HDMI-B 设置页两行两列。
     wire wide_cards = page || screen_page || subtitle_page || audio_page;
-    wire program_top = y < 9'd272;
+    wire program_top = y < 9'd196;
     wire [1:0] program_col = (x < 10'd220) ? 2'd0 : ((x < 10'd424) ? 2'd1 : 2'd2);
     wire [2:0] card_idx = wide_cards ?
-        ((x < 10'd320) ? ((y < 9'd272) ? 3'd0 : 3'd2) : ((y < 9'd272) ? 3'd1 : 3'd3)) :
+        ((x < 10'd320) ? ((y < 9'd196) ? 3'd0 : 3'd2) : ((y < 9'd196) ? 3'd1 : 3'd3)) :
         ({1'b0,program_col} + (program_top ? 3'd0 : 3'd3));
     wire [9:0] card_x0 = wide_cards ? ((x < 10'd320) ? 10'd32 : 10'd336) :
                         ((program_col == 0) ? 10'd24 : ((program_col == 1) ? 10'd228 : 10'd432));
-    wire [8:0] card_y0 = program_top ? 9'd96 : 9'd288;
+    wire [8:0] card_y0 = program_top ? 9'd64 : 9'd204;
     wire [9:0] card_w = wide_cards ? 10'd272 : 10'd184;
     wire [9:0] local_x = x - card_x0;
     wire [8:0] local_y = y - card_y0;
     // 每卡先按绝对字格独立选8位字符，再选择行/列；避免80位文本
     // 先经卡片译码，再串入动态位选。低位偏移仅用必要位宽。
-    wire [4:0] left_grid = x[7:3]-5'd1;
-    wire [5:0] mid_grid = x[7:2]-6'd1;
-    wire [3:0] left_rev = 4'd11-left_grid[4:1];
-    wire [3:0] mid_rev = 4'd8-mid_grid[5:2];
-    wire [3:0] right_rev = 4'd5-x[7:4];
-    wire [3:0] wide_left_rev = 4'd12-x[7:4];
-    wire [3:0] wide_right_rev = 4'd15-x[7:4];
+    // 每卡独立窄列索引，再选8位字符；不先MUX整行80位文本。
+    wire [3:0] left_pos = (x-10'd32) >> 4;
+    wire [3:0] mid_pos = (x-10'd236) >> 4;
+    wire [3:0] right_pos = (x-10'd440) >> 4;
+    wire [3:0] wide_left_pos_value = (x-10'd128) >> 4;
+    wire [3:0] wide_right_pos_value = (x-10'd432) >> 4;
+    wire [3:0] left_rev = 4'd9-left_pos;
+    wire [3:0] mid_rev = 4'd9-mid_pos;
+    wire [3:0] right_rev = 4'd9-right_pos;
+    wire [3:0] wide_left_rev = 4'd9-wide_left_pos_value;
+    wire [3:0] wide_right_rev = 4'd9-wide_right_pos_value;
     wire [7:0] p0=value_text[0][{left_rev,3'b000} +: 8];
     wire [7:0] p1=value_text[1][{mid_rev,3'b000} +: 8];
     wire [7:0] p2=value_text[2][{right_rev,3'b000} +: 8];
@@ -388,45 +369,40 @@ module monitor_menu_renderer(
     wire [2:0] pixel_value_kind=value_kind[card_idx];
     wire card_area = wide_cards ? ((((x >= 10'd32) && (x < 10'd304)) ||
                               ((x >= 10'd336) && (x < 10'd608))) &&
-                             (((y >= 9'd96) && (y < 9'd256)) ||
-                              ((y >= 9'd288) && (y < 9'd448)))) :
+                             (((y >= 9'd64) && (y < 9'd188)) ||
+                              ((y >= 9'd204) && (y < 9'd328)))) :
                       ((((x >= 10'd24) && (x < 10'd208)) ||
                                       ((x >= 10'd228) && (x < 10'd412)) ||
                                       ((x >= 10'd432) && (x < 10'd616))) &&
-                                     (((y >= 9'd96) && (y < 9'd256)) ||
-                                      ((y >= 9'd288) && (y < 9'd448))));
+                                     (((y >= 9'd64) && (y < 9'd188)) ||
+                                      ((y >= 9'd204) && (y < 9'd328))));
 
-    wire header_hit = (x >= 10'd32) && (x < 10'd288) &&
-                      (y >= 9'd16) && (y < 9'd48);
+    wire header_hit = (x >= 10'd24) && (x < 10'd264) &&
+                      (y >= 9'd8) && (y < 9'd40);
     // Native 32x32 glyphs retain the previous title footprint and pixel latency.
     wire cjk_three_chars = page && !subtitle_page && !audio_page && ((card_idx == 3'd1) || (card_idx == 3'd3));
     wire [9:0] title_end = audio_page ? ((card_idx==3) ? 10'd144 : 10'd80) : screen_page ? ((card_idx == 3) ? 10'd144 : ((card_idx == 1) ? 10'd112 : 10'd80)) :
                           (cjk_three_chars ? 10'd112 : 10'd80);
     wire cjk_title_hit = card_area && (local_x >= 10'd16) &&
                          (local_x < title_end) &&
-                         (local_y >= 9'd16) && (local_y < 9'd48);
-    wire card_value_hit = card_area && (local_x >= 10'd16) &&
-                          (local_x < 10'd176) && (local_y >= 9'd104) &&
-                          (local_y < 9'd136);
+                         (local_y >= 9'd12) && (local_y < 9'd44);
+    wire [9:0] value_x0 = wide_cards ? 10'd96 : 10'd8;
+    wire card_value_hit = card_area && local_x>=value_x0 &&
+                          local_x<(wide_cards ? 10'd256 : 10'd168) &&
+                          local_y>=9'd78 && local_y<9'd110;
     wire arrow_hit=card_area && selected && actionable &&
-                   (local_x >= (wide_cards ? 10'd236 : 10'd148)) &&
-                   (local_x < (wide_cards ? 10'd252 : 10'd164)) &&
-                   (local_y >= 9'd16) && (local_y < 9'd48);
-    wire footer_hit = !menu_active && (x >= 10'd32) && (x < 10'd288) &&
-                      (y >= 9'd456) && (y < 9'd472);
-    wire [4:0] footer_pos = (x - 10'd32) >> 3;
-    wire status_area = menu_active && x>=10'd496 && x<10'd608 && y>=9'd16 && y<9'd48;
-    wire status_hit = status_area && x>=10'd512 && x<10'd592;
-    wire [3:0] header_pos = x[7:4] - 4'd2;
-    wire [2:0] status_pos = x[6:4];
-    wire [3:0] value_pos = local_x[7:4] - 4'd1;
-    wire [3:0] header_rev = 4'd15 - header_pos;
-    wire [2:0] status_rev = 3'd4 - status_pos;
-    wire [3:0] value_rev = 4'd9 - value_pos;
-    // 二级页用绝对字格边界；避免local_x减法串入常见状态字路径。
-    wire [3:0] detail_pos = x[7:4] - ((x<10'd320) ? 4'd3 : 4'd6);
-    wire [3:0] detail_rev = 4'd9 - detail_pos;
-    wire [4:0] footer_rev = 5'd31 - footer_pos;
+                   local_x>=(wide_cards ? 10'd236 : 10'd148) &&
+                   local_x<(wide_cards ? 10'd252 : 10'd164) &&
+                   local_y>=9'd12 && local_y<9'd44;
+    wire footer_hit = !menu_active && x>=10'd24 && x<10'd280 &&
+                      y>=9'd336 && y<9'd352;
+    wire [4:0] footer_pos = (x-10'd24) >> 3;
+    wire status_hit = menu_active && x>=10'd536 && x<10'd616 && y>=9'd8 && y<9'd40;
+    wire [3:0] header_pos = (x-10'd24) >> 4;
+    wire [2:0] status_pos = (x-10'd536) >> 4;
+    wire [3:0] header_rev = 4'd15-header_pos;
+    wire [2:0] status_rev = 3'd4-status_pos;
+    wire [4:0] footer_rev = 5'd31-footer_pos;
 
     // 中文地址只由绝对字格边界决定，不串接 card_x0/local_x 的减法。
     // 字库持续读取；真正的绘制仍由同拍 cjk_d/glyph_hit_d 限定。
@@ -447,8 +423,8 @@ module monitor_menu_renderer(
     // 中文优先级/焦点判断串入ASCII BRAM地址，像素延迟保持不变。
     always @* begin
         req_char = pixel_value_char;
-        if(y<9'd64) begin
-            if(x<10'd496)
+        if(y<9'd48) begin
+            if(x<10'd536)
                 req_char = !menu_active ? STR_PLAY[{header_rev,3'b000} +: 8] :
                            audio_page ? STR_AUDIO[{header_rev,3'b000} +: 8] :
                            subtitle_page ? STR_SUBTITLE[{header_rev,3'b000} +: 8] :
@@ -456,9 +432,9 @@ module monitor_menu_renderer(
                            page ? STR_PERI[{header_rev,3'b000} +: 8] :
                                   STR_PROG[{header_rev,3'b000} +: 8];
             else req_char = header_status_text[{status_rev,3'b000} +: 8];
-        end else if((y>=9'd112 && y<9'd144) || (y>=9'd304 && y<9'd336))
+        end else if((y>=9'd76 && y<9'd108) || (y>=9'd216 && y<9'd248))
             req_char = ">";
-        else if(!menu_active && y>=9'd456)
+        else if(!menu_active && y>=9'd336)
             req_char = STR_PLAY_KEYS[{footer_rev,3'b000} +: 8];
     end
     reg [3:0] req_row;
@@ -470,21 +446,22 @@ module monitor_menu_renderer(
     always @* begin
         // ASCII字模行只依赖绝对y行带，不能经x/卡片命中再选行地址。
         // 非文字区读出的无关行由glyph_hit_d屏蔽，不改变可见像素。
-        if(y<9'd64 || (y>=9'd112 && y<9'd144) || (y>=9'd304 && y<9'd336))
-            req_row=y[4:1]-4'd8;
-        else if(!menu_active && y>=9'd456) req_row=y[3:0]-4'd8;
-        else req_row=y[4:1]-4'd4;
+        if(y<9'd48) req_row=(y-9'd8) >> 1;
+        else if((y>=9'd76 && y<9'd108) || (y>=9'd216 && y<9'd248))
+            req_row=(y-(program_top ? 9'd76 : 9'd216)) >> 1;
+        else if(!menu_active && y>=9'd336) req_row=y-9'd336;
+        else req_row=(y-(program_top ? 9'd142 : 9'd282)) >> 1;
         req_col  = 3'd0;
         req_kind = KIND_HEADER;
         req_cjk = 1'b0;
         req_cjk_idx = cjk_pixel_glyph;
-        req_cjk_row = local_y[4:0] - 5'd16;
+        req_cjk_row = local_y[4:0] - 5'd12;
         if (header_hit) begin
             req_kind = KIND_HEADER;
-            req_col  = (x - 10'd32) >> 1;
+            req_col  = (x - 10'd24) >> 1;
         end else if (status_hit) begin
             req_kind = KIND_STATUS;
-            req_col = x[3:1];
+            req_col = (x-10'd536) >> 1;
         end else if (cjk_title_hit) begin
             req_kind = KIND_CJK;
             req_cjk = 1'b1;
@@ -493,10 +470,10 @@ module monitor_menu_renderer(
             req_col = local_x[3:1] - (wide_cards ? 3'd6 : 3'd2);
         end else if (card_value_hit) begin
             req_kind = KIND_VALUE;
-            req_col  = (local_x - 10'd16) >> 1;
+            req_col  = (local_x-value_x0) >> 1;
         end else if (footer_hit) begin
             req_kind = KIND_FOOTER;
-            req_col  = x - 10'd32;
+            req_col  = x - 10'd24;
         end
     end
 
@@ -521,7 +498,7 @@ module monitor_menu_renderer(
     reg [9:0] x_d;
     reg [8:0] y_d;
     reg volume_bar_d, volume_bar_on_d, audio_muted_d;
-    reg de_d, card_area_d, selected_d, editing_d, pending_d, wide_d, status_area_d;
+    reg de_d, card_area_d, selected_d, editing_d, pending_d, wide_d;
     reg [2:0] kind_d, value_kind_d;
     reg [1:0] status_d;
     reg [2:0] glyph_col_d;
@@ -529,18 +506,14 @@ module monitor_menu_renderer(
     reg [4:0] cjk_col_d;
     always @(posedge clk) begin
         volume_bar_d<=audio_page && card_idx==0 && card_area &&
-                      local_x>=16 && local_x<216 && local_y>=72 && local_y<84 &&
-                      !((local_x>=32 && local_x<36) || (local_x>=52 && local_x<56) ||
-                        (local_x>=72 && local_x<76) || (local_x>=92 && local_x<96) ||
-                        (local_x>=112 && local_x<116) || (local_x>=132 && local_x<136) ||
-                        (local_x>=152 && local_x<156) || (local_x>=172 && local_x<176) ||
-                        (local_x>=192 && local_x<196) || local_x>=212);
+                      local_x>=16 && local_x<252 && local_y>=56 && local_y<66 &&
+                      !((local_x>=36 && local_x<40) || (local_x>=60 && local_x<64) || (local_x>=84 && local_x<88) || (local_x>=108 && local_x<112) || (local_x>=132 && local_x<136) || (local_x>=156 && local_x<160) || (local_x>=180 && local_x<184) || (local_x>=204 && local_x<208) || (local_x>=228 && local_x<232));
         volume_bar_on_d<=local_x<volume_bar_end;
         audio_muted_d<=audio_shadow[4];
         x_d<=x; y_d<=y; de_d<=de;
         card_area_d<=card_area;
         selected_d<=selected; editing_d<=editing; pending_d<=pending;
-        wide_d<=wide_cards; status_area_d<=status_area;
+        wide_d<=wide_cards;
         kind_d<=req_kind; value_kind_d<=pixel_value_kind; status_d<=header_status;
         glyph_col_d<=req_col;
         glyph_hit_d<=header_hit || status_hit || cjk_title_hit || arrow_hit || card_value_hit || footer_hit;
@@ -548,16 +521,16 @@ module monitor_menu_renderer(
         local_x_d<=local_x; local_y_d<=local_y;
     end
 
-    // 两种宽度、两种偶数线宽均用常量比较，1.5倍映射后恰为3/6像素。
+    // 内缘2/4逻辑像素经2x映射后恒为4/8物理像素。
     wire thin_border=(local_x_d<10'd2) ||
                      (local_x_d >= (wide_d ? 10'd270 : 10'd182)) ||
-                     (local_y_d<9'd2) || (local_y_d>=9'd158);
+                     (local_y_d<9'd2) || (local_y_d>=9'd122);
     wire thick_border=(local_x_d<10'd4) ||
                       (local_x_d >= (wide_d ? 10'd268 : 10'd180)) ||
-                      (local_y_d<9'd4) || (local_y_d>=9'd156);
+                      (local_y_d<9'd4) || (local_y_d>=9'd120);
     wire card_border=card_area_d && (selected_d ? thick_border : thin_border);
-    wire header_area=y_d<9'd64;
-    wire header_rule=y_d>=9'd62 && y_d<9'd64;
+    wire header_area=y_d<9'd48;
+    wire header_rule=y_d>=9'd46 && y_d<9'd48;
     wire glyph_on=glyph_hit_d && (cjk_d ? cjk_glyph_bits[31-cjk_col_d] : glyph_bits[7-glyph_col_d]);
     wire [23:0] card_fill=selected_d ? SEL : SURF;
     wire [23:0] value_fg=(value_kind_d==VALUE_ERROR) ? OFF :
@@ -565,15 +538,15 @@ module monitor_menu_renderer(
                          (value_kind_d==VALUE_ON) ? ON :
                          (value_kind_d==VALUE_OFF) ? OFF :
                          (value_kind_d==VALUE_WAIT) ? AMBER : VALUE;
-    wire [23:0] status_fg=(status_d==2) ? WAIT_FG : (status_d==1) ? AMBER : MUTED;
+    wire [23:0] status_fg=(status_d!=0) ? AMBER : MUTED;
     wire [23:0] text_fg=(kind_d==KIND_VALUE) ? value_fg :
                         (kind_d==KIND_STATUS) ? status_fg :
                         (kind_d==KIND_ARROW) ? (editing_d ? AMBER : FOCUS) :
                         (kind_d==KIND_HEADER || kind_d==KIND_FOOTER) ? MUTED : FG;
-    wire [23:0] base=status_area_d ? ((status_d==2) ? AMBER : CHIP) :
-                     header_area ? HEADER : card_area_d ? card_fill : BG;
+    wire [23:0] base=header_area ? HEADER : card_area_d ? card_fill : BG;
     wire [23:0] border=selected_d ? (editing_d ? AMBER : FOCUS) : (pending_d ? AMBER : FRAME);
-    assign rgb=!de_d ? 24'd0 : header_rule ? RULE :
+    wire [23:0] header_rule_color=(status_d==2 && menu_active && x_d>=536 && x_d<616) ? AMBER : RULE;
+    assign rgb=!de_d ? 24'd0 : header_rule ? header_rule_color :
                card_border ? border : glyph_on ? text_fg :
                volume_bar_d ? (volume_bar_on_d ? (audio_muted_d ? MUTED : ON) : FRAME) : base;
 endmodule

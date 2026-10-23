@@ -1,5 +1,23 @@
 # 正式烧录版本索引
 
+## 最新待板验版本：20261024-menu-16x9
+
+- [全幅菜单 av_media.bit](20261024-menu-16x9/av_media.bit)，SHA256 `afe5562c7740a7d93a4e1c3884770b9572332b8cb2a349fc5e2ea125922b138c`。
+- HDMI-A 640×360整数2×全幅1280×720；六项菜单/主屏/字幕改造，按键和页序保持。
+- 88/88完整当前回归、独立TD综合/P&R/bitgen、字幕/菜单/字体及缩放器定向时序通过。
+- LUT14837、REG9728、BRAM9K57、BRAM32K4、DSP15、PLL3；video setup/hold +0.290/+0.020ns。
+- [物理验收报告](../docs/menu-16x9-20261023/PHYSICAL_RELEASE_20261024.md)、[发布清单](20261024-menu-16x9/SHA256SUMS.txt)、[实际门限](20261024-menu-16x9/verification.json)。
+- 本轮未烧录，RTL图不代表7寸屏板拍。旧加密SDRAM跨域setup −6.565ns仍单列，不代表全工程闭合。
+
+## 最新版本、周期已获用户板验确认：20261023-autoplay-period
+
+- [轮播周期修复烧录文件](20261023-autoplay-period/av_media.bit)
+- SHA256：`4fd5943df07d5ae416b46548f15a97df359969fd5a8691016509095048a4725d`
+- [四档测时、操作与物理报告](../docs/AUTOPLAY_PERIOD_20261023.md)、[发布说明](20261023-autoplay-period/README.md)、[校验清单](20261023-autoplay-period/SHA256SUMS.txt)。
+- 档位2/3/5/10秒；计时含缩放/转场/读卡，改档重新计时，慢卡饱和等待、无补切。四档逐像素菜单和每档3次真实顶层CDC后转场间隔仿真通过，播放中4次改档及冷缓存/取消/手动路径通过。
+- 89/89完整回归、当前源码完整P&R/bitgen和严格发布门通过。LUT14839，BRAM9K57，DSP15，PLL3；video/SD/ext_mem setup分别+0.680/+0.138/+0.190ns，hold均非负。旧加密SDRAM跨域全局setup −6.565ns单列。
+- 用户本轮烧录后反馈“周期都比较准确了”，登记为周期定性板验确认，见[独立记录](../docs/AUTOPLAY_PERIOD_20261023_BOARD_CHECK.md)；未提供逐次秒表误差或长稳统计。原发布归档保留生成时状态；上一版音量/多尺寸已板验版本完整保留在下方。
+
 ## 最新已板验版本：20261023-audio-volume
 
 - [音量与音频二级页烧录文件](20261023-audio-volume/av_media.bit)
