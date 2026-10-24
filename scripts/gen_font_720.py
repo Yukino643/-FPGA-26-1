@@ -5,13 +5,19 @@ from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
 WINDOWS = ('炬屏—双模HDMI多媒体系统', '广告模式', '应急模式', '运行 00:00:00')
-PRESETS = ('炬屏—双模HDMI多媒体系统', '双屏协作 一屏操作 一屏呈现', '图片 音乐 字幕 精彩同屏')
+PRESETS = ('欢迎使用炬屏—双模HDMI多媒体系统', '双屏协作 一屏操作 一屏呈现', '图片 字幕 音乐 波形 随心设置')
 BADGE = '视界'
-CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789' + ''.join(PRESETS).replace(' ', '') + BADGE))
+# 字模地址固定；正文删除标点不重排已验证的标题/时间/标签字模。
+# 三个未使用标点槽保留，ROM字节和物理bank大小不变，字幕表不再引用。
+CHARS = ' 炬屏—双模HDMI多媒体系统广告式应急运行0:123456789欢迎使用！协作，一操呈现图片、字幕音乐波形随心设置视界'
 
 def generate():
     if len(CHARS) > 64:
         raise ValueError('实际用字超过现有64格字库容量，必须先评估资源')
+    required = set(''.join(WINDOWS) + '123456789' + ''.join(PRESETS) + BADGE)
+    missing = required - set(CHARS)
+    if missing or len(set(CHARS)) != len(CHARS):
+        raise ValueError(f'固定字模地址表缺字或存在重复: {sorted(missing)}')
     font_path = Path('C:/Windows/Fonts/simhei.ttf')
     if not font_path.is_file():
         raise RuntimeError('缺少原生中文字体 C:/Windows/Fonts/simhei.ttf')

@@ -8,7 +8,7 @@ module tb_monitor_menu_ctrl;
     wire [2:0] cursor;
     wire [1:0] period_shadow, period_active;
     wire [3:0] cfg_shadow, cfg_payload;
-    wire screen_page, screen_edit, cfg_busy;
+    wire screen_page, screen_edit, cfg_busy, audio_page;
     wire [9:0] screen_shadow, screen_payload;
     wire subtitle_page, subtitle_edit;
     wire [4:0] subtitle_shadow, subtitle_payload;
@@ -26,6 +26,7 @@ module tb_monitor_menu_ctrl;
         .menu_page(menu_page), .cursor(cursor), .cfg_shadow(cfg_shadow),
         .cfg_payload(cfg_payload), .cfg_commit_toggle(cfg_toggle), .cfg_dirty(cfg_dirty),
         .period_shadow(period_shadow), .period_active(period_active),
+        .audio_page(audio_page),
         .screen_page(screen_page), .screen_edit(screen_edit),
         .screen_shadow(screen_shadow), .screen_payload(screen_payload), .cfg_commit_busy(cfg_busy),
         .subtitle_page(subtitle_page), .subtitle_edit(subtitle_edit),
@@ -48,15 +49,50 @@ module tb_monitor_menu_ctrl;
             repeat(12) @(negedge clk);
         end
     endtask
+    // 六条主卡离开路径均进入二级页：旧预览不能随导航或入口确认提交。
+    task cancel_main_preview;
+        input integer card, direction;
+        reg saved_toggle;
+        begin
+            while(cursor != card) press(3,8);
+            saved_toggle=cfg_toggle;
+            press(4,8);
+            if(!cfg_dirty || cfg_payload!==7 || period_active!==0)
+                $fatal(1,"main card %0d preview isolation",card);
+            if(card==4) begin
+                if(period_shadow!==1) $fatal(1,"period preview missing");
+            end else if(cfg_shadow!==(4'd7 ^ (4'd1 << card)))
+                $fatal(1,"main card %0d preview missing",card);
+            press(direction,8);
+            if(cursor != ((direction==2) ? ((card+5)%6) : ((card+1)%6)) ||
+               cfg_dirty || cfg_shadow!==7 || cfg_payload!==7 ||
+               period_shadow!==0 || period_active!==0 || cfg_toggle!==saved_toggle)
+                $fatal(1,"main card %0d direction %0d failed to cancel",card,direction);
+            press(4,8);
+            if(!(audio_page || screen_page || subtitle_page) || cfg_dirty ||
+               cfg_payload!==7 || cfg_toggle!==saved_toggle)
+                $fatal(1,"entry after navigation committed abandoned preview");
+            press(2,30);
+        end
+    endtask
     initial begin
         repeat(3) @(negedge clk); rst=0;
         if(!menu_active || menu_page || cfg_payload!==7) $fatal(1,"boot state");
+        for(n=0;n<=4;n=n+2) begin
+            cancel_main_preview(n,2);
+            cancel_main_preview(n,3);
+        end
+        while(cursor!=0) press(3,8);
         press(4,8);
         if(!cfg_dirty || cfg_shadow!==6 || cfg_payload!==7) $fatal(1,"preview isolation");
         press(2,8);
-        if(cursor!==5) $fatal(1,"six-card previous wrap");
+        if(cursor!==5 || cfg_dirty || cfg_shadow!==7 || cfg_toggle)
+            $fatal(1,"six-card previous wrap cancels preview");
         press(3,8);
         if(cursor!==0) $fatal(1,"next wrap");
+        press(4,8);
+        if(!cfg_dirty || cfg_shadow!==6 || cfg_payload!==7 || cfg_toggle)
+            $fatal(1,"return to card must start fresh preview");
         press(4,8);
         if(!cfg_toggle || cfg_dirty || cfg_payload!==6) $fatal(1,"commit");
         // ACK 延迟时仍可预览，但不得改写在途正文或发第二笔提交。
@@ -64,6 +100,12 @@ module tb_monitor_menu_ctrl;
         if(cfg_shadow!==7 || cfg_payload!==6 || !cfg_dirty) $fatal(1,"busy preview isolation");
         press(4,8);
         if(!cfg_toggle || cfg_payload!==6 || !cfg_dirty) $fatal(1,"busy second commit");
+        press(3,8);
+        if(cursor!==1 || cfg_dirty || cfg_shadow!==6 || cfg_payload!==6 || !cfg_busy || !cfg_toggle)
+            $fatal(1,"busy navigation must preserve in-flight commit");
+        press(2,8); press(4,8);
+        if(!cfg_dirty || cfg_shadow!==7 || cfg_payload!==6)
+            $fatal(1,"busy navigation must allow fresh preview");
         press(2,30);
         if(menu_active || cfg_dirty || cfg_shadow!==6 || cfg_payload!==6) $fatal(1,"exit pending");
         ack_toggle=cfg_toggle;
@@ -182,5 +224,5 @@ module tb_monitor_menu_ctrl;
         if(menu_active || next_count!=1 || auto_count!=1) $fatal(1,"subtitle exit event isolation");
         $display("TB_MONITOR_MENU_CTRL PASS"); $finish;
     end
-    initial begin #100000; $fatal(1,"menu timeout"); end
+    initial begin #200000; $fatal(1,"menu timeout"); end
 endmodule

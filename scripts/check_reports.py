@@ -179,20 +179,22 @@ def main():
             print(f"[RPT][PASS] {clock} setup={slack:.3f}ns hold={hold:.3f}ns")
     # 刷新计数逻辑恢复后必须检查125MHz域内部路径；旧SDRAM相移/硬核
     # 跨时钟负余量不能掩盖计数器、仲裁或FIFO自身的同步时序违例。
-    mem_group = re.search(r"Path Group\s*:\s*ext_mem_clk -> ext_mem_clk\s*\n(.*?)(?=Path Group|\Z)",
-                          detailed, re.S)
-    mem_max = re.search(r"Max\s*:\s*SWNS\s+([-0-9.]+)ns", mem_group.group(1)) if mem_group else None
-    mem_min = re.search(r"Min\s*:\s*HWNS\s+([-0-9.]+)ns", mem_group.group(1)) if mem_group else None
-    if not mem_max or not mem_min:
-        print("[RPT][FAIL] 缺少ext_mem_clk域内部setup/hold统计")
-        fails += 1
-    else:
-        mem_setup, mem_hold = float(mem_max.group(1)), float(mem_min.group(1))
-        if mem_setup < 0 or mem_hold < 0:
-            print(f"[RPT][FAIL] ext_mem_clk内部 setup={mem_setup:.3f}ns hold={mem_hold:.3f}ns")
+    # SD 域同样必须过门，不能等到签发包时才发现普通回归漏检。
+    for clock in ("ext_mem_clk", "sd_card_clk"):
+        group = re.search(r"Path Group\s*:\s*" + clock + r" -> " + clock
+                          + r"\s*\n(.*?)(?=Path Group|\Z)", detailed, re.S)
+        maximum = re.search(r"Max\s*:\s*SWNS\s+([-0-9.]+)ns", group.group(1)) if group else None
+        minimum = re.search(r"Min\s*:\s*HWNS\s+([-0-9.]+)ns", group.group(1)) if group else None
+        if not maximum or not minimum:
+            print(f"[RPT][FAIL] 缺少{clock}域内部setup/hold统计")
+            fails += 1
+            continue
+        setup, hold = float(maximum.group(1)), float(minimum.group(1))
+        if setup < 0 or hold < 0:
+            print(f"[RPT][FAIL] {clock}内部 setup={setup:.3f}ns hold={hold:.3f}ns")
             fails += 1
         else:
-            print(f"[RPT][PASS] ext_mem_clk内部 setup={mem_setup:.3f}ns hold={mem_hold:.3f}ns")
+            print(f"[RPT][PASS] {clock}内部 setup={setup:.3f}ns hold={hold:.3f}ns")
     if swns < 0:
         print("[RPT][WARN] setup 仍有负余量；按现有基线验收，不代表所有路径已闭合")
     base, tol = cfg["SWNS_BASE"], cfg["SWNS_TOL"]

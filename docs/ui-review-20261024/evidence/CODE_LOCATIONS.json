@@ -1,0 +1,192 @@
+{
+  "rtl/top/top_tf_hdmi_audio.v": [
+    {
+      "line": 230,
+      "text": "wire [3:0] led_state_sd = (!rst_n || !sd_init_done) ? 4'b1111 : {"
+    },
+    {
+      "line": 282,
+      "text": "wire [7:0] screen_contrast_video = 8'd64 + {screen_active_video[7:4], 4'b0000};"
+    },
+    {
+      "line": 1129,
+      "text": "osd_engine_720 u_osd("
+    },
+    {
+      "line": 1148,
+      "text": ".WAVE_X(128),.WAVE_Y(576),.WAVE_WIDTH(1024),.WAVE_HEIGHT(88),.DECIMATE(120),"
+    },
+    {
+      "line": 1311,
+      "text": "wire mon_de_view = mon_de;"
+    },
+    {
+      "line": 1336,
+      "text": ") u_mon_timing_gen("
+    },
+    {
+      "line": 1350,
+      "text": "monitor_menu_renderer u_mon_menu_renderer("
+    }
+  ],
+  "rtl/video/monitor_menu_renderer.v": [
+    {
+      "line": 37,
+      "text": "localparam [23:0] BG=24'h07131D, HEADER=24'h0B1D28, RULE=24'h2A5A70;"
+    },
+    {
+      "line": 47,
+      "text": "localparam [8*16-1:0] STR_PROG  = \"PROGRAM CONTROL \";"
+    },
+    {
+      "line": 81,
+      "text": "function card_pending;"
+    },
+    {
+      "line": 168,
+      "text": "function [79:0] card_value_label;"
+    },
+    {
+      "line": 248,
+      "text": "reg [39:0] header_status_text;"
+    },
+    {
+      "line": 249,
+      "text": "reg [1:0] header_status; // 0 READY, 1 EDIT, 2 WAIT"
+    },
+    {
+      "line": 326,
+      "text": "wire wide_cards = page || screen_page || subtitle_page || audio_page;"
+    },
+    {
+      "line": 380,
+      "text": "wire header_hit = (x >= 10'd24) && (x < 10'd264) &&"
+    },
+    {
+      "line": 433,
+      "text": "STR_PROG[{header_rev,3'b000} +: 8];"
+    },
+    {
+      "line": 508,
+      "text": "volume_bar_d<=audio_page && card_idx==0 && card_area &&"
+    },
+    {
+      "line": 525,
+      "text": "wire thin_border=(local_x_d<10'd2) ||"
+    },
+    {
+      "line": 531,
+      "text": "wire card_border=card_area_d && (selected_d ? thick_border : thin_border);"
+    },
+    {
+      "line": 549,
+      "text": "assign rgb=!de_d ? 24'd0 : header_rule ? header_rule_color :"
+    }
+  ],
+  "rtl/ctrl/monitor_menu_ctrl.v": [
+    {
+      "line": 11,
+      "text": "parameter integer LONG_PRESS_MS = 1000,"
+    },
+    {
+      "line": 70,
+      "text": "wire next_short = next_was_down && !next_down && (next_press_len < LONG_CNT);"
+    },
+    {
+      "line": 141,
+      "text": "menu_active <= 1'b1;"
+    },
+    {
+      "line": 185,
+      "text": "menu_active <= 1'b1;"
+    },
+    {
+      "line": 217,
+      "text": "end else menu_active <= 1'b0;"
+    },
+    {
+      "line": 224,
+      "text": "end else if (auto_long) begin"
+    },
+    {
+      "line": 349,
+      "text": "if (!cfg_dirty) begin"
+    }
+  ],
+  "rtl/video/osd_engine_720.v": [
+    {
+      "line": 20,
+      "text": "localparam [23:0] TITLE_FG=24'hF2FAFF, MODE_FG=24'h8FD5FA,"
+    },
+    {
+      "line": 28,
+      "text": "wire title_plate=text_enable_i && I_y>=16 && I_y<64 &&"
+    },
+    {
+      "line": 65,
+      "text": "reg [10:0] scroll_position;"
+    },
+    {
+      "line": 69,
+      "text": "wire [10:0] scroll_base=clock_enable_i ? 11'd1184 : 11'd896;"
+    },
+    {
+      "line": 93,
+      "text": "wire subtitle_band = subtitle_enable && I_x>=16 && I_x<1264 && I_y>=664 && I_y<712;"
+    },
+    {
+      "line": 99,
+      "text": "wire subtitle_message_text = subtitle_enable && subtitle_y && I_x>=128 &&"
+    },
+    {
+      "line": 106,
+      "text": "wire [5:0] bottom_glyph = (I_x<112) ? ((I_x<64) ? BADGE_SHI : BADGE_JIE) :"
+    },
+    {
+      "line": 108,
+      "text": "wire [5:0] glyph = I_y[9] ? bottom_glyph : mode_x ? mode_glyph : title_glyph;"
+    },
+    {
+      "line": 132,
+      "text": "assign O_rgb = line_q ? 24'h38BDF8 :"
+    }
+  ],
+  "scripts/gen_monitor_cjk.py": [
+    {
+      "line": 7,
+      "text": "CHARSET = '图片波形时间标周期外设蜂鸣器按键板载灯屏幕亮度对比色温恢复默认题'"
+    },
+    {
+      "line": 8,
+      "text": "EXTRA = '字内容速'"
+    },
+    {
+      "line": 9,
+      "text": "AUDIO = '音频量静'"
+    }
+  ],
+  "scripts/gen_font.py": [
+    {
+      "line": 15,
+      "text": "FONT_PATH = os.path.join(os.environ.get(\"WINDIR\", r\"C:\\Windows\"), \"Fonts\", \"consolab.ttf\")"
+    }
+  ],
+  "scripts/gen_font_720.py": [
+    {
+      "line": 7,
+      "text": "WINDOWS = ('炬屏—双模HDMI多媒体系统', '广告模式', '应急模式', '运行 00:00:00')"
+    },
+    {
+      "line": 8,
+      "text": "PRESETS = ('炬屏—双模HDMI多媒体系统', '双屏协作 一屏操作 一屏呈现', '图片 音乐 字幕 精彩同屏')"
+    },
+    {
+      "line": 10,
+      "text": "CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789' + ''.join(PRESETS).replace(' ', '') + BADGE))"
+    },
+    {
+      "line": 69,
+      "text": "subtitle = ['// Generated preset cells; 64 cells per cycle, blank-padded.',"
+    }
+  ]
+}

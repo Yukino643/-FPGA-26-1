@@ -67,7 +67,9 @@ module osd_engine_720(
     reg [4:0] subtitle_seen;
     reg clock_seen;
     wire [10:0] scroll_base=clock_enable_i ? 11'd1184 : 11'd896;
-    wire [10:0] scroll_limit=clock_enable_i ? 11'd1248 : 11'd1536;
+    // 最长正文19格=608px：窗口宽736/1024 + 正文608 + 离场留白64。
+    // 不能沿用14格的结束位置，否则加长的欢迎语会在句尾离场前重启。
+    wire [10:0] scroll_limit=clock_enable_i ? 11'd1408 : 11'd1696;
     wire [10:0] scroll_origin=scroll_base+scroll_position;
     always @(posedge I_clk or posedge I_rst) begin
         if (I_rst) begin

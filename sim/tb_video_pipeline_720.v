@@ -66,7 +66,7 @@ module tb_video_pipeline_720;
                         0:glyph=20;1:glyph=21;2:glyph=0;5,8:glyph=23;default:glyph=22;
                     endcase
                 end else if(SUBTITLES && mix_x>=32 && mix_x<96)begin
-                    glyph_hit=1;glyph_x=(mix_x-32)%32;glyph=mix_x<64?48:49;
+                    glyph_hit=1;glyph_x=(mix_x-32)%32;glyph=mix_x<64?58:59;
                 end else if(SUBTITLES && mix_x>=128 && mix_x<864)begin
                     glyph_hit=1;glyph_x=(mix_x+1184)%32;glyph=0;
                 end

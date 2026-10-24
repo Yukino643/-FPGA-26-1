@@ -7,7 +7,7 @@ import json
 import shutil
 import numpy as np
 from PIL import Image, ImageDraw
-from render_main_ui import reference
+from render_main_ui import reference, PRESETS
 
 ROOT = Path(__file__).resolve().parents[1]
 REG = ROOT/'build/720p/regression'
@@ -69,7 +69,7 @@ def main():
         if not trace:
             raise RuntimeError(f'轨迹缺失:{cycle}')
         preset, speed, clock = (trace[0][k] for k in ('preset','speed','clock'))
-        limit = 1248 if clock else 1536
+        limit = 1408 if clock else 1696
         duration_frames = limit*(2 if speed == 0 else 1)//(2 if speed == 2 else 1)+1
         if len(trace) != duration_frames+1:
             raise RuntimeError(f'完整VS数错误:{cycle}')
@@ -84,7 +84,7 @@ def main():
             # 字幕包围盒在屏幕中的几何位置；离场最后64px必须全空白。
             left = (2048-((1184 if clock else 896)+position)) % 2048
             visible = [xx for xx in range(128, 864 if clock else 1152)
-                       if (xx-left) % 2048 < 448]
+                       if (xx-left) % 2048 < len(PRESETS[preset])*32]
             if visible and visible[-1]-visible[0]+1 != len(visible):
                 raise RuntimeError(f'两端分段:{cycle}/{i}')
             if position >= limit-64 and visible:

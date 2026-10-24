@@ -53,6 +53,26 @@ module tb_audio_menu;
     endtask
     initial begin
         repeat(5)@(negedge clk);rst=0;
+        // 真实异步邮箱：移开仅取消预览，在途提交必须仍等 VS 生效。
+        press(4,8); press(3,8);
+        if(cursor!==1 || dirty || shadow!==7 || payload!==7 || toggle || cfg_active!==7)
+            $fatal(1,"unconfirmed image preview survived navigation");
+        press(3,8); press(4,8);
+        if(cursor!==2 || !dirty || shadow!==3 || payload!==7 || cfg_active!==7)
+            $fatal(1,"new card must preview its own setting");
+        press(2,8); press(2,8); press(4,8); press(4,8);
+        if(!busy || payload!==6 || cfg_active!==7) $fatal(1,"image commit must await VS");
+        old_toggle=toggle;
+        press(4,8); press(3,8); press(3,8);
+        if(cursor!==2 || dirty || shadow!==6 || payload!==6 || toggle!==old_toggle || !busy || cfg_active!==7)
+            $fatal(1,"busy navigation changed mailbox or active setting");
+        frame;
+        if(cfg_active!==6 || busy) $fatal(1,"navigation canceled an already confirmed image setting");
+        press(4,8);
+        if(!dirty || shadow!==2 || payload!==6 || cfg_active!==6)
+            $fatal(1,"time card reused abandoned image preview");
+        press(2,8); press(2,8); press(4,8); press(4,8); frame;
+        if(cfg_active!==7 || busy || dirty) $fatal(1,"restore image after navigation");
         press(3,8);press(4,8);
         if(!audio_page || cursor!=0 || ashadow!==10 || payload!==7)$fatal(1,"audio entry/default");
         press(4,8);press(2,8);

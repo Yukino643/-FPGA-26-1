@@ -12,10 +12,9 @@ SOURCE = Path('D:/FPGA/音频/图片比例补偿/素材汇总_20261012/处理图
 IV = 'C:/iverilog/bin/iverilog.exe'
 VVP = 'C:/iverilog/bin/vvp.exe'
 LABEL = '炬屏—双模HDMI多媒体系统'
-PRESETS = (LABEL, '双屏协作 一屏操作 一屏呈现', '图片 音乐 字幕 精彩同屏')
-CHARS = ' ' + ''.join(dict.fromkeys(
-    ''.join((LABEL, '广告模式', '应急模式', '运行 00:00:00')).replace(' ', '') +
-    '123456789' + ''.join(PRESETS).replace(' ', '') + '视界'))
+PRESETS = ('欢迎使用炬屏—双模HDMI多媒体系统', '双屏协作 一屏操作 一屏呈现', '图片 字幕 音乐 波形 随心设置')
+# 与已验证ROM的固定地址契约独立对应；三个标点槽不再用于正文。
+CHARS = ' 炬屏—双模HDMI多媒体系统广告式应急运行0:123456789欢迎使用！协作，一操呈现图片、字幕音乐波形随心设置视界'
 
 
 def reference(bg, subtitle, text, clock, phase=0, preset=0):

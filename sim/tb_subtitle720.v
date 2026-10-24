@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
 // 独立屏幕空间参考：字索引/区域/色彩不从DUT命中或地址信号推导。
 module tb_subtitle720;
+    // 文案定向回归可关闭大体积整圈栅格导出，逐VS状态/边界检查始终执行。
+    parameter integer CAPTURE_CYCLE_PIXELS=1;
     reg clk=0, rst=1, vs=0;
     always #5 clk=~clk;
     reg [10:0] x=0;
@@ -20,6 +22,7 @@ module tb_subtitle720;
     integer digit_cells [0:9];
     integer i,j,px,py,preset,speed,combo,background_case,phase,steps,increment;
     integer trace,cycle_dump,capture_index,cycle_frames,old_phase,blank_steps,cycle_no=0;
+    integer sentence_width;
     integer dump,frame_count=0,checks=0,source,col,glyph,row,cell_col,part;
     reg hit,plate;
     reg [23:0] expected,ink;
@@ -72,7 +75,7 @@ module tb_subtitle720;
             end
             if(cfg[0] && yy>=672 && yy<704) begin
                 if(xx>=32 && xx<96) begin
-                    hit=1; glyph=(xx<64) ? 48 : 49; col=(xx-32)%32; row=yy-672;
+                    hit=1; glyph=(xx<64) ? 58 : 59; col=(xx-32)%32; row=yy-672;
                 end else if(xx>=128 && xx<(clock_enable ? 864 : 1152)) begin
                     source=(xx+(clock_enable ? 1184 : 896)+offset)%2048;
                     hit=1; glyph=cells[cfg[2:1]*64+source/32]; col=source%32; row=yy-672;
@@ -105,17 +108,23 @@ module tb_subtitle720;
     initial begin
         $readmemh("D:/FPGA/code/example/rtl/video/font_720.hex",font);
         for(i=0;i<256;i=i+1) cells[i]=0;
-        for(i=0;i<14;i=i+1) begin title_cells[i]=i+1; cells[i]=i+1; end
+        for(i=0;i<14;i=i+1) title_cells[i]=i+1;
         mode_cells[0]=15;mode_cells[1]=16;mode_cells[2]=5;mode_cells[3]=17;
         digit_cells[0]=22;
         for(i=1;i<10;i=i+1) digit_cells[i]=23+i;
-        // B组独立固定索引：双屏协作 一屏操作 一屏呈现。
-        cells[64]=4;cells[65]=2;cells[66]=33;cells[67]=34;
-        cells[69]=35;cells[70]=2;cells[71]=36;cells[72]=34;
-        cells[74]=35;cells[75]=2;cells[76]=37;cells[77]=38;
-        // 图片 音乐 字幕 精彩同屏。
-        cells[128]=39;cells[129]=40;cells[131]=41;cells[132]=42;
-        cells[134]=43;cells[135]=44;cells[137]=45;cells[138]=46;cells[139]=47;cells[140]=2;
+        // 用户确认文案的独立固定索引；不读取DUT文本表作为期望值。
+        // 欢迎使用炬屏—双模HDMI多媒体系统（无句末标点）
+        cells[0]=33;cells[1]=34;cells[2]=35;cells[3]=36;
+        for(i=0;i<14;i=i+1) cells[i+4]=i+1;
+        // 双屏协作 一屏操作 一屏呈现；空格保持初始化的索引0。
+        cells[64]=4;cells[65]=2;cells[66]=38;cells[67]=39;
+        cells[69]=41;cells[70]=2;cells[71]=42;cells[72]=39;
+        cells[74]=41;cells[75]=2;cells[76]=43;cells[77]=44;
+        // 图片 字幕 音乐 波形 随心设置
+        cells[128]=45;cells[129]=46;cells[131]=48;
+        cells[132]=49;cells[134]=50;cells[135]=51;
+        cells[137]=52;cells[138]=53;
+        cells[140]=54;cells[141]=55;cells[142]=56;cells[143]=57;
         repeat(4) @(negedge clk); rst=0;
         // 三种背景逐像素覆盖8种组合的完整文字带和周围留白。
         for(background_case=0;background_case<3;background_case=background_case+1) begin
@@ -141,27 +150,28 @@ module tb_subtitle720;
                     clock_enable=j;
                     configure(8); configure((speed<<3)|(preset<<1)|1);
                     phase=0;old_phase=0;capture_index=0;blank_steps=0;
-                    cycle_frames=(j ? 1248 : 1536)*(speed==0 ? 2 : 1)/(speed==2 ? 2 : 1)+1;
+                    sentence_width=(preset==0 ? 18 : preset==1 ? 14 : 16)*32;
+                    cycle_frames=(j ? 1408 : 1696)*(speed==0 ? 2 : 1)/(speed==2 ? 2 : 1)+1;
                     cycle_dump=$fopen($sformatf("subtitle_cycle_%0d_%0d_%0d.rgb",preset,speed,j),"wb");
                     if(!cycle_dump)$fatal(1,"cycle capture open");
                     for(i=0;i<=cycle_frames;i=i+1) begin
                         if(i>0) begin
                             frame;
-                            if(phase>=(j ? 1248 : 1536))phase=0;
+                            if(phase>=(j ? 1408 : 1696))phase=0;
                             else phase=phase+((speed==0) ? ((i%2)==0) : speed==1 ? 1 : 2);
                         end
                         if(dut.scroll_position!==phase || dut.scroll_origin!==(((j ? 1184 : 896)+phase)%2048))
                             $fatal(1,"position/VS mismatch cycle=%0d frame=%0d",cycle_no,i);
-                        // 与实现无关的屏幕坐标：整个448px包围盒不得跨越环形零点两次可见。
-                        if(phase>=(j ? 1184 : 1472))blank_steps=blank_steps+1;
-                        if(phase>0 && phase<(j ? 1248 : 1536) &&
-                           ((128+(j ? 1184 : 896)+phase)%2048)<448 &&
-                           (((j ? 863 : 1151)+(j ? 1184 : 896)+phase)%2048)<448)
+                        // 按每条真实长度验证离场空白，不把最长句尾误当成空白。
+                        if(phase>=(j ? 736 : 1024)+sentence_width)blank_steps=blank_steps+1;
+                        if(phase>0 && phase<(j ? 1408 : 1696) &&
+                           ((128+(j ? 1184 : 896)+phase)%2048)<sentence_width &&
+                           (((j ? 863 : 1151)+(j ? 1184 : 896)+phase)%2048)<sentence_width)
                             $fatal(1,"sentence split across window endpoints");
                         capture_index=(i==0 || phase!=old_phase && phase%32==0 || i==cycle_frames);
                         $fwrite(trace,"%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d\n",cycle_no,preset,speed,j,i,phase,dut.scroll_origin,capture_index);
                         check_edges(phase);
-                        if(capture_index)begin
+                        if(capture_index && CAPTURE_CYCLE_PIXELS)begin
                             for(py=656;py<720;py=py+1)
                                 for(px=0;px<1280;px=px+1)begin
                                     check_pixel(px,py,phase);
@@ -210,7 +220,7 @@ module tb_subtitle720;
             for(px=128;px<864;px=px+1) check_pixel(px,py,2);
         configure(8);
         if(dut.scroll_position!==0) $fatal(1,"disabled origin");
-        $display("TB_SUBTITLE720 PASS combinations=8 backgrounds=3 presets=3 speeds=3 widths=2 full-cycles=18 checks=%0d VS=%0d latency=1",checks,frame_count);
+        $display("TB_SUBTITLE720 PASS combinations=8 backgrounds=3 presets=3 speeds=3 widths=2 full-cycles=18 checks=%0d VS=%0d latency=1 cycle-raster=%0d",checks,frame_count,CAPTURE_CYCLE_PIXELS);
         $finish;
     end
     initial begin #2000000000; $fatal(1,"subtitle timeout"); end

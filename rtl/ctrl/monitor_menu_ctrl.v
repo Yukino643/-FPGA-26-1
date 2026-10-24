@@ -262,7 +262,15 @@ module monitor_menu_ctrl #(
                             2: if (screen_shadow[9:8] > 0) screen_shadow[9:8] <= screen_shadow[9:8] - 1'b1;
                             default: begin end // 恢复默认预览不可逐档编辑。
                         endcase
-                    end else cursor <= cursor_up(cursor, menu_page || audio_page || screen_page || subtitle_page);
+                    end else begin
+                        cursor <= cursor_up(cursor, menu_page || audio_page || screen_page || subtitle_page);
+                        if (!menu_page && !audio_page && !screen_page && !subtitle_page) begin
+                            // 主卡移开即放弃预览；已确认邮箱保持，不能撤销在途提交。
+                            cfg_shadow <= cfg_committed;
+                            period_shadow <= period_active;
+                            cfg_dirty <= 1'b0;
+                        end
+                    end
                 end else if (auto_short) begin
                     if (audio_edit) begin
                         case(cursor)
@@ -285,7 +293,14 @@ module monitor_menu_ctrl #(
                             2: if (screen_shadow[9:8] < 2) screen_shadow[9:8] <= screen_shadow[9:8] + 1'b1;
                             default: begin end
                         endcase
-                    end else cursor <= cursor_down(cursor, menu_page || audio_page || screen_page || subtitle_page);
+                    end else begin
+                        cursor <= cursor_down(cursor, menu_page || audio_page || screen_page || subtitle_page);
+                        if (!menu_page && !audio_page && !screen_page && !subtitle_page) begin
+                            cfg_shadow <= cfg_committed;
+                            period_shadow <= period_active;
+                            cfg_dirty <= 1'b0;
+                        end
+                    end
                 end else if (emg_short) begin
                     if (audio_page) begin
                         if (!audio_edit) begin

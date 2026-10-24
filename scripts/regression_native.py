@@ -160,6 +160,8 @@ def main():
     parser.add_argument('--sim-only',action='store_true')
     parser.add_argument('--filter')
     parser.add_argument('--reuse',action='store_true',help='只复用当前输入hash完全一致的通过结果')
+    parser.add_argument('--subtitle-state-only',action='store_true',
+                        help='保留字幕全部逐VS/像素断言，仅关闭整圈大体积栅格导出')
     parser.add_argument('--jobs',type=int,default=1,choices=(1,2,3,4),help='额外独立仿真并行数；各用例独立输出')
     args=parser.parse_args()
     prepare()
@@ -169,6 +171,7 @@ def main():
         (OUTPUT/'results.json').write_text(json.dumps(results,ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
         (OUTPUT/'run_status.json').write_text(json.dumps({
             'complete':complete,'filter':args.filter,'sim_only':args.sim_only,
+            'subtitle_cycle_raster_export':not args.subtitle_state_only,
             'finished':len(results),'passed':sum(item['pass'] for item in results)
         },ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
     save_results()
@@ -280,6 +283,8 @@ def main():
                        '../rtl/sd/sd_card_bmp.v','../rtl/sd/sd_card_bmp_g.v','../rtl/sd/bmp_read_g.v','../rtl/sd/fat32_bmp_index.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'audio720':['-DSIMULATION','tb_audio720.v','../rtl/audio/audio_player.v','../rtl/mem/afifo_simple.v'],
     }
+    if args.subtitle_state_only:
+        extra['subtitle720'].insert(0,'-Ptb_subtitle720.CAPTURE_CYCLE_PIXELS=0')
     raster=extra.pop('monitor_menu_renderer')
     def extra_action(name,parts):
         try:

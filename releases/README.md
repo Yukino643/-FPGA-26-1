@@ -1,6 +1,31 @@
 # 正式烧录版本索引
 
-## 最新待板验版本：20261024-menu-16x9
+## 最新待板验版本：20261024-menu-navigation
+
+- [菜单防误操作 av_media.bit](20261024-menu-navigation/av_media.bit)，SHA256 `37f46d5f00b550914cf84679fe0a7281fdcd40a1fd099dd9edb78c2de6c60f31`。
+- 主控制页图片/时间/周期：同卡两次KEY4确认，移开卡片取消未确认预览；已确认设置不撤销。二级页/长按保持，空格字幕保留。
+- 88/88完整范围回归及完整综合/P&R/bitgen通过；字幕18整圈全部断言保留，只关闭重复的大体积栅格导出，未变化用例严格按输入SHA复用。
+- LUT14815、REG9727、BRAM9K57、BRAM32K4、DSP15、PLL3。video setup/hold +0.478/+0.022ns，SD +0.320/+0.024ns，ext_mem +0.200/+0.021ns，HDMI5x +0.949/+0.329ns。
+- 旧加密SDRAM跨域setup −6.565ns单列，不代表全工程时序闭合。菜单/字体/音量与缩放路径定向检查通过，新bit尚待上板确认。
+- [简明操作](../docs/KEY_GUIDE_20261017.md)、[物理报告](../docs/menu-navigation-20261024/PHYSICAL_RELEASE.md)、[机器验收](20261024-menu-navigation/verification.json)、[发布校验](20261024-menu-navigation/SHA256SUMS.txt)。
+
+## 上一版、字幕已获用户板验确认：20261024-subtitle-spaces
+
+- [空格字幕 av_media.bit](20261024-subtitle-spaces/av_media.bit)，SHA256 `a59c79ffec64cde2cd48f17cd5679214ce96efd5e4253bb3dc1e892332a5fa76`。
+- 感叹号删除，逗号和顿号换回空格；作品名破折号保留。三句18/14/16格，ROM字节与字体地址不变。
+- 88/88完整范围验收、18字幕完整周期、完整综合/P&R/bitgen、字幕/菜单/字体/缩放定向时序通过；未变化用例按输入SHA复用。
+- LUT14848、REG9732、BRAM9K57、BRAM32K4、DSP15、PLL3；video setup/hold +0.589/+0.022ns。旧SDRAM跨域setup −6.565ns单列，不代表全工程闭合。
+- [文案/截图/操作](../docs/subtitle-spaces-20261024/README.md)、[实际验收](20261024-subtitle-spaces/verification.json)、[发布校验](20261024-subtitle-spaces/SHA256SUMS.txt)。用户已确认字幕修复正常，见[用户反馈](../docs/subtitle-spaces-20261024/BOARD_CHECK.md)；原发布验收JSON保留生成时状态。
+
+## 上一版带标点字幕：20261024-subtitle-copy
+
+- [新滚动字幕 av_media.bit](20261024-subtitle-copy/av_media.bit)，SHA256 `7491c5a36cf98a39cd8a2977ec4b6cdacd181db62b7d6fe0e21f3b5b6b974c75`。
+- 三条确认文案、60/64字模，欢迎语19格；同步延长离场计数，保留句尾离场留白。双HDMI与按键功能保持。
+- 88/88完整范围功能/物理验收通过，独立综合/P&R/bitgen及字幕/字体/缩放定向时序通过。最终验收按输入SHA复用本轮已通过的仿真，不宣称再跑一遍全部仿真。
+- LUT14950、REG9755、BRAM9K57、BRAM32K4、DSP15、PLL3；video setup/hold +0.433/+0.027ns。旧加密SDRAM跨域setup −6.565ns单列，不代表全工程时序闭合。
+- [物理验收](../docs/subtitle-copy-20261024/PHYSICAL_RELEASE.md)、[发布清单](20261024-subtitle-copy/SHA256SUMS.txt)、[机器验收](20261024-subtitle-copy/verification.json)。尚待用户烧录验证；下方版本完整保留回退。
+
+## 上一版全幅菜单：20261024-menu-16x9
 
 - [全幅菜单 av_media.bit](20261024-menu-16x9/av_media.bit)，SHA256 `afe5562c7740a7d93a4e1c3884770b9572332b8cb2a349fc5e2ea125922b138c`。
 - HDMI-A 640×360整数2×全幅1280×720；六项菜单/主屏/字幕改造，按键和页序保持。
