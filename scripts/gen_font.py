@@ -12,11 +12,12 @@ from PIL import Image, ImageDraw, ImageFont
 
 OUT_V   = os.path.join(os.path.dirname(__file__), "..", "rtl", "ctrl", "font_rom_ascii.v")
 OUT_HEX = os.path.join(os.path.dirname(__file__), "..", "sim", "font_ascii.hex")
+FONT_PATH = os.path.join(os.environ.get("WINDIR", r"C:\Windows"), "Fonts", "consolab.ttf")
 CW, CH = 8, 16
 FIRST, LAST = 0x20, 0x7E
 
 def rasterize():
-    font = ImageFont.truetype("consola.ttf", 14)
+    font = ImageFont.truetype(FONT_PATH, 14)
     glyphs = {}
     for code in range(FIRST, LAST + 1):
         ch = chr(code)
@@ -77,11 +78,11 @@ def emit_bram_hex(glyphs):
         rows += ["00"] * 16
     rows += ["00"] * (depth - len(rows))
     nl = chr(10)
-    with open(out, "w", newline="") as f:
+    with open(out, "w", newline="", encoding="ascii") as f:
         f.write(nl.join(rows) + nl)
 
 def emit_hex(glyphs):
-    with open(OUT_HEX, "w", newline="\n") as f:
+    with open(OUT_HEX, "w", newline="\n", encoding="ascii") as f:
         # 每行一个字符的 32 位 hex（128bit 按 4×32bit 展开，地址 = char*16+row 太长；
         # 仿真用紧凑格式: 每字符一行 128bit hex）
         for code in range(FIRST, LAST + 1):

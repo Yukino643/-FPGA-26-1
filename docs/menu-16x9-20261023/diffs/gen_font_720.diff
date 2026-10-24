@@ -1,0 +1,21 @@
+--- before/scripts/gen_font_720.py
++++ after/scripts/gen_font_720.py
+@@ -66,13 +66,13 @@
+         lookup += [f"localparam [5:0] {name}=6'd{CHARS.index(ch)};"]
+     for name,ch in (('BADGE_SHI','视'),('BADGE_JIE','界')):
+         lookup += [f"localparam [5:0] {name}=6'd{CHARS.index(ch)};"]
+-    subtitle = ['// Generated preset cells; 32 cells per cycle, blank-padded.',
+-                'module subtitle_text_720(input wire [1:0] preset, input wire [4:0] col, output reg [5:0] glyph);',
++    subtitle = ['// Generated preset cells; 64 cells per cycle, blank-padded.',
++                'module subtitle_text_720(input wire [1:0] preset, input wire [5:0] col, output reg [5:0] glyph);',
+                 'always @* begin', 'case ({preset,col})']
+     for pi,line in enumerate(PRESETS):
+-        if len(line)>32:raise ValueError('字幕超出32字格')
+-        for ci,ch in enumerate(line):
+-            subtitle += [f"    {{2'd{pi},5'd{ci}}}: glyph=6'd{CHARS.index(ch)}; // {ch}"]
++        if len(line)>64:raise ValueError('字幕超出64字格')
++        for ci,ch in enumerate(line.ljust(64)):
++            subtitle += [f"    {{2'd{pi},6'd{ci}}}: glyph=6'd{CHARS.index(ch)}; // {ch}"]
+     subtitle += ['default: glyph=0;','endcase','end','endmodule']
+     return {
+         'rtl/video/font_720.hex': ''.join(f'{row:08X}\n' for row in rows),

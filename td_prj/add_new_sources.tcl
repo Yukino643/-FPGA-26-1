@@ -14,12 +14,19 @@ add_files D:/FPGA/code/example/rtl/video/disp_mixer.v
 add_files D:/FPGA/code/example/rtl/video/osd_engine.v
 add_files D:/FPGA/code/example/rtl/video/osd_text_rom.v
 add_files D:/FPGA/code/example/rtl/video/font_rom_cjk.v
+add_files D:/FPGA/code/example/rtl/video/monitor_cjk_rom.v
 add_files D:/FPGA/code/example/rtl/video/monitor_compositor.v
+add_files D:/FPGA/code/example/rtl/video/monitor_menu_renderer.v
 add_files D:/FPGA/code/example/rtl/ctrl/font_rom_ascii.v
 add_files D:/FPGA/code/example/rtl/ctrl/reset_sync.v
+add_files D:/FPGA/code/example/rtl/ctrl/monitor_menu_ctrl.v
+add_files D:/FPGA/code/example/rtl/ctrl/monitor_config_regs.v
+add_files D:/FPGA/code/example/rtl/hdmi/hdmi_tmds_channel_encoder.v
+add_files D:/FPGA/code/example/rtl/hdmi/hdmi_video_only_640x480.v
 
 # W6 缩放引擎
 add_files D:/FPGA/code/example/rtl/video/scaler.v
+add_files D:/FPGA/code/example/rtl/video/resize_frame_720.v
 add_files D:/FPGA/code/example/rtl/sd/src_packer.v
 
 # W7 WAV 播放
@@ -38,6 +45,7 @@ add_files D:/FPGA/code/example/rtl/audio/siren_gen.v
 
 # W10 字幕 + SD 仲裁
 add_files D:/FPGA/code/example/rtl/video/subtitle_scroll.v
+add_files D:/FPGA/code/example/rtl/video/subtitle_text_720.v
 add_files D:/FPGA/code/example/rtl/sd/sd_arbiter.v
 
 top_module top

@@ -9,6 +9,7 @@
 module src_packer(
     input  wire        clk,
     input  wire        rst,
+    input  wire        frame_restart, // 错误/重新开始时丢弃旧事务残留半字
     // 像素输入（来自 bmp_read_g）
     input  wire        px_valid,
     input  wire [23:0] px_rgb,       // {R,G,B}
@@ -38,6 +39,9 @@ module src_packer(
             row_px_count <= 16'd0;
             out_valid <= 1'b0;
             out_data  <= 32'd0;
+        end else if (frame_restart) begin
+            px_stored <= 1'b0; px_even <= 16'd0; row_px_count <= 16'd0;
+            out_valid <= 1'b0; out_data <= 32'd0;
         end else begin
             out_valid <= 1'b0;
 

@@ -1,0 +1,34 @@
+--- before/rtl/top/top_tf_hdmi_audio.v
++++ after/rtl/top/top_tf_hdmi_audio.v
+@@ -1306,17 +1306,11 @@
+ reg [9:0] mon_x;
+ reg [8:0] mon_y;
+ reg mon_de_view_q;
+-// HDMI-A 对外使用标准 1280x720@60Hz 时序，监视画布按 4:3 比例放大到
+-// 960x720 并水平居中。原 640x480 渲染器只接收缩放后的逻辑坐标，左右
+-// 各 160 像素为黑边，避免 7 寸屏上的文字过小或画面变形。
+-wire mon_de_view = mon_de && (mon_x_full >= 11'd160) &&
+-                   (mon_x_full < 11'd1120);
+-wire [10:0] mon_x_rel = (mon_x_full >= 11'd160) ?
+-                        (mon_x_full - 11'd160) : 11'd0;
+-wire [11:0] mon_x_num = {1'b0, mon_x_rel} << 1;
+-wire [10:0] mon_x_logical = (mon_x_num / 12'd3);
+-wire [10:0] mon_y_num = {1'b0, mon_y_full} << 1;
+-wire [10:0] mon_y_logical = (mon_y_num / 11'd3);
++// HDMI-A 采用640x360逻辑画布，2x整数映射铺满1280x720。
++// 位切片取坐标，不画侧边黑栏；坐标/ROM/输出三级相位保持。
++wire mon_de_view = mon_de;
++wire [9:0] mon_x_logical = mon_x_full[10:1];
++wire [8:0] mon_y_logical = mon_y_full[9:1];
+ wire [23:0] mon_menu_rgb;
+ reg [23:0] mon_rgb;
+ wire mon_menu_active_v = mon_menu_active_sync[1];
+@@ -1345,7 +1339,7 @@
+     .O_x(mon_x_full), .O_y(mon_y_full)
+ );
+ 
+-// 坐标缩放与字符选择分拍，避免除3/卡片译码/字库地址串成一条视频组合长路径。
++// 坐标映射与字符选择分拍，保持字库和输出同步信号原有相位。
+ always @(posedge video_clk or posedge rst_video) begin
+     if(rst_video) begin mon_x<=0; mon_y<=0; mon_de_view_q<=0; end
+     else begin

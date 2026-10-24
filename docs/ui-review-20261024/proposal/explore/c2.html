@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>提案C2 低调页眉+同列读数</title>
+<style>
+  :root{
+    --bg:#07131D; --head:#0B1D28; --rule:#2A5A70;
+    --card:#142F40; --sel:#1B4658; --frame:#3A6478;
+    --fg:#E9F4FA; --value:#C9DBE5; --muted:#8FA9B8;
+    --on:#5BE39B; --off:#FF7B72; --amber:#FFB84D; --accent:#38BDF8;
+    --cjk:"SimHei","Heiti SC",sans-serif;
+    --mono:"Consolas","Courier New",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#000;width:1280px;height:720px;overflow:hidden}
+  .screen{position:relative;width:1280px;height:720px;background:var(--bg)}
+  .head{position:absolute;left:0;top:0;width:1280px;height:64px;background:var(--head)}
+  .head::after{content:"";position:absolute;left:0;bottom:0;width:1280px;height:4px;background:var(--rule)}
+  .eyebrow{position:absolute;left:48px;top:15px;font:700 32px/1 var(--mono);letter-spacing:2px;color:var(--muted)}
+  .state{position:absolute;right:48px;top:15px;font:700 32px/1 var(--mono);letter-spacing:2px;color:#6F8794}
+  .card{position:absolute;width:368px;height:248px;background:var(--card);border:4px solid var(--frame)}
+  .card .t{position:absolute;left:32px;top:20px;font:400 64px/1 var(--cjk);color:var(--fg);letter-spacing:2px}
+  .card .v{position:absolute;left:32px;top:132px;font:700 64px/1 var(--mono);color:var(--value);letter-spacing:2px}
+  .card.on .v{color:var(--on)}
+  .card.off .v{color:var(--off)}
+  .card .go{position:absolute;right:40px;top:20px;font:700 64px/1 var(--mono);color:var(--muted);opacity:0}
+  .card.entry .go{opacity:1}
+  .card.focus{border:8px solid var(--accent);background:var(--sel)}
+  .card.focus .go{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="head"><div class="eyebrow">PROGRAM CONTROL</div><div class="state">READY</div></div>
+
+  <div class="card focus entry" style="left:48px;top:96px">
+    <div class="t">图片</div><div class="v">ON</div><div class="go">›</div>
+  </div>
+  <div class="card" style="left:456px;top:96px">
+    <div class="t">音频</div><div class="v">100%</div><div class="go">›</div>
+  </div>
+  <div class="card on" style="left:864px;top:96px">
+    <div class="t">时间</div><div class="v">ON</div>
+  </div>
+  <div class="card" style="left:48px;top:376px">
+    <div class="t">字幕</div><div class="v">ON</div><div class="go">›</div>
+  </div>
+  <div class="card" style="left:456px;top:376px">
+    <div class="t">周期</div><div class="v">2S</div>
+  </div>
+  <div class="card" style="left:864px;top:376px">
+    <div class="t">屏幕</div><div class="v">HDMI-B</div><div class="go">›</div>
+  </div>
+</div>
+</body>
+</html>
+

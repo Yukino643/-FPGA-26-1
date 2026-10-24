@@ -127,6 +127,9 @@ proc opt_rtl_fun {} {
   if { ![info exists chipDebugger] } {
      insert_debugger
   } else { insert_debugger $chipDebugger }
+  # TD 6.2官方LogicLevelOptimize，保持RTL、时钟与SDC不变。
+  set_param rtl infer_fsm one_hot
+  set_param rtl min_ripple_len 18
   optimize_rtl
   report_area -file ${prj_name}_rtl.area
 #################################
@@ -140,6 +143,10 @@ proc opt_gate_fun {} {
   if { ![info exists singleRun] } { commit_param -step gate }
 
 ### Editable zone for opt_gate ###
+  # TD 6.2官方LogicLevelOptimize，保持RTL、时钟与SDC不变。
+  set_param gate map_mode balance_explore
+  set_param gate mapper_lut_delay 2200
+  set_param gate merge_tiny_lut on
   optimize_gate ${area_option} ${prj_name}_gate.area
   legalize_phy_inst
   update_timing
@@ -169,6 +176,11 @@ proc opt_place_fun {} {
   }
 
 ### Editable zone for opt_place ###
+  # 轮播计时与LBA拆拍：保持原时钟约束，使用官方seed接口重布局。
+  # 时钟、SDC与时序验收门限保持不变，失败报告单独归档。
+  set_param place seed 14
+  # 官方TimingUltra的高扇出优化选项；针对SD数据78扇出连线。
+  set_param place hfn_opt_effort high
   place
   update_timing -mode manhattan
   report_timing_summary -file ${prj_name}_place.timing
@@ -189,6 +201,8 @@ proc opt_route_fun {} {
   if { ![info exists singleRun] } { commit_param -step route }
 
 ### Editable zone for opt_route ###
+  # 优先保证布线可达；保持原 hold 修复及报告门限。
+  set_param route effort routability
   route
   fix_hold
   report_qor -step route -file route.qor

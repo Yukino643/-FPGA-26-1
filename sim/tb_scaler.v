@@ -32,6 +32,7 @@ module tb_scaler;
         .cmd_valid(cmd_valid), .cmd_addr(cmd_addr), .cmd_len(cmd_len),
         .cmd_ready(cmd_ready), .rsp_valid(rsp_valid), .rsp_data(rsp_data),
         .rsp_last(), .wr_en(wr_en), .wr_addr(wr_addr), .wr_din(wr_din),
+        .write_request(), .write_ready(1'b1),
         .wr_dm(), .busy(busy), .done_toggle(done_toggle)
     );
 
@@ -183,8 +184,7 @@ module tb_scaler;
         cfg_w = 11'd160; cfg_h = 11'd120;
         preload_src(160, 120);
         errors = 0;
-        @(posedge clk125); start_toggle = 1;
-        @(posedge clk125); start_toggle = 0;
+        @(negedge clk125); start_toggle = ~start_toggle;
         wait(done_count >= 1);
         #200;
         if (errors == 0) $display("TEST1 PASS");
@@ -195,8 +195,7 @@ module tb_scaler;
         check_en = 0;
         cfg_w = 11'd200; cfg_h = 11'd150;
         preload_src(200, 150);
-        @(posedge clk125); start_toggle = 1;
-        @(posedge clk125); start_toggle = 0;
+        @(negedge clk125); start_toggle = ~start_toggle;
         wait(done_count >= 2);
         #200;
         $display("TEST2 done (no crash)");
@@ -205,8 +204,7 @@ module tb_scaler;
         $display("TEST3: upscale 80x60");
         cfg_w = 11'd80; cfg_h = 11'd60;
         preload_src(80, 60);
-        @(posedge clk125); start_toggle = 1;
-        @(posedge clk125); start_toggle = 0;
+        @(negedge clk125); start_toggle = ~start_toggle;
         wait(done_count >= 3);
         #200;
         $display("TEST3 done (no crash)");

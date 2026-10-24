@@ -1,0 +1,100 @@
+{
+  "rtl/video/osd_engine_720.v": [
+    {
+      "line": 20,
+      "text": "    wire title_y=text_enable_i && I_y>=32 && I_y<64;"
+    },
+    {
+      "line": 22,
+      "text": "    wire clock_y=clock_enable_i && (subtitle_enable ? (I_y>=80 && I_y<112) : (I_y>=656 && I_y<688));"
+    },
+    {
+      "line": 82,
+      "text": "    wire subtitle_band = subtitle_enable && I_x>=32 && I_x<1248 && I_y>=672 && I_y<712;"
+    },
+    {
+      "line": 116,
+      "text": "    wire [23:0] dim_background = {1'b0,background[23:17],1'b0,background[15:9],1'b0,background[7:1]};"
+    },
+    {
+      "line": 118,
+      "text": "    assign O_rgb = line_q ? 24'h38BDF8 :"
+    }
+  ],
+  "scripts/gen_font_720.py": [
+    {
+      "line": 7,
+      "text": "WINDOWS = ('炬屏—双模HDMI多媒体系统', '广告模式', '应急模式', '运行 00:00:00')"
+    },
+    {
+      "line": 8,
+      "text": "PRESETS = ('欢迎体验双屏多媒体系统', '活动正在进行 欢迎参与体验', '图片 音乐 字幕 精彩呈现')"
+    },
+    {
+      "line": 9,
+      "text": "CHARS = ' ' + ''.join(dict.fromkeys(''.join(WINDOWS).replace(' ', '') + '123456789' + ''.join(PRESETS).replace(' ', '') + '通知'))"
+    }
+  ],
+  "rtl/video/monitor_menu_renderer.v": [
+    {
+      "line": 35,
+      "text": "    localparam [23:0] BG=24'h07131D, HEADER=24'h0B1D28, RULE=24'h2A5A70;"
+    },
+    {
+      "line": 245,
+      "text": "        header_status<=cfg_busy ? 2'd2 :"
+    },
+    {
+      "line": 358,
+      "text": "    wire arrow_hit=card_area && selected && actionable &&"
+    },
+    {
+      "line": 362,
+      "text": "    wire footer_hit = !menu_active && (x >= 10'd32) && (x < 10'd288) &&"
+    }
+  ],
+  "rtl/ctrl/monitor_menu_ctrl.v": [
+    {
+      "line": 139,
+      "text": "            menu_active <= 1'b1;"
+    },
+    {
+      "line": 181,
+      "text": "                    menu_active <= 1'b1;"
+    },
+    {
+      "line": 208,
+      "text": "                    end else menu_active <= 1'b0;"
+    },
+    {
+      "line": 268,
+      "text": "                        end else if (!cfg_commit_busy) begin"
+    },
+    {
+      "line": 280,
+      "text": "                        end else if (!cfg_commit_busy) begin"
+    },
+    {
+      "line": 305,
+      "text": "                        if (!cfg_dirty) begin"
+    },
+    {
+      "line": 319,
+      "text": "                        end else if (!cfg_commit_busy) begin"
+    }
+  ],
+  "rtl/top/top_tf_hdmi_audio.v": [
+    {
+      "line": 228,
+      "text": "wire [3:0] led_state_sd = (!rst_n || !sd_init_done) ? 4'b1111 : {"
+    },
+    {
+      "line": 1133,
+      "text": "    .WAVE_X(128),.WAVE_Y(576),.WAVE_WIDTH(1024),.WAVE_HEIGHT(96),.DECIMATE(120),"
+    },
+    {
+      "line": 1289,
+      "text": "wire mon_de_view = mon_de && (mon_x_full >= 11'd160) &&"
+    }
+  ]
+}

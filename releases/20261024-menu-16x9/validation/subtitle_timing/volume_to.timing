@@ -1,0 +1,1077 @@
+Created by          : Tang Dynasty v6.2.168116
+                    : Copyright (c) 2012-2025 Anlogic Inc.
+Generated           : Sat Oct 24 01:31:56 2026
+
+Top Model           : top
+Device              : EG4S20BG256
+Speed               : NA
+STA coverage        : 99.89%
+
+----------------------------------------------------------------------------------------------------
+Path Group     :     video_clk -> video_clk
+Type           :     Self
+From Clock     :     video_clk
+To Clock       :     video_clk
+Min Period     :     9.436ns
+Fmax           :     105.977MHz
+
+Statistics:
+Max            : SWNS      4.032ns, STNS      0.000ns,         0 Viol Endpoints,         5 Total Endpoints,         5 Paths Analyzed
+Min            : HWNS      0.120ns, HTNS      0.000ns,         0 Viol Endpoints,         5 Total Endpoints,         5 Paths Analyzed
+----------------------------------------------------------------------------------------------------
+
+Max Paths
+----------------------------------------------------------------------------------------------------
+Slack               : 4.032ns
+Begin Point         : u_audio_player/sample_phase[7]_syn_6.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_siren_gen/audio_left_reg[21]_syn_4.ce (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : setup
+Process             : slow
+Budget              : 13.468ns { video_clk rising@13.468ns - video_clk rising@0.000ns }
+Data Path Delay     : 9.156ns (cell 3.211ns (35%), net 5.945ns (65%))
+Clock Skew          : 0.064ns
+Logic Level         : 5 ( ADDER=4  LUT2=1 )
+Max Fanout          : 51
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -2.067         -0.407          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.407          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.407          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            2.067          1.660          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.201         -0.541          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.541          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.410          1.869          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_audio_player/sample_phase[7]_syn_6.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x019y001z3          0.146    r     2.015          pin: u_audio_player/sample_phase[7]_syn_6.q[0]
+net (fo=3)                              0.629          2.644          net: u_audio_player/sample_phase[7],  ../../../rtl/audio/audio_player.v(43)
+                                                                      pin: u_audio_player/add3_syn_126.b[0]
+ADDER               x017y001z2          0.836    f     3.480       1  pin: u_audio_player/add3_syn_126.fco
+net (fo=1)                              0.000          3.480          net: u_audio_player/add3_syn_107,  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/add3_syn_127.fci
+ADDER               x017y001z3          0.387    f     3.867       2  pin: u_audio_player/add3_syn_127.fx[0]
+net (fo=3)                              1.235          5.102          net: u_audio_player/sample_phase_sum[11],  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/lt0_syn_93.b[0]
+ADDER               x019y003z0          0.627    f     5.729       3  pin: u_audio_player/lt0_syn_93.fco
+net (fo=1)                              0.000          5.729          net: u_audio_player/lt0_syn_23,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_96.fci
+ADDER               x019y003z1          0.073    f     5.802          pin: u_audio_player/lt0_syn_96.fco
+net (fo=1)                              0.000          5.802          net: u_audio_player/lt0_syn_27,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_99.fci
+ADDER               x019y004z0          0.073    f     5.875          pin: u_audio_player/lt0_syn_99.fco
+net (fo=1)                              0.000          5.875          net: u_audio_player/lt0_syn_31,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_102.fci
+ADDER               x019y004z1          0.073    f     5.948          pin: u_audio_player/lt0_syn_102.fco
+net (fo=1)                              0.000          5.948          net: u_audio_player/lt0_syn_35,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_105.fci
+ADDER               x019y005z0          0.073    f     6.021          pin: u_audio_player/lt0_syn_105.fco
+net (fo=1)                              0.000          6.021          net: u_audio_player/lt0_syn_39,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_108.fci
+ADDER               x019y005z1          0.073    f     6.094          pin: u_audio_player/lt0_syn_108.fco
+net (fo=1)                              0.000          6.094          net: u_audio_player/lt0_syn_43,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_111.fci
+ADDER               x019y006z0          0.073    f     6.167          pin: u_audio_player/lt0_syn_111.fco
+net (fo=1)                              0.000          6.167          net: u_audio_player/lt0_syn_47,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_114.fci
+ADDER               x019y006z1          0.073    f     6.240          pin: u_audio_player/lt0_syn_114.fco
+net (fo=1)                              0.000          6.240          net: u_audio_player/lt0_syn_51,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/audio_valid_reg_syn_5.fci
+ADDER               x019y007z0          0.355    f     6.595       4  pin: u_audio_player/audio_valid_reg_syn_5.f[1]
+net (fo=51)                             2.540          9.135          net: u_audio_player/sample_tick,  ../../../rtl/audio/audio_player.v(23)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.d[0]
+LUT2                x009y024z3          0.262    r     9.397       5  pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.f[0]
+net (fo=34)                             1.541         10.938          net: u_siren_gen/audio_left_b_n,  NOFILE(0)
+                                                                      pin: u_siren_gen/audio_left_reg[21]_syn_4.ce
+reg                 x005y031z3          0.087    r    11.025               
+--------------------------------------------------------------------  ---------------
+Arrival                                               11.025               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.857         -0.364          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.364          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.364          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.857          1.493          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.978         -0.485          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.485          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.166          1.681          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_siren_gen/audio_left_reg[21]_syn_4.clk
+capture edge                           13.468    r    15.149               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         15.033               
+clock uncertainty                      -0.100         14.933               
+clock pessimism                         0.124         15.057               
+--------------------------------------------------------------------  ---------------
+Required                                              15.057               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.032               
+
+Slack               : 4.069ns
+Begin Point         : u_audio_player/sample_phase[7]_syn_6.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_siren_gen/audio_left_reg[16]_syn_4.ce (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : setup
+Process             : slow
+Budget              : 13.468ns { video_clk rising@13.468ns - video_clk rising@0.000ns }
+Data Path Delay     : 9.119ns (cell 3.211ns (35%), net 5.908ns (65%))
+Clock Skew          : 0.064ns
+Logic Level         : 5 ( ADDER=4  LUT2=1 )
+Max Fanout          : 51
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -2.067         -0.407          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.407          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.407          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            2.067          1.660          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.201         -0.541          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.541          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.410          1.869          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_audio_player/sample_phase[7]_syn_6.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x019y001z3          0.146    r     2.015          pin: u_audio_player/sample_phase[7]_syn_6.q[0]
+net (fo=3)                              0.629          2.644          net: u_audio_player/sample_phase[7],  ../../../rtl/audio/audio_player.v(43)
+                                                                      pin: u_audio_player/add3_syn_126.b[0]
+ADDER               x017y001z2          0.836    f     3.480       1  pin: u_audio_player/add3_syn_126.fco
+net (fo=1)                              0.000          3.480          net: u_audio_player/add3_syn_107,  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/add3_syn_127.fci
+ADDER               x017y001z3          0.387    f     3.867       2  pin: u_audio_player/add3_syn_127.fx[0]
+net (fo=3)                              1.235          5.102          net: u_audio_player/sample_phase_sum[11],  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/lt0_syn_93.b[0]
+ADDER               x019y003z0          0.627    f     5.729       3  pin: u_audio_player/lt0_syn_93.fco
+net (fo=1)                              0.000          5.729          net: u_audio_player/lt0_syn_23,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_96.fci
+ADDER               x019y003z1          0.073    f     5.802          pin: u_audio_player/lt0_syn_96.fco
+net (fo=1)                              0.000          5.802          net: u_audio_player/lt0_syn_27,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_99.fci
+ADDER               x019y004z0          0.073    f     5.875          pin: u_audio_player/lt0_syn_99.fco
+net (fo=1)                              0.000          5.875          net: u_audio_player/lt0_syn_31,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_102.fci
+ADDER               x019y004z1          0.073    f     5.948          pin: u_audio_player/lt0_syn_102.fco
+net (fo=1)                              0.000          5.948          net: u_audio_player/lt0_syn_35,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_105.fci
+ADDER               x019y005z0          0.073    f     6.021          pin: u_audio_player/lt0_syn_105.fco
+net (fo=1)                              0.000          6.021          net: u_audio_player/lt0_syn_39,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_108.fci
+ADDER               x019y005z1          0.073    f     6.094          pin: u_audio_player/lt0_syn_108.fco
+net (fo=1)                              0.000          6.094          net: u_audio_player/lt0_syn_43,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_111.fci
+ADDER               x019y006z0          0.073    f     6.167          pin: u_audio_player/lt0_syn_111.fco
+net (fo=1)                              0.000          6.167          net: u_audio_player/lt0_syn_47,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_114.fci
+ADDER               x019y006z1          0.073    f     6.240          pin: u_audio_player/lt0_syn_114.fco
+net (fo=1)                              0.000          6.240          net: u_audio_player/lt0_syn_51,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/audio_valid_reg_syn_5.fci
+ADDER               x019y007z0          0.355    f     6.595       4  pin: u_audio_player/audio_valid_reg_syn_5.f[1]
+net (fo=51)                             2.540          9.135          net: u_audio_player/sample_tick,  ../../../rtl/audio/audio_player.v(23)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.d[0]
+LUT2                x009y024z3          0.262    r     9.397       5  pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.f[0]
+net (fo=34)                             1.504         10.901          net: u_siren_gen/audio_left_b_n,  NOFILE(0)
+                                                                      pin: u_siren_gen/audio_left_reg[16]_syn_4.ce
+reg                 x005y028z1          0.087    r    10.988               
+--------------------------------------------------------------------  ---------------
+Arrival                                               10.988               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.857         -0.364          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.364          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.364          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.857          1.493          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.978         -0.485          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.485          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.166          1.681          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_siren_gen/audio_left_reg[16]_syn_4.clk
+capture edge                           13.468    r    15.149               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         15.033               
+clock uncertainty                      -0.100         14.933               
+clock pessimism                         0.124         15.057               
+--------------------------------------------------------------------  ---------------
+Required                                              15.057               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.069               
+
+Slack               : 4.184ns
+Begin Point         : u_audio_player/sample_phase[7]_syn_6.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_siren_gen/audio_left_reg[22]_syn_4.ce (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : setup
+Process             : slow
+Budget              : 13.468ns { video_clk rising@13.468ns - video_clk rising@0.000ns }
+Data Path Delay     : 9.004ns (cell 3.211ns (35%), net 5.793ns (65%))
+Clock Skew          : 0.064ns
+Logic Level         : 5 ( ADDER=4  LUT2=1 )
+Max Fanout          : 51
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -2.067         -0.407          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.407          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.407          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            2.067          1.660          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.201         -0.541          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.541          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.410          1.869          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_audio_player/sample_phase[7]_syn_6.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x019y001z3          0.146    r     2.015          pin: u_audio_player/sample_phase[7]_syn_6.q[0]
+net (fo=3)                              0.629          2.644          net: u_audio_player/sample_phase[7],  ../../../rtl/audio/audio_player.v(43)
+                                                                      pin: u_audio_player/add3_syn_126.b[0]
+ADDER               x017y001z2          0.836    f     3.480       1  pin: u_audio_player/add3_syn_126.fco
+net (fo=1)                              0.000          3.480          net: u_audio_player/add3_syn_107,  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/add3_syn_127.fci
+ADDER               x017y001z3          0.387    f     3.867       2  pin: u_audio_player/add3_syn_127.fx[0]
+net (fo=3)                              1.235          5.102          net: u_audio_player/sample_phase_sum[11],  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/lt0_syn_93.b[0]
+ADDER               x019y003z0          0.627    f     5.729       3  pin: u_audio_player/lt0_syn_93.fco
+net (fo=1)                              0.000          5.729          net: u_audio_player/lt0_syn_23,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_96.fci
+ADDER               x019y003z1          0.073    f     5.802          pin: u_audio_player/lt0_syn_96.fco
+net (fo=1)                              0.000          5.802          net: u_audio_player/lt0_syn_27,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_99.fci
+ADDER               x019y004z0          0.073    f     5.875          pin: u_audio_player/lt0_syn_99.fco
+net (fo=1)                              0.000          5.875          net: u_audio_player/lt0_syn_31,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_102.fci
+ADDER               x019y004z1          0.073    f     5.948          pin: u_audio_player/lt0_syn_102.fco
+net (fo=1)                              0.000          5.948          net: u_audio_player/lt0_syn_35,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_105.fci
+ADDER               x019y005z0          0.073    f     6.021          pin: u_audio_player/lt0_syn_105.fco
+net (fo=1)                              0.000          6.021          net: u_audio_player/lt0_syn_39,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_108.fci
+ADDER               x019y005z1          0.073    f     6.094          pin: u_audio_player/lt0_syn_108.fco
+net (fo=1)                              0.000          6.094          net: u_audio_player/lt0_syn_43,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_111.fci
+ADDER               x019y006z0          0.073    f     6.167          pin: u_audio_player/lt0_syn_111.fco
+net (fo=1)                              0.000          6.167          net: u_audio_player/lt0_syn_47,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_114.fci
+ADDER               x019y006z1          0.073    f     6.240          pin: u_audio_player/lt0_syn_114.fco
+net (fo=1)                              0.000          6.240          net: u_audio_player/lt0_syn_51,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/audio_valid_reg_syn_5.fci
+ADDER               x019y007z0          0.355    f     6.595       4  pin: u_audio_player/audio_valid_reg_syn_5.f[1]
+net (fo=51)                             2.540          9.135          net: u_audio_player/sample_tick,  ../../../rtl/audio/audio_player.v(23)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.d[0]
+LUT2                x009y024z3          0.262    r     9.397       5  pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.f[0]
+net (fo=34)                             1.389         10.786          net: u_siren_gen/audio_left_b_n,  NOFILE(0)
+                                                                      pin: u_siren_gen/audio_left_reg[22]_syn_4.ce
+reg                 x004y032z2          0.087    r    10.873               
+--------------------------------------------------------------------  ---------------
+Arrival                                               10.873               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.857         -0.364          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.364          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.364          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.857          1.493          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.978         -0.485          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.485          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.166          1.681          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_siren_gen/audio_left_reg[22]_syn_4.clk
+capture edge                           13.468    r    15.149               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         15.033               
+clock uncertainty                      -0.100         14.933               
+clock pessimism                         0.124         15.057               
+--------------------------------------------------------------------  ---------------
+Required                                              15.057               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.184               
+
+Slack               : 4.184ns
+Begin Point         : u_audio_player/sample_phase[7]_syn_6.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_siren_gen/audio_left_reg[23]_syn_4.ce (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : setup
+Process             : slow
+Budget              : 13.468ns { video_clk rising@13.468ns - video_clk rising@0.000ns }
+Data Path Delay     : 9.004ns (cell 3.211ns (35%), net 5.793ns (65%))
+Clock Skew          : 0.064ns
+Logic Level         : 5 ( ADDER=4  LUT2=1 )
+Max Fanout          : 51
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -2.067         -0.407          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.407          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.407          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            2.067          1.660          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.201         -0.541          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.541          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.410          1.869          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_audio_player/sample_phase[7]_syn_6.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x019y001z3          0.146    r     2.015          pin: u_audio_player/sample_phase[7]_syn_6.q[0]
+net (fo=3)                              0.629          2.644          net: u_audio_player/sample_phase[7],  ../../../rtl/audio/audio_player.v(43)
+                                                                      pin: u_audio_player/add3_syn_126.b[0]
+ADDER               x017y001z2          0.836    f     3.480       1  pin: u_audio_player/add3_syn_126.fco
+net (fo=1)                              0.000          3.480          net: u_audio_player/add3_syn_107,  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/add3_syn_127.fci
+ADDER               x017y001z3          0.387    f     3.867       2  pin: u_audio_player/add3_syn_127.fx[0]
+net (fo=3)                              1.235          5.102          net: u_audio_player/sample_phase_sum[11],  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/lt0_syn_93.b[0]
+ADDER               x019y003z0          0.627    f     5.729       3  pin: u_audio_player/lt0_syn_93.fco
+net (fo=1)                              0.000          5.729          net: u_audio_player/lt0_syn_23,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_96.fci
+ADDER               x019y003z1          0.073    f     5.802          pin: u_audio_player/lt0_syn_96.fco
+net (fo=1)                              0.000          5.802          net: u_audio_player/lt0_syn_27,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_99.fci
+ADDER               x019y004z0          0.073    f     5.875          pin: u_audio_player/lt0_syn_99.fco
+net (fo=1)                              0.000          5.875          net: u_audio_player/lt0_syn_31,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_102.fci
+ADDER               x019y004z1          0.073    f     5.948          pin: u_audio_player/lt0_syn_102.fco
+net (fo=1)                              0.000          5.948          net: u_audio_player/lt0_syn_35,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_105.fci
+ADDER               x019y005z0          0.073    f     6.021          pin: u_audio_player/lt0_syn_105.fco
+net (fo=1)                              0.000          6.021          net: u_audio_player/lt0_syn_39,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_108.fci
+ADDER               x019y005z1          0.073    f     6.094          pin: u_audio_player/lt0_syn_108.fco
+net (fo=1)                              0.000          6.094          net: u_audio_player/lt0_syn_43,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_111.fci
+ADDER               x019y006z0          0.073    f     6.167          pin: u_audio_player/lt0_syn_111.fco
+net (fo=1)                              0.000          6.167          net: u_audio_player/lt0_syn_47,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_114.fci
+ADDER               x019y006z1          0.073    f     6.240          pin: u_audio_player/lt0_syn_114.fco
+net (fo=1)                              0.000          6.240          net: u_audio_player/lt0_syn_51,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/audio_valid_reg_syn_5.fci
+ADDER               x019y007z0          0.355    f     6.595       4  pin: u_audio_player/audio_valid_reg_syn_5.f[1]
+net (fo=51)                             2.540          9.135          net: u_audio_player/sample_tick,  ../../../rtl/audio/audio_player.v(23)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.d[0]
+LUT2                x009y024z3          0.262    r     9.397       5  pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.f[0]
+net (fo=34)                             1.389         10.786          net: u_siren_gen/audio_left_b_n,  NOFILE(0)
+                                                                      pin: u_siren_gen/audio_left_reg[23]_syn_4.ce
+reg                 x004y031z3          0.087    r    10.873               
+--------------------------------------------------------------------  ---------------
+Arrival                                               10.873               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.857         -0.364          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.364          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.364          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.857          1.493          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.978         -0.485          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.485          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.166          1.681          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_siren_gen/audio_left_reg[23]_syn_4.clk
+capture edge                           13.468    r    15.149               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         15.033               
+clock uncertainty                      -0.100         14.933               
+clock pessimism                         0.124         15.057               
+--------------------------------------------------------------------  ---------------
+Required                                              15.057               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.184               
+
+Slack               : 4.232ns
+Begin Point         : u_audio_player/sample_phase[7]_syn_6.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_siren_gen/audio_left_reg[17]_syn_3.ce (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : setup
+Process             : slow
+Budget              : 13.468ns { video_clk rising@13.468ns - video_clk rising@0.000ns }
+Data Path Delay     : 8.956ns (cell 3.211ns (35%), net 5.745ns (65%))
+Clock Skew          : 0.064ns
+Logic Level         : 5 ( ADDER=4  LUT2=1 )
+Max Fanout          : 51
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -2.067         -0.407          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.407          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.407          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            2.067          1.660          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.201         -0.541          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.541          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.410          1.869          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_audio_player/sample_phase[7]_syn_6.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x019y001z3          0.146    r     2.015          pin: u_audio_player/sample_phase[7]_syn_6.q[0]
+net (fo=3)                              0.629          2.644          net: u_audio_player/sample_phase[7],  ../../../rtl/audio/audio_player.v(43)
+                                                                      pin: u_audio_player/add3_syn_126.b[0]
+ADDER               x017y001z2          0.836    f     3.480       1  pin: u_audio_player/add3_syn_126.fco
+net (fo=1)                              0.000          3.480          net: u_audio_player/add3_syn_107,  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/add3_syn_127.fci
+ADDER               x017y001z3          0.387    f     3.867       2  pin: u_audio_player/add3_syn_127.fx[0]
+net (fo=3)                              1.235          5.102          net: u_audio_player/sample_phase_sum[11],  ../../../rtl/audio/audio_player.v(44)
+                                                                      pin: u_audio_player/lt0_syn_93.b[0]
+ADDER               x019y003z0          0.627    f     5.729       3  pin: u_audio_player/lt0_syn_93.fco
+net (fo=1)                              0.000          5.729          net: u_audio_player/lt0_syn_23,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_96.fci
+ADDER               x019y003z1          0.073    f     5.802          pin: u_audio_player/lt0_syn_96.fco
+net (fo=1)                              0.000          5.802          net: u_audio_player/lt0_syn_27,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_99.fci
+ADDER               x019y004z0          0.073    f     5.875          pin: u_audio_player/lt0_syn_99.fco
+net (fo=1)                              0.000          5.875          net: u_audio_player/lt0_syn_31,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_102.fci
+ADDER               x019y004z1          0.073    f     5.948          pin: u_audio_player/lt0_syn_102.fco
+net (fo=1)                              0.000          5.948          net: u_audio_player/lt0_syn_35,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_105.fci
+ADDER               x019y005z0          0.073    f     6.021          pin: u_audio_player/lt0_syn_105.fco
+net (fo=1)                              0.000          6.021          net: u_audio_player/lt0_syn_39,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_108.fci
+ADDER               x019y005z1          0.073    f     6.094          pin: u_audio_player/lt0_syn_108.fco
+net (fo=1)                              0.000          6.094          net: u_audio_player/lt0_syn_43,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_111.fci
+ADDER               x019y006z0          0.073    f     6.167          pin: u_audio_player/lt0_syn_111.fco
+net (fo=1)                              0.000          6.167          net: u_audio_player/lt0_syn_47,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/lt0_syn_114.fci
+ADDER               x019y006z1          0.073    f     6.240          pin: u_audio_player/lt0_syn_114.fco
+net (fo=1)                              0.000          6.240          net: u_audio_player/lt0_syn_51,  ../../../rtl/audio/audio_player.v(45)
+                                                                      pin: u_audio_player/audio_valid_reg_syn_5.fci
+ADDER               x019y007z0          0.355    f     6.595       4  pin: u_audio_player/audio_valid_reg_syn_5.f[1]
+net (fo=51)                             2.540          9.135          net: u_audio_player/sample_tick,  ../../../rtl/audio/audio_player.v(23)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.d[0]
+LUT2                x009y024z3          0.262    r     9.397       5  pin: u_video_rgb_to_axis_640x480/I_rgb[6]_syn_6.f[0]
+net (fo=34)                             1.341         10.738          net: u_siren_gen/audio_left_b_n,  NOFILE(0)
+                                                                      pin: u_siren_gen/audio_left_reg[17]_syn_3.ce
+reg                 x004y028z0          0.087    r    10.825               
+--------------------------------------------------------------------  ---------------
+Arrival                                               10.825               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.857         -0.364          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.364          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.364          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.857          1.493          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.978         -0.485          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.485          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.166          1.681          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_siren_gen/audio_left_reg[17]_syn_3.clk
+capture edge                           13.468    r    15.149               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         15.033               
+clock uncertainty                      -0.100         14.933               
+clock pessimism                         0.124         15.057               
+--------------------------------------------------------------------  ---------------
+Required                                              15.057               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.232               
+
+
+
+Min Paths
+----------------------------------------------------------------------------------------------------
+Slack               : 0.120ns
+Begin Point         : u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_pcm_volume_control/out_right_reg[8]_syn_4.sr (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { video_clk rising@0.000ns - video_clk rising@0.000ns }
+Data Path Delay     : 0.518ns (cell 0.161ns (31%), net 0.357ns (69%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 44
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.788         -0.604          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.604          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.604          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.788          1.184          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.879         -0.695          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.695          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.029          1.334          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x011y025z1          0.109    f     1.443          pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.q[0]
+net (fo=44)                             0.357          1.800          net: rst_video_dup_151,  ../../../rtl/top/top_tf_hdmi_audio.v(174)
+                                                                      pin: u_pcm_volume_control/out_right_reg[8]_syn_4.sr
+reg                 x014y025z3          0.052    f     1.852               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.852               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.965         -0.663          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.663          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.663          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.965          1.302          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.065         -0.763          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.763          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.230          1.467          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_pcm_volume_control/out_right_reg[8]_syn_4.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.120               
+
+Slack               : 0.136ns
+Begin Point         : u_rst_video/sync_ff_reg[2]_syn_110.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_mon_menu_renderer/mux135_syn_72.sr (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { video_clk rising@0.000ns - video_clk rising@0.000ns }
+Data Path Delay     : 0.534ns (cell 0.161ns (30%), net 0.373ns (70%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 37
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.788         -0.604          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.604          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.604          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.788          1.184          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.879         -0.695          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.695          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.029          1.334          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_110.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x012y044z3          0.109    f     1.443          pin: u_rst_video/sync_ff_reg[2]_syn_110.q[0]
+net (fo=37)                             0.373          1.816          net: rst_video_dup_180,  ../../../rtl/top/top_tf_hdmi_audio.v(174)
+                                                                      pin: u_mon_menu_renderer/mux135_syn_72.sr
+reg                 x015y044z3          0.052    f     1.868               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.868               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.965         -0.663          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.663          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.663          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.965          1.302          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.065         -0.763          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.763          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.230          1.467          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_mon_menu_renderer/mux135_syn_72.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.136               
+
+Slack               : 0.188ns
+Begin Point         : u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_pcm_volume_control/out_left_reg[2]_syn_4.sr (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { video_clk rising@0.000ns - video_clk rising@0.000ns }
+Data Path Delay     : 0.586ns (cell 0.161ns (27%), net 0.425ns (73%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 44
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.788         -0.604          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.604          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.604          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.788          1.184          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.879         -0.695          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.695          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.029          1.334          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x011y025z1          0.109    f     1.443          pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.q[0]
+net (fo=44)                             0.425          1.868          net: rst_video_dup_151,  ../../../rtl/top/top_tf_hdmi_audio.v(174)
+                                                                      pin: u_pcm_volume_control/out_left_reg[2]_syn_4.sr
+reg                 x012y025z3          0.052    f     1.920               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.920               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.965         -0.663          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.663          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.663          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.965          1.302          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.065         -0.763          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.763          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.230          1.467          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_pcm_volume_control/out_left_reg[2]_syn_4.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.188               
+
+Slack               : 0.188ns
+Begin Point         : u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_pcm_volume_control/out_left_reg[13]_syn_4.sr (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { video_clk rising@0.000ns - video_clk rising@0.000ns }
+Data Path Delay     : 0.586ns (cell 0.161ns (27%), net 0.425ns (73%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 44
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.788         -0.604          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.604          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.604          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.788          1.184          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.879         -0.695          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.695          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.029          1.334          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x011y025z1          0.109    f     1.443          pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.q[0]
+net (fo=44)                             0.425          1.868          net: rst_video_dup_151,  ../../../rtl/top/top_tf_hdmi_audio.v(174)
+                                                                      pin: u_pcm_volume_control/out_left_reg[13]_syn_4.sr
+reg                 x013y025z1          0.052    f     1.920               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.920               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.965         -0.663          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.663          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.663          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.965          1.302          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.065         -0.763          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.763          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.230          1.467          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_pcm_volume_control/out_left_reg[13]_syn_4.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.188               
+
+Slack               : 0.197ns
+Begin Point         : u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+End Point           : u_pcm_volume_control/out_left_reg[8]_syn_4.sr (rising edge triggered by clock video_clk  { rise@0.000000ns  fall@6.734000ns  period=13.468000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { video_clk rising@0.000ns - video_clk rising@0.000ns }
+Data Path Delay     : 0.579ns (cell 0.161ns (27%), net 0.418ns (73%))
+Clock Skew          : 0.029ns
+Logic Level         : 0
+Max Fanout          : 44
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.788         -0.604          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.604          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.604          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.788          1.184          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -1.879         -0.695          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.695          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.029          1.334          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x011y025z1          0.109    f     1.443          pin: u_video_rgb_to_axis_640x480/I_rgb[14]_syn_5.q[0]
+net (fo=44)                             0.418          1.861          net: rst_video_dup_151,  ../../../rtl/top/top_tf_hdmi_audio.v(174)
+                                                                      pin: u_pcm_volume_control/out_left_reg[8]_syn_4.sr
+reg                 x011y024z2          0.052    f     1.913               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.913               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=15)         x000y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(3)
+                                                                      pin: u_ref27/pll_inst.refclk
+PLL                 x000y071           -1.965         -0.663          pin: u_ref27/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.663          net: u_ref27/clk0_buf,  ../../../rtl/pll/ref27_pll.v(4)
+                                                                      pin: u_ref27/bufg_feedback.clki
+GCLK                x001y070z2          0.000         -0.663          pin: u_ref27/bufg_feedback.clko
+net (fo=2)          x040y000            1.965          1.302          net: u_ref27/clk0_out,  ../../../rtl/pll/ref27_pll.v(3)
+                                                                      pin: video_pll_m0/pll_inst.refclk
+PLL                 x040y000           -2.065         -0.763          pin: video_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: video_pll_m0/clk0_buf,  ../../../rtl/pll/video_pll.v(32)
+                                                                      pin: video_pll_m0/bufg_feedback.clki
+GCLK                x039y001z2          0.000         -0.763          pin: video_pll_m0/bufg_feedback.clko
+net (fo=2274)                           2.230          1.467          net: video_clk,  ../../../rtl/top/top_tf_hdmi_audio.v(56)
+                                                                      pin: u_pcm_volume_control/out_left_reg[8]_syn_4.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.104          1.716               
+--------------------------------------------------------------------  ---------------
+Required                                               1.716               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.197               
+
+
+
+
+
+Exclusive Clock Groups
+--------------------
+----------------------------------------------------------------------------------------------------
+Path Group     :     Set Clock Groups
+Constr         :     sd_card_clk -> video_clk
+
+Statistics:
+	Setup Check    :              0   end points,               0   paths
+	Setup Check    :              0   end points,               0   paths
+----------------------------------------------------------------------------------------------------
+
+Max Delay Paths
+----------------------------------------------------------------------------------------------------
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_rst_video/sync_ff_reg[2]_syn_163.sr(triggered by clock video_clk)
+Check Type          : recovery
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_10.d[0]
+LUT3                x034y029z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_10.f[0]
+net (fo=15)                                                           net: u_rst_mem/arst_dup_8,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_163.sr
+reg                 x039y032z0                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_resize_frame/source_last_row_b[2]_syn_4.sr(triggered by clock video_clk)
+Check Type          : recovery
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.d[0]
+LUT3                x026y042z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.f[0]
+net (fo=47)                                                           net: u_rst_mem/arst,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_resize_frame/source_last_row_b[2]_syn_4.sr
+reg                 x018y054z1                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_rst_video/sync_ff_reg[2]_syn_164.sr(triggered by clock video_clk)
+Check Type          : recovery
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_8.d[0]
+LUT3                x033y039z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_8.f[0]
+net (fo=8)                                                            net: u_rst_mem/arst_dup_6,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_164.sr
+reg                 x031y042z1                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_rst_video/sync_ff_reg[2]_syn_110.sr(triggered by clock video_clk)
+Check Type          : recovery
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.d[0]
+LUT3                x026y042z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.f[0]
+net (fo=47)                                                           net: u_rst_mem/arst,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_110.sr
+reg                 x012y044z3                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_hdmi_1_4b_transmitter_core_wrapper/u_hdmi_tx_controller_wrapper/u_hdmi_island_data_gen/U_audio_sample_packet_2_channel/S_packet_body[44]_syn_25.sr(triggered by clock video_clk)
+Check Type          : recovery
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_11.d[0]
+LUT3                x025y030z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_11.f[0]
+net (fo=9)                                                            net: u_rst_mem/arst_dup_9,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_hdmi_1_4b_transmitter_core_wrapper/u_hdmi_tx_controller_wrapper/u_hdmi_island_data_gen/U_audio_sample_packet_2_channel/S_packet_body[44]_syn_25.sr
+reg                 x009y031z1                                             
+
+
+
+Min Delay Paths
+----------------------------------------------------------------------------------------------------
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_rst_video/sync_ff_reg[2]_syn_163.sr(triggered by clock video_clk)
+Check Type          : removal
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_10.d[0]
+LUT3                x034y029z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_10.f[0]
+net (fo=15)                                                           net: u_rst_mem/arst_dup_8,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_163.sr
+reg                 x039y032z0                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_resize_frame/source_last_row_b[2]_syn_4.sr(triggered by clock video_clk)
+Check Type          : removal
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.d[0]
+LUT3                x026y042z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.f[0]
+net (fo=47)                                                           net: u_rst_mem/arst,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_resize_frame/source_last_row_b[2]_syn_4.sr
+reg                 x018y054z1                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_rst_video/sync_ff_reg[2]_syn_164.sr(triggered by clock video_clk)
+Check Type          : removal
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_8.d[0]
+LUT3                x033y039z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_8.f[0]
+net (fo=8)                                                            net: u_rst_mem/arst_dup_6,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_164.sr
+reg                 x031y042z1                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_rst_video/sync_ff_reg[2]_syn_110.sr(triggered by clock video_clk)
+Check Type          : removal
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.d[0]
+LUT3                x026y042z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_13.f[0]
+net (fo=47)                                                           net: u_rst_mem/arst,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_rst_video/sync_ff_reg[2]_syn_110.sr
+reg                 x012y044z3                                             
+
+
+Begin Point         : por_done_reg_syn_14.clk(triggered by clock sd_card_clk)
+End Point           : u_hdmi_1_4b_transmitter_core_wrapper/u_hdmi_tx_controller_wrapper/u_hdmi_island_data_gen/U_audio_sample_packet_2_channel/S_packet_body[44]_syn_25.sr(triggered by clock video_clk)
+Check Type          : removal
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x037y060z0                                        pin: por_done_reg_syn_14.q[0]
+net (fo=9)                                                            net: por_done,  ../../../rtl/top/top_tf_hdmi_audio.v(154)
+                                                                      pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_11.d[0]
+LUT3                x025y030z1                                        pin: frame_read_write_m0/write_buf/rd_to_wr_cross_inst/primary_addr_gray_sync_reg[6]_syn_11.f[0]
+net (fo=9)                                                            net: u_rst_mem/arst_dup_9,  ../../../rtl/ctrl/reset_sync.v(6)
+                                                                      pin: u_hdmi_1_4b_transmitter_core_wrapper/u_hdmi_tx_controller_wrapper/u_hdmi_island_data_gen/U_audio_sample_packet_2_channel/S_packet_body[44]_syn_25.sr
+reg                 x009y031z1                                             
+
+
+
+Set False Path
+--------------------
+
+From ip sdc
+--------------------
+
+frame_read_write_m0/write_buf
+--------------------

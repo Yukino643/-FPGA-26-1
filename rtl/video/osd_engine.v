@@ -2,7 +2,7 @@
 // 地址路径（字库 BRAM 寻址）用原始 I_x/I_y；混合路径（窗口命中/混色）用打 1 拍的
 // x_d/y_d/bg_d —— 与 BRAM 输出同拍。O_rgb 为寄存器输入的组合输出，顶层需将
 // de/vs 再打 1 拍送 AXIS。
-// 窗口:  标题条(顶部半透明黑底 + 中文标题/模式文本) / 底部信息条(运行时钟)
+// 透明黑色文字：左上标题、右上模式、右下运行时钟；在颜色调整后叠加。
 module osd_engine(
     input  wire        I_clk,
     input  wire [9:0]  I_x,
@@ -12,24 +12,16 @@ module osd_engine(
     input  wire [1:0]  I_mode,         // 0:启动 1:广告 2:应急
     output wire [23:0] O_rgb
 );
-`include "blend_fn.vh"
-
-    localparam [23:0] TXT_WHITE = 24'hFFFFFF;
-    localparam [23:0] TXT_GOLD  = 24'hFFD75A;
-    localparam [23:0] TXT_EMG   = 24'hFFDD33;
-    localparam [23:0] BAR_TINT  = 24'h000000;
-    localparam [7:0]  BAR_ALPHA = 8'd140;
 
     // ================= 地址路径（原始坐标，组合） =================
-    // 标题条: y∈[4..23], 文本行 y∈[4..19], 标题起始 x=16, 模式文本起始 x=352
-    // 信息条: y∈[452..475], 文本行 y∈[456..471], 起始 x=448
+    // 640x480 原生光栅：标题左对齐，模式与运行时间距右边 16 像素。
     wire in_title_txt = (I_y >= 9'd4)  && (I_y <= 9'd19);
     wire in_info_txt  = (I_y >= 9'd456)&& (I_y <= 9'd471);
 
-    wire        t_in_x  = (I_x >= 10'd16) && (I_x < 10'd352);
-    wire        m_in_x  = (I_x >= 10'd352) && (I_x < 10'd352 + 16*5);
+    wire        t_in_x  = (I_x >= 10'd16) && (I_x < 10'd240);
+    wire        m_in_x  = (I_x >= 10'd560) && (I_x < 10'd624);
     wire [5:0]  t_col   = I_x[9:4] - 6'd1;                    // 标题内列 (x-16)/16
-    wire [5:0]  m_col   = I_x[9:4] - 6'd22;                   // 模式内列
+    wire [5:0]  m_col   = I_x[9:4] - 6'd35;                   // 模式内列
     wire [3:0]  t_win   = (I_mode == 2'd2) ? 4'd2 : 4'd1;
 
     wire [15:0] title_cell;
@@ -38,7 +30,7 @@ module osd_engine(
     osd_text_rom u_txt_mode (.I_win(t_win),      .I_col(m_col), .O_cell(mode_cell));
 
     wire [15:0] t_cell = !in_title_txt      ? 16'hFFFF :
-                         t_in_x             ? ((t_col > 6'd14) ? 16'hFFFF : title_cell) :
+                         t_in_x             ? title_cell :
                          m_in_x             ? mode_cell : 16'hFFFF;
 
     wire        i_in_x = (I_x >= 10'd448) && (I_x < 10'd448 + 16*11);
@@ -81,23 +73,13 @@ module osd_engine(
 
     // ================= 混合路径（延迟 1 拍，与 BRAM 输出同拍） =================
     reg [9:0]  x_d;
-    reg [8:0]  y_d;
     reg [23:0] bg_d;
     reg [15:0] osd_cell_d;
-    reg [1:0]  mode_d;
     always @(posedge I_clk) begin
         x_d        <= I_x;
-        y_d        <= I_y;
         bg_d       <= I_bg_rgb;
         osd_cell_d <= osd_cell;
-        mode_d     <= I_mode;
     end
-
-    wire in_title_bar  = (y_d >= 9'd4)  && (y_d <= 9'd23);
-    wire in_title_txt_d= (y_d >= 9'd4)  && (y_d <= 9'd19);
-    wire in_info_bar   = (y_d >= 9'd452)&& (y_d <= 9'd475);
-    wire in_info_txt_d = (y_d >= 9'd456)&& (y_d <= 9'd471);
-    wire in_any_bar    = in_title_bar || in_info_bar;
 
     wire [3:0] cellx = x_d[3:0];
     wire cell_is_ascii = (osd_cell_d[15:8] == 8'h01);
@@ -105,12 +87,7 @@ module osd_engine(
         cell_is_ascii ? (cellx >= 4'd4 && cellx <= 4'd11 && a_bits[7 - (cellx - 4'd4)])
                       : (osd_cell_d != 16'hFFFF && cjk_bits[15 - cellx]);
 
-    wire [23:0] fg_col = (mode_d == 2'd2) ? TXT_EMG
-                       : (in_info_txt_d)  ? TXT_GOLD
-                                          : TXT_WHITE;
-    wire [23:0] bar_stage = blend_pix(BAR_TINT, bg_d, BAR_ALPHA);
-
-    assign O_rgb = in_any_bar ? (glyph_on ? fg_col : bar_stage)
-                              : (glyph_on ? fg_col : bg_d);
+    // 所有非字形像素原样透传图片，禁止整行铺底色。
+    assign O_rgb = glyph_on ? 24'h000000 : bg_d;
 
 endmodule

@@ -16,11 +16,23 @@ else
   PROJ_ROOT="/d/FPGA/code/example"
 fi
 RUNS="$ROOT/av_media_Runs"
-PYTHON_BIN="${PYTHON_BIN:-/mnt/d/miniconda3/python.exe}"
+if [ -z "${PYTHON_BIN:-}" ]; then
+  if [ -d /mnt/d ] && [ -x /mnt/d/miniconda3/python.exe ]; then
+    PYTHON_BIN=/mnt/d/miniconda3/python.exe
+  elif [ -x /d/miniconda3/python.exe ]; then
+    PYTHON_BIN=/d/miniconda3/python.exe
+  else
+    PYTHON_BIN=python3
+  fi
+fi
 
 if [ ! -x "$PYTHON_BIN" ] && ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   PYTHON_BIN="python3"
 fi
+
+CANONICAL_AL="$ROOT/av_media.al"
+CANONICAL_AL_BACKUP="$ROOT/.av_media.al.build-backup"
+cp "$CANONICAL_AL" "$CANONICAL_AL_BACKUP"
 
 # 刷新 run 目录的工程快照（.al 路径 ../ → ../../../，相对 run 目录）
 "$PYTHON_BIN" -X utf8 - << 'PYEOF'
@@ -28,6 +40,20 @@ al = open(r'D:\FPGA\code\example\td_prj\av_media.al', encoding='utf-8').read()
 prj = al.replace('Path="../', 'Path="../../../')
 for d in [r'D:\FPGA\code\example\td_prj\av_media_Runs\syn_1', r'D:\FPGA\code\example\td_prj\av_media_Runs\phy_1']:
     open(d + r'\av_media.prj', 'w', encoding='utf-8', newline='\n').write(prj)
+import hashlib
+import os
+import sys
+sys.path.insert(0, r'D:\FPGA\code\example\scripts')
+from check_reports import source_files, project_snapshots_match
+if not project_snapshots_match():
+    raise RuntimeError("构建入口与工程快照不一致")
+root = r'D:\FPGA\code\example'
+inputs = [p for p in source_files() if not p.endswith('av_media.bit')]
+with open(os.path.join(root, 'td_prj', 'av_media_Runs', 'phy_1', '.build_inputs.sha256'), 'w', encoding='ascii', newline='\n') as dst:
+    for path in inputs:
+        with open(path, 'rb') as src:
+            digest = hashlib.sha256(src.read()).hexdigest()
+        dst.write(f"{digest}  {os.path.relpath(path, root).replace(chr(92), '/')}\n")
 PYEOF
 
 if [ "${1:-all}" = "all" ] || [ "${1:-all}" = "syn" ]; then
@@ -68,6 +94,12 @@ BIT="$RUNS/phy_1/av_media.bit"
 if [ ! -f "$RUNS/phy_1/.bitgen.end.f" ]; then
   echo "BIT FAILED: 缺少 .bitgen.end.f"; exit 1
 fi
+# TD 有时会回写入口工程；恢复 canonical 入口，保证 GUI 与 run 快照同源。
+if ! cmp -s "$CANONICAL_AL" "$CANONICAL_AL_BACKUP"; then
+  cp "$CANONICAL_AL_BACKUP" "$CANONICAL_AL"
+fi
+rm -f "$CANONICAL_AL_BACKUP"
+
 # 用输入文件 SHA-256 固化 bit 的源码/约束版本，避免 Windows 与 WSL 的
 # 文件时间基准差异导致旧 bit 被误判为新产物，或新 bit 被误判为旧产物。
 "$PYTHON_BIN" -X utf8 - << 'PYEOF'
@@ -76,14 +108,20 @@ import os
 
 root = r"D:\FPGA\code\example"
 out = os.path.join(root, "td_prj", "av_media_Runs", "phy_1", "build_manifest.sha256")
-paths = []
-for base in (os.path.join(root, "rtl"), os.path.join(root, "constraints")):
-    for dirpath, _, names in os.walk(base):
-        for name in names:
-            if name.lower().endswith((".v", ".vh", ".vhd", ".sdc", ".adc", ".ipc")):
-                paths.append(os.path.join(dirpath, name))
-paths += [os.path.join(root, "td_prj", "av_media.al"),
-          os.path.join(root, "td_prj", "av_media_Runs", "phy_1", "av_media.prj")]
+import sys
+sys.path.insert(0, os.path.join(root, 'scripts'))
+from check_reports import source_files, project_snapshots_match
+if not project_snapshots_match():
+    raise RuntimeError("TD 运行后工程入口与快照不一致；拒绝签发 bit 清单")
+paths = source_files()
+actual_lines = []
+for path in (p for p in paths if not p.endswith('av_media.bit')):
+    with open(path, 'rb') as src:
+        digest = hashlib.sha256(src.read()).hexdigest()
+    actual_lines.append(f"{digest}  {os.path.relpath(path, root).replace(chr(92), '/')}\n")
+with open(os.path.join(root, 'td_prj', 'av_media_Runs', 'phy_1', '.build_inputs.sha256'), encoding='ascii') as src:
+    if "".join(actual_lines) != src.read():
+        raise RuntimeError("构建期间输入发生变更；请修复工程版本后重新构建")
 with open(out, "w", encoding="ascii", newline="\n") as dst:
     for path in sorted(p for p in paths if os.path.isfile(p)):
         digest = hashlib.sha256()

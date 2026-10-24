@@ -37,3 +37,5 @@ add_files D:/FPGA/code/example/rtl/pll/afifo_32_16_256.v
 top_module top
 save_design
 exit
+
+add_files D:/FPGA/code/example/rtl/sd/source_scaler_gate.v

@@ -10,7 +10,11 @@ module bmp_read_g #(
     parameter MAX_IMAGES = 8,
     parameter MAX_DIM    = 2047,
     parameter CLK_FREQ_HZ = 100_000_000,
-    parameter SD_READ_TIMEOUT_MS = 500
+    parameter SD_READ_TIMEOUT_MS = 500,
+    parameter EXACT_WIDTH = 0,
+    parameter EXACT_HEIGHT = 0,
+    parameter MAX_WIDTH = MAX_DIM,
+    parameter MAX_HEIGHT = MAX_DIM
 )(
     input  wire        clk,
     input  wire        rst,
@@ -49,6 +53,7 @@ module bmp_read_g #(
     input  wire [7:0]  sd_sec_read_data,
     input  wire        sd_sec_read_data_valid,
     input  wire        sd_sec_read_end,
+    input  wire        sd_sec_read_error,
 
     output reg         bmp_data_wr_en,
     output reg  [23:0] bmp_data
@@ -62,11 +67,13 @@ module bmp_read_g #(
     localparam ST_HDR_PREP   = 4'd5;
     localparam ST_HDR_MUL    = 4'd6;
     localparam ST_HDR_RESULT = 4'd7;
+    localparam ST_HDR_BOUNDS = 4'd8;
 
     localparam [3:0] ERR_NONE      = 4'd0;
     localparam [3:0] ERR_HEADER    = 4'd1;
     localparam [3:0] ERR_TIMEOUT   = 4'd2;
     localparam [3:0] ERR_TRUNCATED = 4'd3;
+    localparam [3:0] ERR_SD_READ   = 4'd4;
     localparam integer TIMEOUT_CYCLES = (CLK_FREQ_HZ / 1000) * SD_READ_TIMEOUT_MS;
 
     reg [3:0]  state;
@@ -85,6 +92,9 @@ module bmp_read_g #(
                            && (compression == 32'd0)
                            && (width  != 32'd0) && (width  <= MAX_DIM)
                            && (height != 32'd0) && (height[31] == 1'b0) && (height <= MAX_DIM)
+                           && (EXACT_WIDTH == 0 || width == EXACT_WIDTH)
+                           && (EXACT_HEIGHT == 0 || height == EXACT_HEIGHT)
+                           && (width <= MAX_WIDTH) && (height <= MAX_HEIGHT)
                            && (pixel_offset >= 32'd54)
                            && (file_len >= pixel_offset);
     wire [31:0] next_if_miss  = scan_sector + 32'd1;
@@ -112,6 +122,7 @@ module bmp_read_g #(
     reg        header_result_ok;
     reg [31:0] header_row_bytes;
     reg [31:0] header_expected_bytes;
+    reg [31:0] header_available_bytes;
     reg [31:0] header_sector_count;
     reg [31:0] hdr_mul_a;
     reg [31:0] hdr_mul_b;
@@ -124,7 +135,8 @@ module bmp_read_g #(
 
     wire read_state = (state == ST_SCAN) || (state == ST_LOAD_HDR) ||
                       (state == ST_LOAD_DATA);
-    wire timeout_hit = read_state && (timeout_cnt >= TIMEOUT_CYCLES);
+    reg timeout_reached;
+    wire timeout_hit = read_state && timeout_reached;
 
     // ---- 头部字节采样 ----
     reg [9:0] hdr_cnt;
@@ -139,7 +151,8 @@ module bmp_read_g #(
         end else if (!sd_init_done) begin
             hdr_cnt <= 10'd0;
         end else if ((state == ST_SCAN || state == ST_LOAD_HDR) && sd_sec_read_data_valid) begin
-            hdr_cnt <= (hdr_cnt == 10'd33) ? hdr_cnt : hdr_cnt + 10'd1;
+            // 34 是头字段采样结束哨兵；停在 33 会让后续像素反复覆盖 compression[31:24]。
+            hdr_cnt <= (hdr_cnt >= 10'd34) ? 10'd34 : hdr_cnt + 10'd1;
             case (hdr_cnt)
                 10'd0 : header_0 <= sd_sec_read_data;
                 10'd1 : header_1 <= sd_sec_read_data;
@@ -184,10 +197,17 @@ module bmp_read_g #(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             timeout_cnt <= 32'd0;
+            timeout_reached <= (TIMEOUT_CYCLES == 0);
         end else if (!sd_init_done || !read_state || sd_sec_read_end) begin
             timeout_cnt <= 32'd0;
-        end else if (timeout_cnt < TIMEOUT_CYCLES) begin
-            timeout_cnt <= timeout_cnt + 32'd1;
+            timeout_reached <= (TIMEOUT_CYCLES == 0);
+        end else begin
+            if (timeout_cnt < TIMEOUT_CYCLES)
+                timeout_cnt <= timeout_cnt + 32'd1;
+            // 预测本拍计数更新后的到期状态，保持原超时触发拍数，
+            // 将宽比较器与头参数/状态机的公共控制路径分离。
+            timeout_reached <= (TIMEOUT_CYCLES == 0) ||
+                               (timeout_cnt >= TIMEOUT_CYCLES - 1);
         end
     end
 
@@ -196,11 +216,21 @@ module bmp_read_g #(
     // row_pos : 像素区内"下一字节"在源图行内的位置（无除法实现 padding 剥离）
     reg [31:0] byte_pos;
     reg [31:0] row_pos;
-    wire [31:0] w3            = width + width + width;             // W*3
+    reg [31:0] pixel_row_bytes;
+    // 头部准备阶段预计算W*3，避免逐字节路径串联加法、行范围比较和像素计数使能。
+    // 原有头校验还需多拍，进入ST_LOAD_DATA前该值已稳定，不改变字节/像素相位。
+    always @(posedge clk or posedge rst) begin
+        if (rst)
+            pixel_row_bytes <= 32'd0;
+        else if (!sd_init_done)
+            pixel_row_bytes <= 32'd0;
+        else if (state == ST_HDR_PREP)
+            pixel_row_bytes <= width + (width << 1);
+    end
     wire [31:0] row_bytes_pad = row_bytes_pad_reg;                 // 已锁存行字节数
     wire       in_pixel_data  = (state == ST_LOAD_DATA)
                              && (byte_pos >= pixel_offset) && (byte_pos < file_len);
-    wire       byte_is_pixel  = in_pixel_data && (row_pos < w3);
+    wire       byte_is_pixel  = in_pixel_data && (row_pos < pixel_row_bytes);
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -223,20 +253,22 @@ module bmp_read_g #(
             bmp_data_wr_en <= 1'b0;
             bmp_data       <= 24'd0;
         end else if (state == ST_LOAD_DATA) begin
-            if (byte_is_pixel) begin
-                case (byte_idx)
-                    2'd0: begin bmp_data_wr_en <= 1'b0; bmp_data[7:0]  <= sd_sec_read_data; end
-                    2'd1: begin bmp_data_wr_en <= 1'b0; bmp_data[15:8] <= sd_sec_read_data; end
-                    default: begin
-                        bmp_data_wr_en  <= 1'b1;
-                        bmp_data[23:16] <= sd_sec_read_data;
-                    end
-                endcase
-                byte_idx <= (byte_idx == 2'd2) ? 2'd0 : byte_idx + 2'd1;
-            end else begin
-                bmp_data_wr_en <= 1'b0;
-                if (in_pixel_data)
-                    byte_idx <= 2'd0;      // padding 处复位拼包序（稳健性）
+            // SD 接口按有效脉冲提供字节；空拍保持拼包状态，写使能始终只打一拍。
+            bmp_data_wr_en <= 1'b0;
+            if (sd_sec_read_data_valid) begin
+                if (byte_is_pixel) begin
+                    case (byte_idx)
+                        2'd0: bmp_data[7:0]  <= sd_sec_read_data;
+                        2'd1: bmp_data[15:8] <= sd_sec_read_data;
+                        default: begin
+                            bmp_data_wr_en  <= 1'b1;
+                            bmp_data[23:16] <= sd_sec_read_data;
+                        end
+                    endcase
+                    byte_idx <= (byte_idx == 2'd2) ? 2'd0 : byte_idx + 2'd1;
+                end else if (in_pixel_data) begin
+                    byte_idx <= 2'd0;      // 仅实际收到 padding 字节时复位拼包序
+                end
             end
         end else begin
             bmp_data_wr_en <= 1'b0;
@@ -271,6 +303,7 @@ module bmp_read_g #(
             header_result_ok  <= 1'b0;
             header_row_bytes  <= 32'd0;
             header_expected_bytes <= 32'd0;
+            header_available_bytes <= 32'd0;
             header_sector_count <= 32'd1;
             hdr_mul_a        <= 32'd0;
             hdr_mul_b        <= 32'd0;
@@ -344,9 +377,15 @@ module bmp_read_g #(
                     sd_sec_read <= 1'b1;
                     if (sd_sec_read_end) begin
                         sd_sec_read <= 1'b0;
-                        header_basic_ok   <= header_basic_match;
-                        header_check_load <= 1'b1;
-                        state             <= ST_HDR_PREP;
+                        if (sd_sec_read_error) begin
+                            error_code <= ERR_SD_READ;
+                            load_error <= 1'b1;
+                            state <= ST_IDLE;
+                        end else begin
+                            header_basic_ok   <= header_basic_match;
+                            header_check_load <= 1'b1;
+                            state             <= ST_HDR_PREP;
+                        end
                     end
                 end
 
@@ -358,6 +397,8 @@ module bmp_read_g #(
                         state            <= ST_HDR_RESULT;
                     end else begin
                         header_row_bytes <= (width + (width << 1) + 32'd3) & ~32'd3;
+                        // basic_ok保证file_len>=offset；先作减法，避免offset+像素长度回绕。
+                        header_available_bytes <= file_len - pixel_offset;
                         hdr_mul_a        <= (width + (width << 1) + 32'd3) & ~32'd3;
                         hdr_mul_b        <= height;
                         hdr_product      <= 32'd0;
@@ -375,12 +416,8 @@ module bmp_read_g #(
                         header_expected_bytes <= hdr_product + (hdr_mul_b[0] ? hdr_mul_a : 32'd0);
                         header_expected_pixels <= hdr_pixel_product + (hdr_mul_b[0] ? hdr_pixel_a : 32'd0);
                         header_sector_count   <= (file_len == 32'd0) ? 32'd1
-                                                   : ((file_len + 32'd511) >> 9);
-                        header_result_ok      <= (file_len >= pixel_offset)
-                                              && (file_len >= pixel_offset
-                                                  + hdr_product
-                                                  + (hdr_mul_b[0] ? hdr_mul_a : 32'd0));
-                        state <= ST_HDR_RESULT;
+                            : ({9'd0,file_len[31:9]} + {31'd0,(|file_len[8:0])});
+                        state <= ST_HDR_BOUNDS;
                     end else begin
                         if (hdr_mul_b[0])
                             hdr_product <= hdr_product + hdr_mul_a;
@@ -391,6 +428,13 @@ module bmp_read_g #(
                         hdr_mul_b     <= hdr_mul_b >> 1;
                         hdr_mul_count <= hdr_mul_count + 6'd1;
                     end
+                end
+
+                // 长度累加与宽比较分拍；不能把加法、比较和提交使能放在同一周期。
+                ST_HDR_BOUNDS: begin
+                    state_code <= 4'd2;
+                    header_result_ok <= header_available_bytes >= header_expected_bytes;
+                    state <= ST_HDR_RESULT;
                 end
 
                 // 扫描和装载都只使用已寄存的校验结果。
@@ -450,7 +494,11 @@ module bmp_read_g #(
                     sd_sec_read <= 1'b1;
                     if (sd_sec_read_end) begin
                         sd_sec_read <= 1'b0;
-                        if (byte_pos >= file_len) begin
+                        if (sd_sec_read_error) begin
+                            error_code <= ERR_SD_READ;
+                            load_error <= 1'b1;
+                            state <= ST_IDLE;
+                        end else if (byte_pos >= file_len) begin
                             if (pixel_count == header_expected_pixels) begin
                                 load_done <= 1'b1;
                                 state     <= ST_IDLE;

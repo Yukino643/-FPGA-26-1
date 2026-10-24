@@ -480,3 +480,196 @@
 | 初始化就绪时机 | 已实现 | 仅在 OCR 合法且必要的块长度设置成功后拉高 `sd_init_done`；初始化失败保持未就绪 |
 | 回归验证 | 已通过 | `tb_sd_card_init.v` 覆盖 SDHC/SDSC、CMD58 同拍末字节 ACK 与读写地址；基础回归 20/20、`--full` 21/21，bit/manifest 与报告门通过 |
 | 板级验证 | 待执行 | 需用本轮新编译的 bit 重新下载，再观察 8 GB FAT32 卡的 BMP 扫描与 HDMI 显示 |
+
+
+## 8.21 2026-09-30 官方 BMP 与 SPI 空拍解析修复
+
+| 项目 | 结果 |
+|---|---|
+| BMP 头采样边界 | hdr_cnt 由饱和 33 改为哨兵 34，防止像素覆盖 compression 最高字节；官方草莓/苹果/西瓜首扇区扫描与装载头均 3/3 通过 |
+| 像素有效握手 | 拼包与 byte_idx 只在 sd_sec_read_data_valid 时前进；31 空拍回归与连续供数均通过 |
+| 底层 SD 证据 | 新增 SPI 引脚模型，SDHC 与支持 CMD8 的 SDSC 完整初始化、寻址及两扇区读取通过 |
+| 本轮回归与构建 | 普通 24/24，完整 25/25，独立 check_reports.py fails=0；bit=643592B，2026-09-30 19:17:55 生成 |
+| 时序边界 | 汇总 SWNS=-6.565ns、HWNS=+0.021ns；详细报告 HWNS=-0.011ns，因此仅称通过工程门限，不称所有路径闭合 |
+| 板级与卡布局 | 待 Julian 下载本轮 bit；卡未接电脑，未验证物理起始 LBA/连续性；当前仍扫描前 64 MiB，目标最多 8 图 |
+| 备份 | 本地 D:/FPGA/tmp/bmp-header-backup-20260930-183732，远端标签 backup/pre-bmp-fix-20260930 |
+
+详见 [TF图片黑屏定位-20260930.md](TF图片黑屏定位-20260930.md)。
+
+
+## 8.22 2026-09-30 TF-D1 官方 SD 资料对照与板级诊断
+
+| 项目 | 本轮结果 |
+|---|---|
+| 本地官方资料 | SD读写实验8页与对应RTL、VGA/HDMI及开发板TF原理图已核对；不解析FAT目录，原演示包含写卡操作 |
+| 真实 H: 卡 | 3张官方BMP完全一致，起始LBA32784/34592/36400，簇链连续且全部位于前64MiB扫描范围，卡全程只读 |
+| 诊断实现 | HDMI_A标题TF-D1，六组状态/计数；跨时钟域握手快照，软控制器复位保留故障历史；MISO按官方改PULLUP |
+| 构建修复 | seed5普通路由仍冲突；官方routability策略消除局部冲突；保留hold修复和原门限 |
+| 同版门禁 | 输入起止哈希、入口与两份run快照一致性、字体hex/IP Tcl及bit SHA；替换bit/漏模块负测试均被拒绝 |
+| 验收 | basic25/25、full26/26、full后独立check_reports fails=0 |
+| 最终bit | 2026-09-30 22:29:14，643592B，SHA256 79d7cd311b10509ca8ac70496aec740bafb581c2db845ca04b3a18ce1df27166 |
+| 时序限制 | 修复后SWNS=-6.565ns、HWNS=+0.022ns；setup仍负余量，不能宣称所有路径闭合 |
+| 板级 | HDMI_A/B基本显示已实测正常；TF-D1尚待Julian下载拍照，TF黑屏根因仍待确认 |
+| 备份 | tmp/tf-diagnostic-backup-20260930-201535；Git标签backup/pre-tf-diag-20260930指向fec1891 |
+
+详见 [TF诊断版-20260930.md](TF诊断版-20260930.md)。
+
+## 8.23 2026-10-01 TF-D2 缩放启动与页提交修复
+
+| 项目 | 本轮结果 |
+|---|---|
+| TF-D1 板级照片 | 43/93秒；found3/error0；首图307200像素，WR/SCALE01/00，复位0；故障位于源缓存完成之后 |
+| 根因 | 首图cfg宽高取提交后才更新的cur尺寸，形成启动死锁；目标页反推与首图待提交页不一致 |
+| 修复 | 使用当前load尺寸与write_buf_idx；持久toggle只同步一次；每任务清wr_cnt；BRAM读地址保留x[9] |
+| 新测试 | 提取真实顶层原文；三任务页0/1/0，异尺寸、异步时钟、仲裁停顿、640宽全帧像素验证通过；旧连接复现失败 |
+| 验证顺序 | basic26/26 → full27/27 → 独立check_reports fails=0 |
+| 最终bit | 2026-10-01 02:21:02，643592B；SHA256 3301637cbafa98d79996854dc7dffe48bc71d1bfc64c18453a86072b70a13515 |
+| 工程门限 | LUT81.62%，BRAM9K71.9%，SWNS-6.565ns，HWNS+0.022ns；不代表所有setup路径闭合 |
+| 板级 | TF-D2尚待下载，图片在HDMI_B；卡文件无需调整，卡保持只读 |
+| 恢复 | tmp/tf-scaler-backup-20261001-012533；tmp/tf-scaler-pre-fix-20261001.bundle；标签backup/pre-scaler-fix-20261001 |
+
+详见 [TF缩放修复-20261001.md](TF缩放修复-20261001.md)。
+
+## 8.24 2026-10-01 TF-D3 缩放器板级状态诊断
+
+| 项目 | 本轮结果 |
+|---|---|
+| 新诊断 | HDMI_A 标题 `SYS MONITOR TF-D3`；WR/SCALE 右侧显示 scaler state、busy、C口 valid/ready、done toggle |
+| 联调仿真 | scaler + mem_mpu + SDRAM 返回模型通过；真实顶层连接、异步时钟、页0/1/0和全帧校验通过 |
+| 回归门 | basic27/27 → full28/28 → 独立check_reports fails=0 |
+| 最终 bit | 2026-10-01 13:46:25，643592B；SHA256 7856ccf9777873493a66052ff1b99be3e76d40182897feb3e2e733e4c65d55c8 |
+| 报告 | LUT81.78%，BRAM9K71.9%，SWNS-6.565ns，HWNS+0.019ns；setup仍按既有基线验收 |
+| 板级下一步 | 下载 D3 后拍 HDMI_A；根据状态字节决定停在除法、读源还是输出阶段 |
+
+## 8.25 2026-10-01 TF-D3 照片后的 SDRAM 链路修复
+
+| 项目 | 证据与动作 |
+|---|---|
+| D3 新照片 | UPTIME `0x49`；TF 找到3图、错误0；BMP HEAD `424D3610`；PIXELS `0x4B000`；WR/SCALE `01/4C` |
+| 状态解码 | `4C = 0100_1100`：scaler state=4(S_FDA)、busy=1、C-valid=1、C-ready=0、done=0；请求尚未被 mem_mpu 接受 |
+| 官方对照 | 安路 `frame_fifo_read` 仅在 `Sdr_init_done` 后受理帧读；工程 mem_mpu 原先不门控 SDRAM init/busy |
+| 修复 | mem_mpu ready 等待 init done 且 controller idle；`S_CMD` 与 `S_DRAIN` 均路由并累计响应拍 |
+| 写掩码 | 官方 frame writer 使用 `App_wr_dm=0`；scaler 原设 `4'hF`，按 SDRAM DQM 高有效屏蔽语义会屏蔽整字写，改为 `4'h0` |
+| 定向验证 | 新增 init/busy 等待及命令/返回重叠的 mem_mpu 测试；旧命令结束后才返回的模型不足以发现此前漏拍 |
+| 板级状态 | 新修复 bit 已完成构建，等待重新下载和上板确认 |
+| 回归与构建 | basic 28/28；full 29/29；TD 综合、布线、Hold Fix、bitgen 成功 |
+| 独立报告 | `check_reports.py` fails=0；LUT81.76%、BRAM71.9%、SWNS=-6.565ns、HWNS=+0.022ns；setup仍有负余量 |
+| 新 bit | 2026-10-01 18:23:35，643592B；SHA256 `0061a2d8b2fe6adaddd15724abde7cb1328c8103d39a53efec0c1fc4b31e65ab` |
+| 板级下一步 | 重新下载此 bit；保留 TF 卡现有 FAT32/BMP，不需格式化或改图；拍 HDMI_A 诊断和 HDMI_B 图片状态 |
+
+## 8.26 2026-10-02 主显示切图、OSD 与老师例程 PCM 波形
+
+| 项目 | 结果 |
+|---|---|
+| 切图 | 默认 VS 帧边界直切；scaler 完成页号先锁存再触发；保持 loader 到转场结束；显示页跨域同步；重启读帧期间屏蔽旧基址请求 |
+| 可选转场 | 按老师第十讲先淡出至黑帧、黑场换页、再淡入；方向揭示保留为可选模式；alpha 使用扩展位饱和，不会在 255 回绕 |
+| OSD | 左上“炬屏—双模HDMI多媒体系统”，右上广告/应急模式，右下运行时间；黑色字形透明叠加，去掉顶/底横条 |
+| PCM 波形 | 严格沿用老师第十二讲的有效样本、32 点双 bank、完整组帧边界发布、样本保持式水平段、3px 曲线、中轴线及单点峰值表；顶层采集窗口跨帧连续 |
+| 定向验证 | 波形 150,048 像素检查；8 次异步页提交；直切、淡出/淡入饱和、左右/上下揭示通过；OSD 非字形区逐像素透明检查 |
+| 全显示路径 | 7 个连续帧逐像素验证，共 2,150,400 像素；三次 0/1 页换切无首帧残留；后续帧无欠载增长 |
+| 回归门 | 基础 `regression.sh` 38/38；`regression.sh --full` 39/39，包含当前源码综合、布局布线、Hold Fix、bitgen；独立 `check_reports.py` fails=0 |
+| 固件 | 643,592 字节；SHA-256 `db261c2bb84bed3c5515392af11976c1d1ddc86dcfd43e525e5260131fd056d2` |
+| 资源与时序 | LUT 14,740/19,600=75.2%；BRAM9K 48/64=75.0%；SWNS=-6.565ns、STNS=-889.952ns、HWNS=+0.022ns；按现有门限通过，setup 仍有负余量 |
+| 备份 | 修改前标签 `backup/pre-ui-waveform-20261002`、bundle、差异补丁和旧 bit 均保留；详见 [界面与 PCM 波形优化记录](界面与PCM波形优化-20261002.md) |
+| 板级 | 尚未下载本轮 bit；TF 卡没有更改。需重新下载后复核两路 HDMI、切图无残影、实际 WAV 波形与应急功能 |
+
+### 8.27 老师第十二讲波形实现对齐复核
+
+用户补充要求严格参考老师资料后，对照课程 `promax_audio_waveform.v` 保留有效 PCM、双 bank、完整组和帧边界发布规则；为解决 32 点仅覆盖约 8 ms 导致波形快速扫动的问题，顶层改为 `DECIMATE=120`，采集状态跨 VS 帧保留，采满后在下一帧边界发布。恢复课程例程中的单点峰值表，频谱柱仍不进入主显示。接口继续使用当前设计的正极性帧脉冲与显式 y 坐标，以避开右下运行时间区域。
+
+| 验证项 | 当前源码结果 |
+|---|---|
+| 基础回归 | `bash scripts/regression.sh` 38/38；第一次执行仅因旧 bit/manifest 对应修改前 RTL 而在报告门失败，当前源码全量重建后重跑通过 |
+| 全量回归 | `bash scripts/regression.sh --full` 39/39；本轮源码重新综合、布局布线及 bitgen |
+| 独立报告 | `python scripts/check_reports.py`；fails=0，bit 和 SHA-256 manifest 一致 |
+| 当前 bit | 643,592 字节；SHA-256 `1733665b5d433d4c12332fbe8bff535660e8fc31290a0f29ffba38384eb407fa` |
+| 资源/时序 | LUT 14,792/19,600=75.47%；BRAM9K 48/64=75.0%；SWNS=-6.565ns、HWNS=+0.024ns；setup 仍有负余量，按现有基线门限通过 |
+| 板级 | 尚未下载本轮 bit；需要复核两路 HDMI、切图、波形峰值表和应急功能 |
+
+## 8.28 2026-10-02 PCM 有效样本与默认淡变修复
+
+| 项目 | 当前源码结果 |
+|---|---|
+| 根因 | `audio_valid` 是 HDMI 48 kHz 包节拍，FIFO 空时仍拉高并发送零值；顶层误将其当成真实 PCM 波形样本。转场模式复位为 0，导致已有淡变控制器实际直切 |
+| 修复 | 新增仅在 sample tick 且 PCM FIFO 非空时拉高的 `sample_data_valid`；正常模式波形接 WAV 真实样本，应急模式接警笛真实样本；默认转场设为模式 1、alpha 每帧步进 16 |
+| 课程参考 | 第十讲建议 16 帧 alpha 斜坡；第十二讲只采集有效 PCM，采用 32 点双 bank 和 VS 边界完整组发布；继续使用单帧淡出至黑、换页、淡入 |
+| 定向验证 | 空 FIFO HDMI 节拍与 PCM valid 分离、50 样本准确消费；波形、转场状态和真实顶层提交握手仿真通过 |
+| 基础回归 | `bash scripts/regression.sh` 38/38；第一次检查发现旧 `syn_1` 快照晚于 canonical `.al` 用户配置，执行全量构建刷新快照后复跑通过 |
+| 全量回归 | `bash scripts/regression.sh --full` 39/39；当前源码综合、布局布线、hold 修复与 bitgen 成功 |
+| 独立报告 | `python scripts/check_reports.py` fails=0；manifest、canonical 工程、两个 run 快照和 bit 一致 |
+| 资源/时序 | LUT 15,006/19,600=76.56%；BRAM9K 48/64=75%；SWNS=-6.565ns、HWNS=+0.022ns；setup 仍有负余量，按既有门限通过 |
+| 当前 bit | 643,592 字节；SHA-256 `42f222d36cbd2316a68d30910feddc85b6fbf99e19dcbd3e9ab42d4fde3f1f71` |
+| 构建前备份 | `D:/FPGA/av_media-pre-waveform-fade-20261002.bit`；SHA-256 `1733665b5d433d4c12332fbe8bff535660e8fc31290a0f29ffba38384eb407fa` |
+| 板级限制 | H: 当前未挂载，未能核实卡内容。只有 BMP 而没有兼容 PCM WAV 时，正常模式没有真实音频样本，课程式波形保持中轴线；下载新 bit 后需用工程支持的 48 kHz、16-bit、双声道 PCM WAV 验证起伏 |
+
+## 8.29 2026-10-02 波形显示时基与幅度优化
+
+| 项目 | 当前源码结果 |
+|---|---|
+| 波形时基 | 顶层 `DECIMATE=120`，32 点覆盖约 80 ms；采样计数、抽取计数和峰值跨视频帧保留，采满后在下一个 VS 边界发布 |
+| 波形增益 | 高字节除以 2，窗口为 `(64,376)-(575,447)`，边界饱和裁剪，运行时间文字区域不被覆盖 |
+| 定向验证 | `TB_AUDIO_WAVEFORM PASS checks=172800`；覆盖跨帧保留、完整组发布、双 bank、负满幅和禁用/消隐透传 |
+| 基础回归 | `bash scripts/regression.sh` 的单元仿真全部通过；报告门第一次因旧 bit 过期，重建后已由完整回归确认 |
+| 全量回归 | `bash scripts/regression.sh --full` 39/39；当前源码重新综合、布局布线、Hold Fix、bitgen 成功 |
+| 独立报告 | `python scripts/check_reports.py`；fails=0，bit 与 SHA-256 manifest 一致 |
+| 当前 bit | 643,592 字节；SHA-256 `42f222d36cbd2316a68d30910feddc85b6fbf99e19dcbd3e9ab42d4fde3f1f71` |
+| 资源/时序 | LUT 14,824/19,600=75.63%；BRAM9K 48/64=75.0%；SWNS=-6.565ns、HWNS=+0.022ns；setup 仍有负余量，按现有门限通过 |
+| 板级限制 | 尚未下载本轮 bit；需使用兼容的 48 kHz、16-bit、双声道 PCM WAV，并复核波形速度、幅度、两路 HDMI、切图和应急功能 |
+
+## 8.30 2026-10-03 连续 PCM 曲线与无黑场双页转场
+
+| 项目 | 当前源码结果 |
+|---|---|
+| 根因与波形 | 每点保持16列造成阶梯；改为相邻点有符号线性插值，补齐陡坡的相邻列连接，常规3px绿线；末点保持、窗口索引钳位。沿用老师第十二讲的真实PCM valid、32点双bank和完整组VS发布 |
+| 默认转场 | mode=2；两页按同一偏移逐行回绕读取，旧图左移、新图从右进入；每帧16px，40步约0.67秒。源列回绕不推进行，突发截短到源/输出/帧边界 |
+| 可选效果 | mode=1参考老师第十讲frame_blend双页交叉淡化，每帧alpha增加8，32步约0.53秒；这是颜色混合，不是空间模糊。mode=3纵向揭示，mode=0直切 |
+| 页交接 | 动画期间两页只读且loader暂停；结束时A改为目标页，B完整显示一帧，下一VS才交回A并释放loader，避免末帧旧页残留 |
+| 波形定向验证 | `TB_AUDIO_WAVEFORM PASS checks=974048`；间距1/16/20、正负满幅、陡坡连通、末点、双bank、跨帧采集和透传 |
+| 行内读取 | `TB_DISP_SCROLL PASS cases=7 exact_words=13440`；偏移0/1/16/127/128/639/0，含请求停顿、响应空拍和水位反压 |
+| 动画整链路 | 默认16px：101帧、517,120像素；加速128px：31帧、158,720像素；均含两次横推、两次交叉淡化及交接后连续帧，真实8/8/4仲裁，无新增欠载。动画用640列×8活动行及45行消隐，混合步长64加速；不能声称已经覆盖全尺寸默认时长动画 |
+| 全尺寸路径 | 640×480连续7帧，共2,150,400像素逐像素通过，覆盖页交替和后续帧 |
+| 回归 | `bash scripts/regression.sh` 40/40，退出0；随后 `bash scripts/regression.sh --full` 41/41，退出0，当前源码重新综合、布局布线、Hold Fix和bitgen成功 |
+| 独立报告 | 全量结束后运行 `python -X utf8 scripts/check_reports.py`，fails=0；当前RTL、canonical工程、run快照、SHA-256 manifest及bit一致 |
+| 最终bit | `td_prj/av_media_Runs/phy_1/av_media.bit`；2026-10-03 01:45:46，643,592字节；SHA-256 `f9e83a5647a3876093dff95f2d1d471cd3da1d679cdd61380f5a16df2642b99d` |
+| 资源/时序 | LUT 15,202/19,600=77.56%；BRAM9K 48/64=75%；SWNS=-6.565ns、STNS=-827.253ns、HWNS=+0.022ns、HTNS=0；按既有门限通过，setup仍有负余量 |
+| 审查 | 未发现确定的RTL错误；修正任务文档中旧16帧/黑场策略描述。源码、测试及文档范围 `git diff --check` 通过；TD生成报告保持工具原格式 |
+| 恢复点 | 修改前tag `backup/pre-continuous-slide-20261003` 指向 `c40dadc`；完整bundle已验证，旧bit备份位于D:/FPGA，详见 [改进记录](连续波形与无黑场转场-20261003.md) |
+| 板级待验 | 下载本轮bit，用物理KEY2循环三张图；检查非128倍数位移时的接缝、错行、黑闪、末帧和连续按键；复核音频、连续曲线、HDMI_A及应急。行为SDRAM模型未覆盖真实刷新/写争用，加密IP及物理效果仍需上板确认 |
+
+
+## 8.31 2026-10-03 圆润波形与 KEY2 请求及事务隔离
+
+| 项目 | 当前源码结果 |
+|---|---|
+| 波形 | 严格沿用老师第十二讲真实PCM、32点双bank、完整组VS发布；Q4节点每帧误差1/4收敛，统一三次B样条抑制尖峰；消隐流水预计算、同步BRAM查表替代原waveform_q拍，RGB/DE/坐标保持相位 |
+| 老师转场 | 第十讲双页/VS边界策略保持；现有左推与双页交叉淡化继续，转场保持两页只读到完整交接 |
+| KEY2请求 | 8位计数最多积压255个尚未启动请求；启动减1，同拍按下/消费净0；图号独立循环，累计次数不限，不能到上限清零丢请求 |
+| 事务提交 | 解析完成/目标写完分别sticky，任意先后及同拍齐才提交；错误优先。视频只接受manager成功toggle，同拍锁SD pending防下一拍抢先装载 |
+| 缩放隔离 | 新source_scaler_gate以本次源write_req/ACK建立边界；旧ACK回低、新ACK前旧writer完成忽略；两源完成齐才启动scaler，错误源不启动；SD deinit保留toggle历史 |
+| 恢复边界 | 全坏图的新手动请求可有界重试；唯一好图正确回退；source_restart清packer半字；writer尾突发按实际剩余字数终止（640×480不触发此尾部问题） |
+| 定向证据 | 678次切换、20次消抖物理按键模型、255饱和/排空后复用；独立B样条数学参考5920列；gate三种顺序/延迟ACK/旧完成隔离；11成功提交及11次启动、失败0提交、2重试；3次完整目标缩放 |
+| 基础回归 | `bash scripts/regression.sh` 44/44，退出0 |
+| 全量回归 | 基础通过后 `bash scripts/regression.sh --full` 45/45，退出0；当前源码重新综合、布线、hold修复和bitgen |
+| 独立报告 | 全量结束后 `python -X utf8 scripts/check_reports.py`，fails=0；RTL、canonical .al、工程快照、manifest和bit一致 |
+| 最终bit | 2026-10-03 16:24:20，643592字节；SHA-256 `b874b41ebc302b72b0fd8c24f1cde372d61a36117e9fbb6705f3f5fa14f60de7` |
+| 资源/时序 | LUT15781/19600=80.52%；BRAM9K49/64=76.56%；DSP20/29；SWNS=-6.565ns、STNS=-1009.509ns、HWNS=+0.022ns、HTNS=0；setup仍未完全闭合，按既有基线通过 |
+| 审查 | 两项P1均关闭，历史反例保留；源码/脚本/测试/文档diff检查通过，TD报告保持工具原格式 |
+| 恢复 | tag `backup/pre-smooth-key-20261003`指向bcece2b7；D:/FPGA/backups/pre-smooth-key-20261003保存旧bit/.al、恢复说明及完整bundle |
+| 证据 | [改进文档](波形平滑与KEY2循环修复-20261003.md)、[basic](validation/smooth-key-20261003/basic.log)、[full](validation/smooth-key-20261003/full.log)、[report](validation/smooth-key-20261003/reports.log)、[review](validation/smooth-key-20261003/review.md) |
+| 板级待验 | 下载本轮bit，KEY2逐次40次以上及转场中连按5次；检查曲线圆润/流畅、三图循环、音频、两路HDMI和应急。当前板测根因尚未由现场状态确认，只证明已修复的RTL反例；行为模型不替代物理IP/刷新/突发断卡验证 |
+
+## 8.32 2026-10-14 七图720p板测与KEY2下一张预取
+
+| 项目 | 当前结论 |
+|---|---|
+| 上一版板测 | 用户确认七张720p图片全部正常，显示效果满意；预取版本仍需重新上板 |
+| KEY2根因 | 纯RTL无软件中断优先级；20ms消抖后才读约2.76MB BMP，25MHz SPI仅数据下限约0.885秒 |
+| 优化 | 参考老师第八讲，空闲页后台提前装载，完整后等待真实请求；转场释放返回才再次预取 |
+| 请求/错误 | 热/冷请求、255饱和、同拍消费、自动取消、坏图重试、唯一好图自动恢复及SD重初始化保留 |
+| 中断恢复 | 种子5最终RTL局部hold-buffer布线冲突；官方place seed改6，完整TD及报告通过，未放宽门限 |
+| 验证补强 | 预取页毒值初始化、实际存储写地址/DQM/字数核对；关闭模型写入负例由像素检查拒绝 |
+| 最新资源 | LUT11564/19600=59.00%；寄存器7903/19600=40.32%；BRAM9K49/64=76.56%；BRAM32K0/16；DSP9/29；PLL3/4 |
+| 时序 | pixel setup+0.144ns/hold+0.022ns；serial setup+0.977ns/hold+0.068ns；SWNS=-6.565ns，SD/SDRAM旧负setup仍存在 |
+| 扩展 | 当前单板够用，HDMI-A暂停；双HDMI独立画面需另做BRAM/PLL/SDRAM并行带宽验证 |
+| 交付进度 | 源码52/52、基础53/53、完整构建53/53和独立报告通过；bit及102项清单与Git字节一致；本地提交52cd68f，GitHub网络阻塞待推送 |
+| 详情 | [完整资源与验收记录](validation/key2-prefetch-20261014.md)、[720p使用说明](HDMI_B_720P.md) |

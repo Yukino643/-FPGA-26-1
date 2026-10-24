@@ -1,5 +1,5 @@
 
-module video_rgb_to_axis_640x480(
+module video_rgb_to_axis_640x480 #(parameter ACTIVE_WIDTH=640)(
     input  wire        I_clk,
     input  wire        I_rst,
     input  wire        I_vs,
@@ -54,8 +54,9 @@ always @(posedge I_clk or posedge I_rst) begin
                 S_x_cnt <= S_x_cnt + 11'd1;
             end
 
-            // 640x480 最后一个有效像素
-            if (S_x_cnt == 11'd639)
+            // S_x_cnt 是本拍输入像素到来前的计数值；输入 x=639 时旧值为 638。
+            // 输出寄存器在本拍锁存当前像素，因此行尾必须提前一拍判定。
+            if (S_x_cnt == ACTIVE_WIDTH-2)
                 O_video_last <= 1'b1;
         end
         else begin

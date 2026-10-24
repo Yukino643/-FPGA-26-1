@@ -1,59 +1,44 @@
-// tb_emergency_render.v — emergency_render 单元仿真
 `timescale 1ns/1ps
 module tb_emergency_render;
-
-    reg clk = 0, rst = 1;
-    always #20 clk = ~clk;  // 25MHz
-
-    reg         de_in = 0;
-    reg  [9:0]  x = 0;
-    reg  [8:0]  y = 0;
-    reg         emergency_mode = 0;
-    reg  [23:0] normal_rgb = 24'h123456;
+    reg clk=0;
+    always #5 clk=~clk;
+    reg de_in=0, emergency_mode=0;
+    reg [10:0] x=0;
+    reg [9:0] y=0;
+    reg [23:0] normal_rgb=24'h123456;
     wire [23:0] rgb_out;
-
-    emergency_render u_dut(
-        .clk(clk), .de_in(de_in),
-        .x(x), .y(y),
-        .emergency_mode(emergency_mode),
-        .normal_rgb(normal_rgb),
-        .rgb_out(rgb_out)
-    );
-
-    integer errors = 0;
-
+    emergency_render #(.X_BITS(11),.Y_BITS(10)) dut(
+        .clk(clk), .de_in(de_in), .x(x), .y(y),
+        .emergency_mode(emergency_mode), .normal_rgb(normal_rgb), .rgb_out(rgb_out));
+    integer frame, row, col, phase, pixels=0, dump;
+    reg [23:0] expected;
     initial begin
-        rst = 1;
-        #100;
-        @(posedge clk); rst = 0;
-        #100;
-
-        // Test 1: 正常模式直通
-        $display("TEST1: normal mode passthrough");
-        emergency_mode = 0;
-        @(posedge clk); de_in <= 1; x <= 100; y <= 100;
-        @(posedge clk);
-        if (rgb_out === 24'h123456) $display("TEST1 PASS");
-        else begin $display("TEST1 FAIL: got=%h", rgb_out); errors = errors + 1; end
-
-        // Test 2: 应急模式 - 标题区
-        $display("TEST2: emergency title area");
-        emergency_mode = 1;
-        @(posedge clk); x <= 320; y <= 200;  // 标题区 y∈[180,219]
-        @(posedge clk);
-        if (rgb_out === 24'hFFFFFF) $display("TEST2 PASS");  // 白色标题
-        else begin $display("TEST2 FAIL: got=%h", rgb_out); errors = errors + 1; end
-
-        // Test 3: 应急模式 - 背景
-        $display("TEST3: emergency background");
-        @(posedge clk); x <= 100; y <= 100;  // 非标题非告警区
-        @(posedge clk);
-        if (rgb_out === 24'hC00000) $display("TEST3 PASS");  // 红底
-        else begin $display("TEST3 FAIL: got=%h", rgb_out); errors = errors + 1; end
-
-        if (errors == 0) $display("TB_EMERGENCY_RENDER PASS");
-        else $display("TB_EMERGENCY_RENDER FAIL errors=%0d", errors);
-        $finish;
+        repeat(2) @(negedge clk);
+        if(rgb_out!==normal_rgb) $fatal(1,"normal passthrough");
+        emergency_mode=1;
+        dump=$fopen("emergency720.ppm","w");
+        $fwrite(dump,"P3\n1280 720\n255\n");
+        // 全宽覆盖 1024 列以上及行消隐；独立参考要求每帧相位恒定。
+        for(frame=0;frame<2;frame=frame+1) begin
+            phase=(frame+1)*2;
+            for(row=0;row<720;row=row+1) begin
+                for(col=0;col<1280;col=col+1) begin
+                    @(negedge clk); de_in=1; x=col; y=row;
+                    #1;
+                    expected=24'hC00000;
+                    if(row>=180 && row<220) expected=24'hFFFFFF;
+                    if(row>=280 && row<300 && ((col+phase)%32)<16) expected=24'hFFDD00;
+                    if(rgb_out!==expected) $fatal(1,"raster f=%0d x=%0d y=%0d got=%h expected=%h",frame,col,row,rgb_out,expected);
+                    if(frame==0) $fwrite(dump,"%0d %0d %0d\n",rgb_out[23:16],rgb_out[15:8],rgb_out[7:0]);
+                    pixels=pixels+1;
+                end
+                @(negedge clk); de_in=0;
+                repeat(4) @(negedge clk);
+            end
+        end
+        $fclose(dump); emergency_mode=0;
+        #1; if(rgb_out!==normal_rgb) $fatal(1,"normal return");
+        $display("TB_EMERGENCY_RENDER PASS pixels=%0d",pixels); $finish;
     end
-
+    initial begin #30000000; $fatal(1,"emergency timeout"); end
 endmodule

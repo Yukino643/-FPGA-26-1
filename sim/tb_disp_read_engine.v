@@ -25,7 +25,7 @@ module tb_disp_read_engine;
     always #4 clk = ~clk;
 
     disp_read_engine #(.FRAME_WORDS(FRAME_WORDS), .BURST(4), .HIGH_WATER(8)) u_dut (
-        .clk(clk), .rst(rst), .vs_toggle(vs_toggle), .page_base(page_base),
+        .clk(clk), .rst(rst), .vs_toggle(vs_toggle), .page_base(page_base), .scroll_x(10'd0),
         .fifo_we(fifo_we), .fifo_wdata(fifo_wdata), .fifo_wusedw(10'd0),
         .cmd_valid(cmd_valid), .cmd_addr(cmd_addr), .cmd_len(cmd_len),
         .cmd_ready(cmd_ready), .rsp_valid(rsp_valid), .rsp_data(rsp_data), .rsp_last(rsp_last)

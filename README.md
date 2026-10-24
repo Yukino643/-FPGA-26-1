@@ -1,8 +1,17 @@
 # 基于 EG4S20 的 HDMI 多媒体播放系统（2026 安路赛道 · 选题一）
 
-数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 伪双端口帧缓存 → 多图层 alpha 合成 → 双 HDMI 异显（主通道广告内容 / 副通道监视台），并提供 WAV/警笛音频、Goertzel 频谱和帧边界应急切换。
+数字广告屏 + 应急信息发布终端：TF 卡素材 → 片内 SDRAM 帧缓存 → 图层/转场合成 → 双 HDMI 异显（主通道节目 / 副通道控制台），并提供 WAV/警笛音频、PCM波形和帧边界应急切换。当前顶层未接入FFT/Goertzel频谱，不能将波形描述为已实现频谱分析。
 
 - 平台：HX4S20C 开发板（EG4S20BG256，TD 6.2.1）
+- 最新待板验烧录版本（2026-10-24，20261024-menu-navigation）：[菜单防误操作 av_media.bit](releases/20261024-menu-navigation/av_media.bit)、[简明操作说明](docs/KEY_GUIDE_20261017.md)、[物理验收](docs/menu-navigation-20261024/PHYSICAL_RELEASE.md)。主卡移开即取消未确认预览，同卡两次KEY4确认，保留空格字幕。88/88完整范围回归及完整综合/P&R/bitgen通过，未变化用例按输入SHA复用；LUT14815、BRAM9K57，video setup/hold +0.478/+0.022ns，SD +0.320/+0.024ns；旧SDRAM跨域−6.565ns单列。
+- 最近已板验烧录版本（2026-10-24，20261024-subtitle-spaces）：[空格字幕烧录文件](releases/20261024-subtitle-spaces/av_media.bit)、[文案与RTL截图](docs/subtitle-spaces-20261024/README.md)。感叹号删除，逗号/顿号改为空格；作品名破折号保留。88/88完整范围验收及完整综合/P&R/bitgen通过；LUT14848、BRAM9K57，video setup/hold +0.589/+0.022ns。旧版与审查ZIP保留原样，用户已确认字幕修复正常；该 bit 不包含上述菜单导航增量。
+- 最新审美审查资料（2026-10-24）：[完整现状与布局](docs/ui-review-20261024/CURRENT_UI_REVIEW.md)、[RTL图集](docs/ui-review-20261024/VISUAL_GALLERY.html)、[交给其他AI的提示词](docs/ui-review-20261024/REVIEW_PROMPT.txt)、[离线审查包](docs/UI_REVIEW_20261024.zip)。涵盖菜单六页、明暗照片各八组合、字幕循环、字形、按键状态和资源时序；新版本尚未上板，图集不代表板拍。
+- 上一版全幅菜单（2026-10-24，20261024-menu-16x9）：[全幅菜单烧录文件](releases/20261024-menu-16x9/av_media.bit)、[实际资源/时序及验收](docs/menu-16x9-20261023/PHYSICAL_RELEASE_20261024.md)。HDMI-A为640×360整数2×映射1280×720，全幅无原居中黑边；含数值右对齐、粗体ASCII、统一16px主屏内框、64格单次穿窗字幕。完整当前回归88/88及独立综合/P&R/bitgen通过，LUT14837（比旧版−2）、BRAM9K57，video setup/hold +0.290/+0.020ns。尚未烧录；旧轮播板验版保留回退。旧加密SDRAM跨域setup仍−6.565ns，不能称全工程时序闭合。
+- 最近已板验回退（2026-10-23，20261023-autoplay-period，周期已获用户板验确认）：[轮播周期修复 av_media.bit](releases/20261023-autoplay-period/av_media.bit)、[四档测时与操作报告](docs/AUTOPLAY_PERIOD_20261023.md)、[用户确认记录](docs/AUTOPLAY_PERIOD_20261023_BOARD_CHECK.md)。去掉1秒，采用2/3/5/10秒；计时包含读卡/缩放/转场，确认改档重新计时，慢卡延后且不补切。89/89完整回归、当前源码完整P&R/bitgen和严格资源/时序门通过；用户报告“周期都比较准确了”，未提供逐次误差或长稳时长。video/SD/ext_mem域内setup为+0.680/+0.138/+0.190ns，旧加密SDRAM跨域全局setup仍−6.565ns单列；音量稳定版完整保留用于回退。
+- 历史已板验回退（2026-10-22，20261022-main-ui）：HDMI-B输出1280×720/60Hz，HDMI-A显示全屏放大的中文控制台；六卡菜单、图片/波形/时间开关、可调轮播周期、HDMI-B亮度/对比度/色温、外设测试及预设滚动字幕已接入。菜单P0与主屏局部暗板、右下时间、“视界”字幕及新文案已完成，用户反馈该轮修改检查完成，作为稳定基线；[用户确认记录](docs/MAIN_UI_20261022_BOARD_CHECK.md)列明证据边界。后台预取保留，连续快按仍受读卡吞吐限制。
+- 历史已板验回退（2026-10-23，20261023-audio-volume）：[音量与音频菜单 av_media.bit](releases/20261023-audio-volume/av_media.bit)，[操作与验收说明](docs/AUDIO_VOLUME_20261022.md)。原“波形”卡改为“音频”入口，二级页提供0..100%音量、独立静音、波形、恢复默认；含WAV目录直达启动优化。85/85完整回归与完整P&R/bitgen通过；LUT14817/19600、BRAM9K57/64、DSP15/29、PLL3/4，video/SD/ext_mem域内setup分别+0.280/+0.147/+0.318ns。旧加密SDRAM跨域全局setup仍为−6.565ns，不代表全工程setup闭合。用户已确认不同分辨率适配、音频快速出声和音量控制正常；[本轮板验记录](docs/AUDIO_VOLUME_20261023_BOARD_CHECK.md)注明范围，首声秒数未计时；音量配置不掉电保存。
+- 已板验回退：[主屏UI稳定版 av_media.bit](releases/20261022-main-ui/av_media.bit)；[发布索引与板验状态](releases/README.md)、[主屏发布原始记录与完整证据](releases/20261022-main-ui/README.md)、[主屏实现说明](docs/MAIN_UI_20261022.md)。修改前菜单版本保留于`releases/20261022-menu-ui-p0`，本地源码与旧bit备份位于`build/720p/backups/20261022-before-main-ui/source-and-previous-bit.zip`。主屏/菜单P0发布副本与本地`build/720p/releases`逐文件SHA256一致，原始归档记录保持原样。
+- 操作与验收：[字幕按键教学](docs/PRESET_SUBTITLE_20261021.md)、[屏幕设置](docs/HDMIB_SCREEN_MENU_20261021.md)、[SDRAM颗粒修复](docs/SDRAM_REFRESH_FIX_20261017.md)、[多尺寸测试素材](docs/MULTISIZE_IMAGES_20261017.md)、[最新赛题缺项审计](docs/REQUIREMENTS_AUDIT_20261023.md)、[构建进度](PROGRESS_HDMI_MONITOR.md)。旧720p历史资料见 [HDMI-B 720p](docs/HDMI_B_720P.md)。
 - 实施计划：[docs/计划书-基于EG4S20的HDMI多媒体播放系统.md](docs/计划书-基于EG4S20的HDMI多媒体播放系统.md)
 - 参考工程：`D:\FPGA\ref\lab_ex5_i2s`（官方赛题样例，自 `D:\FPGA\HX4S20_Contest_202606\7_lab_ex_2026_nosoft` 解压）
 
@@ -23,7 +32,7 @@ docs\          计划书 / 设计说明书 / 测试报告
 | 信号 | 引脚 | 信号 | 引脚 |
 |---|---|---|---|
 | 50M 时钟 | R7 | HDMI_B TMDS | E1/F1/G5/C3 (LVDS33) + DDC P2/R2 |
-| KEY1~4 | A2/B2/B1/C1（KEY1 为复位；KEY4 短按转场、长按应急） | HDMI_A TMDS | B3/E3/F5/K1 (LVDS33) + DDC P1/R1 |
+| KEY1~4 | A2/B2/B1/C1（KEY1复位；720p版KEY4长按应急） | HDMI_A TMDS | B3/E3/F5/K1 (LVDS33) + DDC P1/R1 |
 | SW1~4 | C8/C7/C6/C5 | TF (SPI) | CS=A12 CLK=A14 MOSI=A13 MISO=B14 |
 | 蜂鸣器 | H11 (低有效) | UART | RXD=F12 TXD=D12 |
 
@@ -31,22 +40,27 @@ docs\          计划书 / 设计说明书 / 测试报告
 
 **双入口，单一事实源**：所有 RTL/约束都在本仓库目录里，TD 工程 `td_prj/av_media.al` 以相对路径引用它们。GUI 和命令行打开的是同一个工程。
 
-- **我（命令行）**：改代码 → 一键编译 `bash td_prj/build_all.sh` → 检查时序/资源报告 → 出 bit。
+- **我（命令行）**：改代码 → PowerShell 7运行 `pwsh.exe -NoLogo -NoProfile -File td_prj/build_all.ps1` → 检查时序/资源报告 → 出 bit。
   - 工程创建/加文件脚本：`td_prj/create_project.tcl`、`td_prj/add_sources.tcl`（TCL shell 逐行解析，禁止多行块）
-  - 编译机制：run 目录下 `settings.cfg` + TD 自带 `DefaultFlow.tcl`（syn_1: elaborate→opt_rtl→opt_gate；phy_1: opt_place→opt_route→bitgen，自动导入 syn 的 gate.db）
+  - 编译机制：run 目录下 `settings.cfg` + 基于 TD 官方流程的 `flow_fixhold.tcl`（syn_1: elaborate→opt_rtl→opt_gate；phy_1: opt_place→opt_route→bitgen，自动导入 syn 的 gate.db）
   - 产物：`td_prj/av_media_Runs/phy_1/av_media.bit`
   - 注意：`wait_run` 在 run 完成后会死循环，勿用；`launch_runs` 的子进程活不过会话退出，因此用 DefaultFlow 直跑。
 - **你（GUI）**：TD 打开 `td_prj/av_media.al` 看工程树/调 IP/在线调试（CWC），TD 里配置 VSCode 编辑器即可；bit 下载可用 GUI 的 Download，也可以等我接 `download` 命令。
-- 当前构建（2026-09-16）：TD 6.2.1 已重新综合、布局布线并成功 bitgen。资源为 LUT 15,158/19,600（77.34%）、BRAM9K 46/64（71.9%）、BRAM32K 8/16（50%）、DSP 21/29（72.41%）；报告汇总 `SWNS=-6.565ns`、`STNS=-522.616ns`、`HWNS=+0.024ns`、`HTNS=0`，相对官方基线未恶化，`scripts/check_reports.py` 通过。详细 `final_timing.rpt` 仍需结合硬 SDRAM I/O 边界路径解释，不能把门限通过写成所有物理路径均已闭合。
+- 当前构建（2026-10-24）：全幅菜单88/88回归及独立综合/P&R/bitgen、字幕定向时序通过；详细实际资源、各域时序和新bit见[本次物理验收](docs/menu-16x9-20261023/PHYSICAL_RELEASE_20261024.md)。尚未烧录验证。
+- 历史构建（2026-10-23）：轮播周期版本89/89（86项功能/生成检查、TD_BUILD及2项当前源码物理检查），TD综合/P&R/bitgen及严格发布门限通过。LUT14839/19600（75.71%）、寄存器9732/19600、BRAM9K57/64、BRAM32K4/16、DSP15/29、PLL3/4；video setup/hold为+0.680/+0.021ns，SD卡域为+0.138/+0.022ns，ext_mem域内为+0.190/+0.032ns，HDMI5x域内为+0.915/+0.256ns。旧加密SDRAM跨域全局setup仍为−6.565ns，不能声称全工程setup闭合。新周期已由用户确认“比较准确”；上一版多分辨率、音频启动和音量功能亦已获用户确认。Flash断电启动与长稳另行验收。
+- 历史修复（2026-10-01）：D3 照片 `WR/SCALE=01/4C` 对应 scaler 等待 C 口命令接受，已修正 mem_mpu 的 SDRAM 初始化/忙状态门控及命令期间的读返回计数，并将 scaler 整字写入 DQM 设为 `wr_dm=0`；详见 [TF缩放修复](docs/TF缩放修复-20261001.md)。
 
 ## 回归门（每轮改动后必跑）
 
-```bash
-bash scripts/regression.sh          # 仿真×4 + 生成物同步 + 报告门限（约1分钟）
-bash scripts/regression.sh --full   # 上述 + 重新全编译出 bit（约5分钟）
+```powershell
+pwsh.exe -NoLogo -NoProfile -File scripts/regression.ps1 -ReuseVerified
+pwsh.exe -NoLogo -NoProfile -File scripts/regression.ps1 -Full -ReuseVerified
 ```
 
-检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和缩放仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前完整回归为 18/18 PASS。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
+原生入口保留原回归用例，并增加当前720p顶层、RGB565、刷新压力、音频与时钟检查。
+`-ReuseVerified`仅复用输入hash完全一致且已经成功执行的仿真，全量TD构建仍执行。
+
+检查项：①顶层端口与 `pin.adc` 完整性/LOCATION 冲突；②字库生成物；③模块、BMP 超时、全路径和真实顶层缩放连接仿真；④PNG 刷新；⑤bit 新鲜度、SWNS/HWNS、LUT≤85%、BRAM9K≤90%。当前基础/完整回归结果以最新 [PROGRESS](docs/PROGRESS.md) 及构建清单为准。任何一项失败脚本退出码非 0。门限配置在 `scripts/baseline.rpt`，报告解析在 `scripts/check_reports.py`。
 
 ## 状态
 
@@ -78,7 +92,7 @@ bash scripts/regression.sh --full   # 上述 + 重新全编译出 bit（约5分�
 - [x] W5 转场引擎（纯软件完成）：
   - `rtl/mem/afifo_simple.v` — 自研异步 FIFO（Cummings 灰码指针；注意: 空/满判定必须用未门控使能的 next 指针，否则构成组合环，TD 优化器直接终止综合）
   - `rtl/mem/disp_read_engine.v` — 帧门控行预取引擎 ×2（mem_mpu 的 A/B 请求方；帧同步走"挂起-突发收尾后应用"，绝不打断突发）
-  - `rtl/video/transition_ctrl.v` — 转场状态机：淡入淡出(32帧)/滑动左/滑动上 + **沉降期**（完成后再以 α=255 混一帧，消除提交边界残留旧页数据带）
+  - `rtl/video/transition_ctrl.v` — 当前转场：双页交叉淡化(32步)/横向推移(40步)/纵向揭示 + **沉降期**（完成后目标 B 输出一帧，再交回已预取的 A）
   - `rtl/video/disp_mixer.v` — 双流混合器（α=0/255 快速直通精确无舍入；下溢计数供监视台）
   - 顶层：主通道读出路径整体切换为新管线；显示双缓冲钉 bank0/bank1（`BUF1=0x80000`）；装载器加 `hold_load` 转场互斥
   - `sim/tb_disp_path.v` — **全路径仿真**（行为级 SDRAM 带存储）：直通帧/中点混合帧/转场后帧三帧 307,200 像素逐位精确 PASS

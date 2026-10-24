@@ -27,6 +27,11 @@ foreach f {
     rtl/video/video_define.v
     rtl/video/color_bar.v
     rtl/video/video_rgb_to_axis_640x480.v
+    rtl/video/monitor_compositor.v
+    rtl/video/monitor_menu_renderer.v
+    rtl/video/monitor_cjk_rom.v
+    rtl/video/subtitle_text_720.v
+    rtl/video/resize_frame_720.v
     rtl/audio/I2S_receiver.v
     rtl/audio/audio_arc_calculate.v
     rtl/audio/hdmi_audio_tone_i2s_64fs.v
@@ -35,8 +40,12 @@ foreach f {
     rtl/ctrl/startup_pulse.v
     rtl/ctrl/seg_decoder.v
     rtl/ctrl/seg_scan.v
+    rtl/ctrl/monitor_menu_ctrl.v
+    rtl/ctrl/monitor_config_regs.v
     rtl/hdmi/hdmi_phy_warpper.v
     rtl/hdmi/lane_lvds_10_1.v
+    rtl/hdmi/hdmi_tmds_channel_encoder.v
+    rtl/hdmi/hdmi_video_only_640x480.v
     rtl/hdmi/hdmi_1_4b_transmitter_core_wrapper.enc.v
     rtl/pll/sys_pll.v
     rtl/pll/video_pll.v

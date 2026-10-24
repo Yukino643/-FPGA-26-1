@@ -10,10 +10,11 @@ module frame_read_write
 	parameter BURST_SIZE             = 256,
 	parameter WRITE_V_FLIP           = 1,      // 1: vertical flip when writing TF/BMP frame into SDRAM
 	parameter FRAME_WIDTH            = 640,
-	parameter FRAME_HEIGHT           = 480
+	parameter FRAME_HEIGHT           = 480,
+    parameter EXTERNAL_READ          = 0
 ) 
 (
-	input                            rst,                  
+	input                            rst,
 	input                            mem_clk,                    // external memory controller user interface clock
 	input							 Sdr_init_done,
 	input							 Sdr_init_ref_vld,
@@ -58,7 +59,9 @@ module frame_read_write
 	output[3:0]						 App_wr_dm,
 	
 	//
-	input                            write_clk,                  // data write module clock
+	input                            external_rd_busy,
+    output                           source_write_busy,
+    input                            write_clk,                  // data write module clock
 	input                            write_req,                  // data write module write request,keep '1' until read_req_ack = '1'
 	output                           write_req_ack,              // data write module write request response
 	output                           write_finish,               // data write module write request finish
@@ -85,7 +88,9 @@ wire O_wr_busy;
 wire O_rd_busy;
 
 assign App_wr_busy = O_wr_busy;//下个时钟写指令拉高
-assign App_rd_busy = O_rd_busy;//读指令还没有过去十个时钟;因为写指令优先，不需要在意下个时钟是否是读指令
+// 外部接管读口后仍须保留官方突发互斥，写占用包含进入突发前的拍。
+assign App_rd_busy = O_rd_busy | external_rd_busy;
+assign source_write_busy = O_wr_busy;
 assign App_wr_dm = 4'b0000;
 
 //instantiate an asynchronous FIFO 
@@ -140,7 +145,15 @@ frame_fifo_write_m0
 	.rdusedw                 	(rdusedw                  )
 );
 
-//instantiate an asynchronous FIFO 
+// 外部显示引擎接管时不实例化闲置读 FIFO，避免保留无复位的计数逻辑。
+generate if (EXTERNAL_READ) begin : g_external_read
+    assign O_rd_busy = 1'b0;
+    assign App_rd_en = 1'b0;
+    assign App_rd_addr = {ADDR_BITS{1'b0}};
+    assign read_req_ack = 1'b0;
+    assign read_finish = 1'b0;
+    assign read_data = {READ_DATA_BITS{1'b0}};
+end else begin : g_legacy_read
 rfifo_32_32_512 read_buf
 	(
 	.clkr                     	(read_clk                   ),          // Read side clock
@@ -189,5 +202,5 @@ frame_fifo_read_m0
 	.fifo_aclr                  (read_fifo_aclr           ),
 	.wrusedw                	(wrusedw                  )
 );
-
+end endgenerate
 endmodule

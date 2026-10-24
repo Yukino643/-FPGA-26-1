@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>C 全幅 16:9 · 六页</title>
+<style>
+  :root{
+    --bg:#07131D; --head:#0B1D28; --rule:#2A5A70;
+    --card:#142F40; --card-focus:#1B4658; --frame:#3A6478;
+    --fg:#E9F4FA; --value:#C9DBE5; --muted:#8FA9B8;
+    --on:#5BE39B; --off:#FF7B72; --amber:#FFB84D; --accent:#38BDF8;
+    --chip:#16394A; --waitfg:#16232B;
+    --cjk:"SimHei","Heiti SC",sans-serif;
+    --mono:"Consolas","Courier New",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#000;width:1280px;height:720px;overflow:hidden}
+  .screen{position:relative;width:1280px;height:720px;background:var(--bg);overflow:hidden}
+  .head{position:absolute;left:0;top:0;width:1280px;height:96px;background:var(--head)}
+  .head::after{content:"";position:absolute;left:0;bottom:0;width:1280px;height:4px;background:var(--rule)}
+  .eyebrow{position:absolute;left:48px;top:26px;font:400 60px/1 var(--mono);letter-spacing:8px;color:var(--muted)}
+  .state{position:absolute;right:48px;top:26px;font:400 60px/1 var(--mono);letter-spacing:6px;color:var(--muted)}
+
+  .card{position:absolute;width:368px;height:248px;background:var(--card);border:4px solid var(--frame)}
+  .card.wide{width:544px}
+  .card .t{position:absolute;left:32px;top:24px;font:400 64px/1 var(--cjk);color:var(--fg);letter-spacing:2px}
+  .card .v{position:absolute;right:32px;top:156px;font:400 64px/1 var(--mono);color:var(--value);letter-spacing:2px}
+  .card.on  .v{color:var(--on)}
+  .card.off .v{color:var(--off)}
+  .card .go{position:absolute;right:28px;top:26px;font:300 56px/1 var(--mono);color:var(--muted);opacity:0}
+  .card.entry .go{opacity:1}
+  .card.focus{border:8px solid var(--accent);background:var(--card-focus)}
+  .card.focus .go{color:var(--accent)}
+  .card.edit{border-color:var(--amber);background:var(--card-focus)}
+  .card.edit .v{color:var(--amber)}
+  .card.edit .go{color:var(--amber)}
+  .card.pending{border-color:var(--amber)}
+  .card.pending .v{color:var(--amber)}
+  .card.pending .star{display:none}
+  .card .star{display:none;position:absolute;right:8px;top:156px;font:400 64px/1 var(--mono);color:var(--amber)}
+
+  .bar{position:absolute;left:32px;top:112px;display:flex;gap:8px}
+  .bar i{display:block;width:40px;height:20px;background:var(--frame)}
+  .bar i.on{background:var(--on)}
+
+  .hint{position:absolute;left:48px;top:672px;font:400 32px/1 var(--mono);letter-spacing:3px;color:var(--muted)}
+  .waitbox{position:absolute;right:48px;top:26px}
+  .waitbox span{font:400 60px/1 var(--mono);letter-spacing:6px;color:var(--amber)}
+  .waitbox::after{content:'';position:absolute;right:0;top:66px;width:160px;height:4px;background:var(--amber)}
+</style>
+</head>
+<body>
+<div class="screen" id="screen"></div>
+<script>
+const PAGES = {
+  program: {name:'PROGRAM CONTROL',
+    cards:[{t:'图片',v:'ON',k:'on'},{t:'音频',v:'100%',k:'',entry:1},{t:'时间',v:'ON',k:'on'},
+           {t:'字幕',v:'ON',k:'on',entry:1},{t:'周期',v:'2S',k:''},{t:'屏幕',v:'HDMI-B',k:'',entry:1}]},
+  audio: {name:'HDMI-B AUDIO', wide:true,
+    cards:[{t:'音量',v:'100%',k:'',vol:10,ev:'50%',evol:5},{t:'静音',v:'OFF',k:'off'},
+           {t:'波形',v:'ON',k:'on'},{t:'恢复默认',v:'RESET',k:'',entry:1}]},
+  subtitle: {name:'HDMI-B SUBTITLE', wide:true,
+    cards:[{t:'字幕',v:'ON',k:'on'},{t:'内容',v:'1/3',k:''},
+           {t:'速度',v:'NORM',k:''},{t:'标题',v:'OFF',k:'off'}]},
+  screen: {name:'HDMI-B SETTINGS', wide:true,
+    cards:[{t:'亮度',v:'0',k:''},{t:'对比度',v:'100%',k:'',pv:'113%'},
+           {t:'色温',v:'NORM',k:''},{t:'恢复默认',v:'RESET',k:'',entry:1}]},
+  peripheral: {name:'PERIPHERAL TEST', wide:true,
+    cards:[{t:'外设',v:'READY',k:'on',ro:1},{t:'蜂鸣器',v:'IDLE',k:'',entry:1},
+           {t:'按键',v:'CNTAB',k:'',ro:1},{t:'板载灯',v:'LED3',k:'',ro:1}]},
+  playback: {name:'PLAYBACK KEYS',
+    cards:[{t:'图片',v:'ON',k:'on'},{t:'音频',v:'100%',k:''},{t:'时间',v:'ON',k:'on'},
+           {t:'字幕',v:'ON',k:'on'},{t:'周期',v:'2S',k:''},{t:'屏幕',v:'HDMI-B',k:''}], nofocus:true}
+};
+const XS = [48,456,864], XS_W = [64,672], YS = [128,408];
+
+function parse(){
+  const q = new URLSearchParams(location.search);
+  let s = q.get('state') || 'program';
+  let st = {page:'program', focus:0, edit:-1, pending:[], wait:false};
+  const bits = s.split('-');
+  st.page = bits[0] || 'program';
+  for (const b of bits.slice(1)){
+    if (b.startsWith('edit')) st.edit = +(b.slice(4)||0);
+    if (b.startsWith('pending')) st.pending = [+(b.slice(7)||0)];
+    if (b==='wait') st.wait = true;
+  }
+  if (q.get('focus')!=null) st.focus = +q.get('focus');
+  return st;
+}
+
+function build(){
+  const st = parse();
+  const pg = PAGES[st.page] || PAGES.program;
+  const scr = document.getElementById('screen');
+  scr.innerHTML='';
+  const head = document.createElement('div'); head.className='head';
+  head.innerHTML = `<div class="eyebrow">${pg.name}</div>`;
+  if (st.wait){
+    const w = document.createElement('div'); w.className='waitbox'; w.innerHTML='<span>WAIT</span>';
+    head.appendChild(w);
+  } else if (!pg.nofocus){
+    const s = document.createElement('div'); s.className='state';
+    s.textContent = (st.edit>=0) ? 'EDIT' : 'READY'; s.style.color = (st.edit>=0) ? '#FFB84D' : '';
+    head.appendChild(s);
+  }
+  scr.appendChild(head);
+
+  pg.cards.forEach((c,i)=>{
+    const col = pg.wide ? (i%2) : (i%3), row = Math.floor(i/(pg.wide?2:3));
+    const d = document.createElement('div');
+    d.className = 'card' + (pg.wide?' wide':'') + (c.k?' '+c.k:'') + (c.entry?' entry':'');
+    const x = pg.wide ? XS_W[col] : XS[col];
+    d.style.left = x+'px'; d.style.top = YS[row]+'px';
+    if (!pg.nofocus && i===st.focus) d.classList.add('focus');
+    if (i===st.edit) d.classList.add('edit');
+    if (st.pending.includes(i)) d.classList.add('pending');
+    const val = st.pending.includes(i) ? (c.pv||c.v) : ((i===st.edit && c.ev) ? c.ev : c.v);
+    d.innerHTML = `<div class="t">${c.t}</div><div class="v">${val}</div>` +
+                  (c.entry ? '<div class="go">›</div>' : '') +
+                  '<div class="star">*</div>';
+    if (c.vol){
+      const bar = document.createElement('div'); bar.className='bar';
+      for (let k=0;k<10;k++){
+        const seg=document.createElement('i');
+        const n = (i===st.edit && c.evol!=null) ? c.evol : c.vol;
+        if (k < n) seg.className='on';
+        bar.appendChild(seg);
+      }
+      d.appendChild(bar);
+    }
+    scr.appendChild(d);
+  });
+
+  if (pg.noFocus) {}
+  if (st.page==='playback'){
+    const h=document.createElement('div'); h.className='hint'; h.textContent='K2 NEXT  K3 AUTO  HOLD K3 MENU';
+    scr.appendChild(h);
+  }
+}
+build();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+

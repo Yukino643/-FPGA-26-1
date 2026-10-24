@@ -78,22 +78,16 @@ module tb_wav_read;
         end
     endtask
 
-    // PCM 数据: L=0x1234, R=0x5678 重复
+    // 不同样本检出 BRAM 预取重复/丢字；跨扇区保持同一个序列。
     task init_pcm_data;
-        integer i;
+        integer i, index;
+        reg [15:0] left, right;
         begin
-            for (i = 44; i < 512; i = i + 4) begin
-                sd_mem[i]   = 8'h34;  // L_lo
-                sd_mem[i+1] = 8'h12;  // L_hi
-                sd_mem[i+2] = 8'h78;  // R_lo
-                sd_mem[i+3] = 8'h56;  // R_hi
-            end
-            // 扇区 1
-            for (i = 512; i < 1024; i = i + 4) begin
-                sd_mem[i]   = 8'h34;
-                sd_mem[i+1] = 8'h12;
-                sd_mem[i+2] = 8'h78;
-                sd_mem[i+3] = 8'h56;
+            for (i = 44; i < 1024; i = i + 4) begin
+                index=(i-44)/4;
+                left=16'h1200+index; right=16'h5600^index;
+                sd_mem[i]=left[7:0]; sd_mem[i+1]=left[15:8];
+                sd_mem[i+2]=right[7:0]; sd_mem[i+3]=right[15:8];
             end
         end
     endtask
@@ -137,11 +131,22 @@ module tb_wav_read;
     // PCM 输出计数
     integer pcm_count = 0;
     reg [15:0] last_l, last_r;
+    integer stall_cycle=0;
+    reg [15:0] expected_left, expected_right;
+    always @(negedge clk) begin
+        stall_cycle=stall_cycle+1;
+        pcm_ready=(stall_cycle%11>=4);
+    end
     always @(posedge clk) begin
         if (pcm_valid) begin
             pcm_count = pcm_count + 1;
             last_l = pcm_left;
             last_r = pcm_right;
+            expected_left=16'h1200+pcm_count-1;
+            expected_right=16'h5600^(pcm_count-1);
+            if(pcm_left !== expected_left || pcm_right !== expected_right) begin
+                $display("FAIL PCM[%0d] L=%h R=%h",pcm_count,pcm_left,pcm_right); $fatal(1);
+            end
             if (pcm_count <= 3)
                 $display("PCM #%0d: L=%h R=%h", pcm_count, pcm_left, pcm_right);
         end
@@ -149,6 +154,7 @@ module tb_wav_read;
 
     // ---- 激励 ----
     integer errors = 0;
+    integer copy_byte;
 
     initial begin
         init_wav_header;
@@ -171,6 +177,19 @@ module tb_wav_read;
         end else
             $display("TEST1 PASS: found WAV at sector 0");
 
+        // 刚找到有效头后立即重扫：首扇区末个签名字符错误，下一扇区才有效。
+        // 检查分组寄存比较不会沿用上次匹配状态，误提交首扇区。
+        for (copy_byte=0; copy_byte<512; copy_byte=copy_byte+1)
+            sd_mem[512+copy_byte]=sd_mem[copy_byte];
+        sd_mem[11]="X";
+        @(negedge clk); scan_start=1; scan_start_sector=0;
+        @(negedge clk); scan_start=0;
+        wait(scan_done); #100;
+        if (!scan_found_valid || scan_found_sector != 1)
+            $fatal(1, "FAIL WAV signature bad/good rescan found=%b sector=%0d", scan_found_valid, scan_found_sector);
+        sd_mem[11]="E";
+        init_pcm_data;
+
         // Test 2: 装载并检查 PCM 输出
         $display("TEST2: load and stream PCM");
         pcm_count = 0;
@@ -179,10 +198,10 @@ module tb_wav_read;
         wait(load_done);
         #200;
         $display("PCM count=%0d, bytes=%0d", pcm_count, load_pcm_bytes);
-        if (pcm_count == 0) begin
-            $display("FAIL: no PCM output");
+        if (pcm_count != 242) begin
+            $display("FAIL: PCM count %0d expected 242",pcm_count);
             errors = errors + 1;
-        end else if (last_l !== 16'h1234 || last_r !== 16'h5678) begin
+        end else if (last_l !== 16'h12F1 || last_r !== 16'h56F1) begin
             $display("FAIL: PCM data mismatch L=%h R=%h", last_l, last_r);
             errors = errors + 1;
         end else

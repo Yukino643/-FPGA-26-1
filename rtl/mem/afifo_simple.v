@@ -6,7 +6,7 @@
 // LUT/mux 树（实测 1.7K LUT/FIFO）。故走 EG_LOGIC_BRAM 原语:
 //   综合视图（默认）  : EG_LOGIC_BRAM 原语黑盒，TD 自动落到 BRAM9K
 //   仿真视图(-DSIMULATION): 行为模型（约定与官方 sdram.v 的 `ifdef SIMULATION 一致）
-// 原语 dob 为同步读寄存输出恒锁当前队头，消费方"当拍 re 当拍用 dout"语义不变。
+// 原语 dob 同步装入 rbin_next 队头；消费者在弹出沿采样旧队头，下一拍可连续读取。
 module afifo_simple #(
     parameter DW = 32,
     parameter AW = 10                // 深度 = 2^AW
@@ -84,7 +84,8 @@ module afifo_simple #(
 
     always @(posedge rd_clk) begin
         if (rd_rst) dob <= 0;
-        else        dob <= mem[rbin[AW-1:0]];
+        // 同步读提前装入消费后的队头，保证下一拍可连续弹出。
+        else        dob <= mem[rbin_next[AW-1:0]];
     end
     assign rd_data_int = dob;
 `else
@@ -108,7 +109,7 @@ module afifo_simple #(
         .rsta  (1'b0),
         .bea   (1'b0),
         .dib   ({DW{1'b0}}),
-        .addrb (rbin[AW-1:0]),
+        .addrb (rbin_next[AW-1:0]),
         .ceb   (1'b1),
         .oceb  (1'b1),
         .clkb  (rd_clk),

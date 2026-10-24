@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>B 清单控制台</title>
+<style>
+  :root{
+    --bg:#0B0908; --row-focus:#1C1710; --rule:#241D16;
+    --text:#F4EDE3; --muted:#9C8770; --value:#C9B49B;
+    --on:#A6CE8E; --off:#E07A5F; --amber:#E8A44E;
+    --cjk:"SimHei","Heiti SC",sans-serif;
+    --mono:"Consolas","Courier New",monospace;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{background:#000;width:1280px;height:720px;overflow:hidden}
+  .screen{position:relative;width:1280px;height:720px;background:#000}
+  .canvas{position:absolute;left:160px;top:0;width:960px;height:720px;background:var(--bg);overflow:hidden}
+
+  .eyebrow{position:absolute;left:48px;top:40px;font:400 42px/1 var(--mono);letter-spacing:7px;color:#B79A79}
+  .state{position:absolute;right:48px;top:42px;font:400 38px/1 var(--mono);letter-spacing:5px;color:var(--muted)}
+  .bar{position:absolute;left:48px;top:104px;width:864px;height:1px;background:var(--rule)}
+
+  .list{position:absolute;left:48px;top:128px;width:864px}
+  .row{position:relative;height:84px;margin-bottom:8px;display:flex;align-items:center}
+  .row:last-child{margin-bottom:0}
+  .row .t{font:400 48px/1 var(--cjk);color:var(--text);letter-spacing:2px;padding-left:24px}
+  .row .v{margin-left:auto;margin-right:36px;font:400 48px/1 var(--mono);color:var(--value);letter-spacing:1px}
+  .row.on .v{color:var(--on)}
+  .row.off .v{color:var(--off)}
+  .row.focus{background:var(--row-focus)}
+  .row.focus::before{content:"";position:absolute;left:0;top:0;width:4px;height:84px;background:var(--amber)}
+  .row.focus .t{color:#FFF9F1}
+  .row .go{position:absolute;right:0;font:300 40px/1 var(--mono);color:var(--amber);opacity:0}
+  .row.focus .go{opacity:1}
+  .hair{position:absolute;left:0;right:0;bottom:0;height:1px;background:var(--rule)}
+</style>
+</head>
+<body>
+<div class="screen"><div class="canvas">
+  <div class="eyebrow">PROGRAM CONTROL</div>
+  <div class="state">READY</div>
+  <div class="bar"></div>
+
+  <div class="list">
+    <div class="row focus">
+      <div class="t">图片</div><div class="v">ON</div><div class="go">›</div><div class="hair"></div>
+    </div>
+    <div class="row">
+      <div class="t">音频</div><div class="v">100%</div><div class="hair"></div>
+    </div>
+    <div class="row on">
+      <div class="t">时间</div><div class="v">ON</div><div class="hair"></div>
+    </div>
+    <div class="row on">
+      <div class="t">字幕</div><div class="v">ON</div><div class="hair"></div>
+    </div>
+    <div class="row">
+      <div class="t">周期</div><div class="v">2S</div><div class="hair"></div>
+    </div>
+    <div class="row">
+      <div class="t">屏幕</div><div class="v">HDMI-B</div><div class="hair"></div>
+    </div>
+  </div>
+</div></div>
+</body>
+</html>

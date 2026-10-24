@@ -2,7 +2,8 @@
 // 输入 PCM 位于 clk_sd 域，输出 HDMI 音频样本位于 clk_video 域。
 module audio_player #(
     parameter integer VIDEO_CLK_HZ   = 25_000_000,
-    parameter integer SAMPLE_RATE_HZ = 48_000
+    parameter integer SAMPLE_RATE_HZ = 48_000,
+    parameter integer NOMINAL_SAMPLES_PER_FRAME = 806
 )(
     input  wire        clk_sd,
     input  wire        clk_video,
@@ -13,6 +14,7 @@ module audio_player #(
     input  wire [15:0] pcm_right,
     input  wire        vs_pulse,
     output reg         audio_valid,
+    output reg         sample_data_valid,
     output reg  [23:0] audio_left,
     output reg  [23:0] audio_right,
     output reg signed [15:0] sync_dev,
@@ -53,7 +55,7 @@ module audio_player #(
 
     // 25MHz 下 640x480@800x525 的相邻帧样本数为 806/807 交替。
     // tick 与视频同源，不允许监视算法反向修改采样时基。
-    localparam integer NOMINAL_SAMPLES_PER_FRAME = 806;
+    // 720p60 配置为每帧800样本。
     reg [15:0] samples_in_frame;
     assign fifo_rd_en = sample_tick && !fifo_rd_empty;
 
@@ -64,10 +66,12 @@ module audio_player #(
             frame_cnt        <= 32'd0;
             sync_dev         <= 16'sd0;
             audio_valid      <= 1'b0;
+            sample_data_valid <= 1'b0;
             audio_left       <= 24'd0;
             audio_right      <= 24'd0;
         end else begin
             audio_valid <= 1'b0;
+            sample_data_valid <= 1'b0;
 
             if (vs_pulse) begin
                 frame_cnt        <= frame_cnt + 32'd1;
@@ -78,8 +82,10 @@ module audio_player #(
             if (sample_tick) begin
                 audio_valid      <= 1'b1;
                 sample_cnt       <= sample_cnt + 32'd1;
-                samples_in_frame <= samples_in_frame + 16'd1;
+                // VS同拍的sample属于新帧，禁止覆盖VS清零并累积旧帧。
+                samples_in_frame <= vs_pulse ? 16'd1 : samples_in_frame + 16'd1;
                 if (!fifo_rd_empty) begin
+                    sample_data_valid <= 1'b1;
                     audio_left  <= {fifo_rd_data[15:0], 8'd0};
                     audio_right <= {fifo_rd_data[31:16], 8'd0};
                 end else begin

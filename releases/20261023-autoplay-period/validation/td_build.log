@@ -1,0 +1,52 @@
+[BUILD] synthesis
+[BUILD] syn_1 30s y 2200"
+RUN-1002 : start command "set_param gate merge_tiny_lut on"
+RUN-1002 : start command "optimize_gate -packarea av_media_gate.area"
+RUN-1001 : Open license file D:/Anlogic/TD_6.2.1_Engineer_6.2.168.116/license/Anlogic.lic
+SYN-1001 : Stage 2 | Optimize Gate
+SYN-1001 : Stage 2.1 | Map Reg
+
+[BUILD] syn_1 60s h stage Map Macro. Total instances: 62781, Total nets: 66921.
+
+SYN-1001 : Stage 2.4 | Map Gate
+SYN-3001 : Collect 8781 PI 6433 PO (57 timing unconstrained) for mapping
+SYN-2581 : Mapping with K=5, #lut = 10747 (3.54), #lev = 10 (2.57), #crit_level = 0
+SYN-2551 : Post LUT mapping optimization.
+
+[BUILD] syn_1 90s YN-2581 : Mapping with K=5, #lut = 10747 (3.54), #lev = 10 (2.57), #crit_level = 0
+SYN-2551 : Post LUT mapping optimization.
+SYN-2581 : Mapping with K=5, #lut = 10386 (3.53), #lev = 7 (2.57), #crit_level = 0
+SYN-3001 : Logic optimization opt = 4.15 sec, map = 1.32 sec, post map opt = 36.16 sec.
+
+[BUILD] place + route + bitgen
+[BUILD] phy_1 30s Memory(MB): used = 625, reserved = 616, peak = 625;
+
+OPT-1001 : Stage 3.2.2 | Synthesize High-fanout Net
+OPT-1001 : Start high-fanout net optimization in post-pack flow with high effort ...
+OPT-1001 : Start: SWNS -4743 STNS -243660 NUM_FEPS 80
+OPT-1001 : Total overflow 0.00 peak overflow 0.00
+
+[BUILD] phy_1 60s  Time: 2.598981s wall, 2.562500s user + 0.046875s system = 2.609375s CPU (100.4%); Memory(MB): used = 947, reserved = 936, peak = 947;
+
+PHY-1001 : Stage 2.3 | Routing Initialization
+PHY-1001 : Mark 1% net(place mode slack < 2188ps) as critical nets.
+PHY-1001 : Stage 2.3.1 | Normal Nets Routing
+
+[BUILD] phy_1 90s  TNS(ns) = -0.043, FEP = 3.
+PHY-1001 : End Stage 2.4.1.3 | Update Timing; Time: 2.118550s wall, 2.078125s user + 0.015625s system = 2.093750s CPU (98.8%); Memory(MB): used = 976, reserved = 964, peak = 976;
+
+PHY-1001 : Stage 2.4.1.4 | Commit Data
+PHY-1001 : Commit better result to database ...
+
+[BUILD] phy_1 120s      Top 1% tile util      |           61                |
+|     Top 1% tile avg util  |       64.38%                |
+|     Over 100% util #tile  |            0                |
+-----------------------------------------------------------
+Report place stage QoR done.
+
+
+
+10.000000
+8.000000
+
+[BUILD] PASS current-source BIT D:\FPGA\code\example\td_prj\av_media_Runs\phy_1\av_media.bit
