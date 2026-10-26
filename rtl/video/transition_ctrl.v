@@ -5,9 +5,14 @@ module transition_ctrl #(
     parameter [20:0] PAGE1_BASE = 21'h8_0000,
     parameter [7:0] ALPHA_STEP = 8'd8,
     parameter [9:0] SLIDE_STEP = 10'd16,
-    parameter X_BITS=10, Y_BITS=9
+    parameter X_BITS=10, Y_BITS=9,
+    parameter SEED_ENABLE=0,
+    parameter RETURN_SPEEDUP=0,
+    parameter [7:0] RETURN_ALPHA_STEP=8'd32
 )(
     input wire clk, rst, vs_rise,
+    input wire initial_front,
+    input wire return_from_video,
     input wire [X_BITS-1:0] x,
     input wire [Y_BITS-1:0] y,
     input wire commit_toggle,
@@ -24,7 +29,10 @@ module transition_ctrl #(
     reg [1:0] state;
     reg [1:0] cur_buf, pend_buf, mode_pending;
     reg commit_pend;
-    wire [8:0] alpha_sum = {1'b0, alpha} + {1'b0, ALPHA_STEP};
+    reg seeded;
+    reg first_commit, fast_blend;
+    wire [7:0] blend_step = fast_blend ? RETURN_ALPHA_STEP : ALPHA_STEP;
+    wire [8:0] alpha_sum = {1'b0, alpha} + {1'b0, blend_step};
     wire [10:0] slide_sum = {1'b0, boundary} + {1'b0, SLIDE_STEP};
     wire [9:0] slide_limit = (slide_axis == 2'd2) ? 10'd480 : 10'd640;
 
@@ -34,17 +42,24 @@ module transition_ctrl #(
 
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            state <= S_IDLE;
+            state <= S_IDLE; seeded<=!SEED_ENABLE;
+            first_commit <= 1'b1; fast_blend <= 1'b0;
             cur_buf <= 0; pend_buf <= 1; mode_pending <= 0;
             commit_pend <= 0;
             tr_active <= 0; alpha <= 255; boundary <= 0; slide_axis <= 0;
             page_upd_a <= 0; page_upd_b <= 0; hold_load <= 0;
+        end else if(!seeded) begin
+            cur_buf<={1'b0,initial_front}; seeded<=1;
         end else begin
             page_upd_a <= 0;
             page_upd_b <= 0;
             if (commit_toggle && state == S_IDLE && !commit_pend) begin
                 pend_buf <= commit_buf;
                 mode_pending <= tr_mode;
+                // 仅首张返回图片缩短淡化；提交时锁存，持页信号随后撤销
+                // 不能改变正在进行的步长。默认参数保持所有历史调用行为。
+                fast_blend <= RETURN_SPEEDUP && first_commit && return_from_video;
+                first_commit <= 1'b0;
                 commit_pend <= 1;
                 hold_load <= 1;
             end
@@ -108,7 +123,8 @@ module transition_ctrl #(
         end
     end
     // synthesis translate_off
-    initial if (ALPHA_STEP == 0 || SLIDE_STEP == 0 || SLIDE_STEP > 640)
+    initial if (ALPHA_STEP == 0 || SLIDE_STEP == 0 || SLIDE_STEP > 640 ||
+                (RETURN_SPEEDUP && RETURN_ALPHA_STEP == 0))
         $fatal(1, "Invalid transition step");
     // synthesis translate_on
 endmodule

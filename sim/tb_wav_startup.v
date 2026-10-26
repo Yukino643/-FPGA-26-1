@@ -2,6 +2,15 @@
 // 顶层真实WAV控制/解析器与真实仲裁器；SD字节响应和100扇区图片负载为行为模型。
 // 此测试计量请求数和首PCM时间，不声称覆盖SD SPI电气时序/HDMI接收器解码延迟。
 module tb_wav_startup;
+    wire media_active_sd=0,media_hold_sd=0;
+    wire media_rst_sd=rst_sd;
+    wire video_metadata_ready=0,video_audio_present=0;
+    wire [31:0] video_audio_sector=0,video_audio_samples=0,video_file_cluster=0,video_file_size=0;
+    wire [31:0] audio_fat_lba=0,audio_data_lba=0,audio_max_cluster=0;
+    wire [7:0] audio_spc=0;
+    wire [2:0] audio_shift=0;
+    wire audio_quiescent,audio_router_idle;
+    wire [7:0] audio_load_error;
     parameter LEGACY=0, BAD_HEADER=0, NO_WAV=0;
     localparam WAV_LBA=2057;
     reg sd_card_clk=0;

@@ -3,8 +3,11 @@ module fat32_bmp_index #(
     parameter integer MAX_IMAGES = 8,
     parameter integer MAX_ROOT_CLUSTERS = 256,
     parameter integer TIMEOUT_CYCLES = 11_000_000,
-    parameter integer INDEX_WAV = 0
+    parameter integer INDEX_WAV = 0,
+    parameter [23:0] FILE_EXT = "BMP",
+    parameter RUNTIME_EXT = 0
 ) (
+    input  wire [23:0] file_ext, // runtime extension stays fixed until next reset
     input  wire        clk,
     input  wire        rst,
     input  wire        scan_start,
@@ -33,6 +36,7 @@ module fat32_bmp_index #(
     input  wire        sector_done,
     input  wire [7:0]  sector_error
 );
+    wire [23:0] selected_ext=RUNTIME_EXT ? file_ext : FILE_EXT;
     localparam [7:0] ERR_NONE       = 8'h00;
     localparam [7:0] ERR_SECTOR     = 8'h10;
     localparam [7:0] ERR_SIGNATURE = 8'h20;
@@ -61,6 +65,7 @@ module fat32_bmp_index #(
 
     reg [3:0] state;
     reg [31:0] timeout_count;
+    reg timeout_due;
     reg [31:0] root_cluster;
     reg [31:0] root_lba;
     reg [1:0]  root_address_phase;
@@ -138,8 +143,9 @@ module fat32_bmp_index #(
 
     wire wait_sector = (state == ST_MBR_WAIT) || (state == ST_BPB_WAIT) ||
                        (state == ST_ROOT_WAIT) || (state == ST_FAT_WAIT);
-    wire timeout_hit = wait_sector && !sector_done &&
-                       (timeout_count >= TIMEOUT_CYCLES - 1);
+    // 提前一拍比较，仅把单比特到期标志送入高扇出状态使能。
+    // 与原计数阈值同拍超时，sector_done始终优先；兼容1拍超时参数。
+    wire timeout_hit = wait_sector && !sector_done && timeout_due;
     wire mbr_direct_volume = ((mbr_jump == 8'he9) || (mbr_jump == 8'heb)) &&
                              ({mbr_bps_hi, mbr_bps_lo} == 16'd512);
     wire mbr_has_fat32 = (mbr_type0 == 8'h0b) || (mbr_type0 == 8'h0c) ||
@@ -166,12 +172,19 @@ module fat32_bmp_index #(
                                     {17'd0, bpb_total16} : {1'b0, bpb_total32};
     wire [32:0] bpb_fat_span = (bpb_fat_count == 2) ?
                                ({1'b0, bpb_fat32} << 1) : {1'b0, bpb_fat32};
-    wire bpb_geometry_basic_valid = (bpb_bytes_per_sector == 16'd512) &&
+    wire bpb_geometry_basic_check = (bpb_bytes_per_sector == 16'd512) &&
                                     valid_spc(bpb_spc) && (bpb_reserved != 0) &&
                                     ((bpb_fat_count == 1) || (bpb_fat_count == 2)) &&
                                     (bpb_root_entries == 0) && (bpb_fat16 == 0) &&
                                     (bpb_total_sectors != 0) && (bpb_fat32 != 0) &&
-                                    (bpb_root_cluster >= 2);
+                                    (|bpb_root_cluster[31:1]);
+    // BPB字段在WAIT收齐，CHECK检查签名，PARSE才消费基础校验。
+    // 独立寄存隔离32位字段校验与finish_scan的状态/错误写使能。
+    reg bpb_geometry_basic_valid;
+    always @(posedge clk or posedge rst) begin
+        if (rst) bpb_geometry_basic_valid <= 1'b0;
+        else bpb_geometry_basic_valid <= bpb_geometry_basic_check;
+    end
     wire bpb_geometry_derived_valid = bpb_total_overhead_ok_r &&
                                       (bpb_max_cluster_candidate <= 33'h0fffffff) &&
                                       (bpb_fat_entries_r > bpb_max_cluster_candidate) &&
@@ -270,6 +283,7 @@ module fat32_bmp_index #(
         if (rst) begin
             state <= ST_IDLE;
             timeout_count <= 32'd0;
+            timeout_due <= (TIMEOUT_CYCLES <= 1);
             scan_done <= 1'b0;
             error_code <= ERR_NONE;
             partition_lba <= 32'd0;
@@ -336,10 +350,12 @@ module fat32_bmp_index #(
             found_valid <= 1'b0;
 
             if (wait_sector && !sector_done) begin
-                if (timeout_count < TIMEOUT_CYCLES)
+                timeout_due <= (TIMEOUT_CYCLES <= 1) || (timeout_count >= TIMEOUT_CYCLES - 2);
+                if (!timeout_due)
                     timeout_count <= timeout_count + 1'b1;
             end else begin
                 timeout_count <= 32'd0;
+                timeout_due <= (TIMEOUT_CYCLES <= 1);
             end
 
             if (sector_valid) begin
@@ -417,9 +433,9 @@ module fat32_bmp_index #(
                                 end
                                 if ((dir_name0 != 8'd0) && (dir_name0 != 8'he5) &&
                                     (dir_attr != 8'h0f) && !dir_attr[4] && !dir_attr[3] &&
-                                    ((dir_ext0 == "B") || (dir_ext0 == "b")) &&
-                                    ((dir_ext1 == "M") || (dir_ext1 == "m")) &&
-                                    ((dir_ext2 == "P") || (dir_ext2 == "p")) &&
+                                    ((dir_ext0 == selected_ext[23:16]) || (dir_ext0 == (selected_ext[23:16] | 8'h20))) &&
+                                    ((dir_ext1 == selected_ext[15:8]) || (dir_ext1 == (selected_ext[15:8] | 8'h20))) &&
+                                    ((dir_ext2 == selected_ext[7:0]) || (dir_ext2 == (selected_ext[7:0] | 8'h20))) &&
                                     dir_cluster_valid &&
                                     ({sector_byte, dir_size_23_0[23:0]} != 0) &&
                                     (found_total < MAX_IMAGES)) begin
@@ -446,9 +462,9 @@ module fat32_bmp_index #(
                 endcase
             end
 
-            if (timeout_hit) begin
-                finish_scan(ERR_TIMEOUT);
-            end else begin
+            // 超时仅可能出现在四个WAIT态；不要让它参与所有解析寄存器的CE。
+            // 末尾只覆盖状态/错误/完成标志，保持到期拍与sector_done优先级。
+            begin
                 case (state)
                     ST_IDLE: if (scan_start) begin
                         scan_done <= 1'b0;
@@ -620,6 +636,8 @@ module fat32_bmp_index #(
                     default: state <= ST_IDLE;
                 endcase
             end
+            if (timeout_hit)
+                finish_scan(ERR_TIMEOUT);
         end
     end
 

@@ -1,6 +1,13 @@
 # 正式烧录版本索引
 
-## 最新待板验版本：20261024-menu-navigation
+## 最新待板验版本：20261026-media-return
+
+- [返回图片提速 av_media.bit](20261026-media-return/av_media.bit)，SHA256 `739ed883a45ad803ff7c1c5739a6d40bd55b72e0465a6e48d641163753e10cb2`。
+- 视频返回首张淡化32VS→8VS，减少约0.4秒动画；完整读卡/缩放等待仍保留。图片/WAV、有声视频、暂停/循环、双屏菜单、音量与应急均回归通过；TF素材无需更换。
+- 89/89完整范围回归、四组媒体流水、完整综合/P&R/bitgen和定向时序通过；LUT16533、BRAM9K57。video/SD/ext_mem同域setup为+0.225/+0.168/+0.149ns，所有hold非负。旧SDRAM跨域全局setup−6.565ns单列，不代表全工程闭合。
+- [操作](../docs/media-return-20261026/USAGE.md)、[验收](../docs/media-return-20261026/VALIDATION.md)、[机器证据](20261026-media-return/verification.json)。上一有声版 `20261025-media-audio` 原样保留；本轮未上板、未写TF或提交Git。
+
+## 历史菜单防误操作版本：20261024-menu-navigation
 
 - [菜单防误操作 av_media.bit](20261024-menu-navigation/av_media.bit)，SHA256 `37f46d5f00b550914cf84679fe0a7281fdcd40a1fd099dd9edb78c2de6c60f31`。
 - 主控制页图片/时间/周期：同卡两次KEY4确认，移开卡片取消未确认预览；已确认设置不撤销。二级页/长按保持，空格字幕保留。

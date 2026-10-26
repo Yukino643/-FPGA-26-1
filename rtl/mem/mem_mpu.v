@@ -60,6 +60,7 @@ module mem_mpu #(
     input  wire                      scaler_write_request,
     output wire                      read_busy,
     output wire                      write_ready,
+    output wire                      idle,
 
     // 写方 1（素材装载 frame_read_write）
     input  wire                      App_wr_en_u,
@@ -113,6 +114,9 @@ module mem_mpu #(
     assign write_ready = !read_busy && Sdr_init_done && !Sdr_busy &&
                          !source_write_busy && (write_gap == 0);
     wire mem_accept_window = write_ready && !scaler_write_request && !App_wr_en;
+    // 实际读返回和写尾拍保护间隔全部结束，才允许媒体管线清空FIFO。
+    assign idle = !read_busy && !Sdr_busy && !source_write_busy && (write_gap==0) &&
+                  !scaler_write_request && !App_wr_en && !wr2_active;
     assign A_cmd_ready = mem_accept_window && a_allow;
     assign B_cmd_ready = mem_accept_window && b_allow;
     assign C_cmd_ready = mem_accept_window && c_allow;

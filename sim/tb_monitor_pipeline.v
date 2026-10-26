@@ -1,6 +1,9 @@
 `timescale 1ns/1ps
 // 直接提取当前顶层的 HDMI-A 时序/缩放/渲染/输出寄存，检查真实连接相位。
 module tb_monitor_pipeline;
+    wire [1:0] mon_media_page_sync=0,mon_media_edit_sync=0,mon_media_shadow_sync=0,mon_media_busy_sync=0;
+    wire [7:0] mon_media_error1=0;
+    wire media_mode_v=0,media_pause_v=0;
     reg video_clk=0, rst_video=1;
     always #5 video_clk=~video_clk;
     wire [1:0] mon_menu_active_sync=2'b11, mon_menu_page_sync=0;

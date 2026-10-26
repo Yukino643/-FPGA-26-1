@@ -6,10 +6,15 @@
 // WAV 假设: PCM(format=1)、48kHz、16bit、双声道、标准 44 字节头
 // 简化: 头部解析在第一个扇区完成（44 字节 < 512），data 从偏移 44 开始
 module wav_read #(
-    parameter integer SCAN_MAX_SECTORS = 65536
+    parameter integer SCAN_MAX_SECTORS = 65536,
+    parameter RAW_ENABLE=0
 )(
     input  wire        clk,
     input  wire        rst,
+    input wire raw_mode, halt, raw_sector_error,
+    input wire [31:0] raw_start_sector,raw_sample_count,
+    output wire quiescent,
+    output reg [7:0] load_error,
     output wire        ready,
 
     // 扫描
@@ -50,8 +55,13 @@ module wav_read #(
     localparam S_PCM_PREF  = 4'd7;
 
     reg [3:0]  state;
+    wire stopping=RAW_ENABLE && halt;
+    wire raw_pcm=RAW_ENABLE && raw_mode;
+    reg [9:0] received;
+    reg sector_failed;
     reg        ready_r;
     assign ready = ready_r;
+    assign quiescent=(state==S_IDLE) && !sd_sec_read && !sec_req_sent;
     assign load_active = (state == S_LOAD_RD) || (state == S_LOAD_WAIT) ||
                          (state == S_LOAD_PCM) || (state == S_PCM_PREF);
 
@@ -120,6 +130,7 @@ module wav_read #(
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             state            <= S_IDLE;
+            load_error<=0;received<=0;sector_failed<=0;
             ready_r          <= 1'b0;
             scan_done        <= 1'b0;
             scan_found_valid <= 1'b0;
@@ -160,6 +171,7 @@ module wav_read #(
 
             // 扇区数据写入缓冲（byte_cnt 9bit 最大 511，自然覆盖 512 字节）
                 if (sd_sec_read_data_valid) begin
+                    received<=received+1'b1;
                     // 4 个连续字节在同一个 32 位字中按小端序组装。
                     case (byte_cnt[1:0])
                         2'd0: byte_pack[7:0]   <= sd_sec_read_data;
@@ -187,13 +199,15 @@ module wav_read #(
             end
             if (sd_sec_read_end) begin
                 sec_ready <= 1'b1;
+                sector_failed <= raw_sector_error;
                 byte_cnt  <= 9'd0;
             end
 
             case (state)
                 S_IDLE: begin
                     ready_r <= 1'b1;
-                    if (scan_start) begin
+                    if (stopping) begin end
+                    else if (scan_start) begin
                         scan_sec <= scan_start_sector;
                         scan_cnt <= 32'd0;
                         scan_done<= 1'b0;
@@ -203,8 +217,10 @@ module wav_read #(
                         sec_req_sent <= 1'b0;
                         state    <= S_SCAN_RD;
                     end else if (load_start) begin
-                        load_sec        <= load_sector;
-                        data_bytes_left <= 32'd0;
+                        load_sec        <= raw_pcm ? raw_start_sector : load_sector;
+                        data_bytes_left <= raw_pcm ? {raw_sample_count[29:0],2'b00} : 32'd0;
+                        load_pcm_bytes <= raw_pcm ? {raw_sample_count[29:0],2'b00} : 32'd0;
+                        load_error<=0;
                         pcm_idx         <= 10'd0;
                         ph              <= 2'd0;
                         ready_r         <= 1'b0;
@@ -216,7 +232,9 @@ module wav_read #(
 
                 // ---- 扫描 ----
                 S_SCAN_RD: begin
-                    if (!sec_req_sent) begin
+                    if(stopping && !sec_req_sent) state<=S_IDLE;
+                    else if (!sec_req_sent) begin
+                        received<=0;
                         sd_sec_read      <= 1'b1;
                         sd_sec_read_addr <= scan_sec;
                         sec_req_sent     <= 1'b1;
@@ -224,7 +242,7 @@ module wav_read #(
                         timeout_cnt      <= 24'd0;
                     end else if (sec_ready) begin
                         sec_req_sent <= 1'b0;
-                        state        <= S_SCAN_CHK;
+                        state        <= stopping ? S_IDLE : S_SCAN_CHK;
                     end else begin
                         // 仲裁器可能暂时服务 BMP；请求必须保持到扇区完成，不能只脉冲一拍。
                         sd_sec_read <= 1'b1;
@@ -257,7 +275,9 @@ module wav_read #(
 
                 // ---- 装载 ----
                 S_LOAD_RD: begin
-                    if (!sec_req_sent) begin
+                    if(stopping && !sec_req_sent) state<=S_IDLE;
+                    else if (!sec_req_sent) begin
+                        received<=0;
                         sd_sec_read      <= 1'b1;
                         sd_sec_read_addr <= load_sec;
                         sec_req_sent     <= 1'b1;
@@ -265,6 +285,10 @@ module wav_read #(
                         timeout_cnt      <= 24'd0;
                     end else if (sec_ready) begin
                         sec_req_sent <= 1'b0;
+                        if(stopping) state<=S_IDLE;
+                        else if(raw_pcm && (sector_failed || received!=512)) begin
+                            load_error<=8'h61;load_done<=1;state<=S_IDLE;ready_r<=1;
+                        end else begin
                         if (data_bytes_left == 32'd0) begin
                             // 第一个扇区: 解析头
                             data_bytes_left <= wav_data_size;
@@ -277,11 +301,15 @@ module wav_read #(
                             pcm_word_idx    <= 7'd0;
                         end
                         state <= S_PCM_PREF;
+                        end
                     end else begin
                         // FIFO/仲裁背压期间保持扇区请求，保证轮到 WAV 时请求仍可见。
                         sd_sec_read <= 1'b1;
                         timeout_cnt <= timeout_cnt + 24'd1;
-                        if (timeout_cnt >= TIMEOUT_MAX) begin
+                        // RAW逻辑扇区可能先遍历很多FAT簇；物理超时/簇链步数由
+                        // router/mapper有界处理，不能在在途事务尚未收尾时假报idle。
+                        if (!raw_pcm && timeout_cnt >= TIMEOUT_MAX) begin
+                            load_error<=8'h62;
                             sec_req_sent <= 1'b0;
                             load_done    <= 1'b1;   // 超时视为装载结束
                             state        <= S_IDLE;
@@ -291,10 +319,15 @@ module wav_read #(
                 end
 
                 // 地址登记后留一拍给同步 BRAM，phase 0 才能采样新字。
-                S_PCM_PREF: state <= S_LOAD_PCM;
+                S_PCM_PREF: state <= stopping ? S_IDLE : S_LOAD_PCM;
 
                 S_LOAD_PCM: begin
-                    if (data_bytes_left == 32'd0) begin
+                    if(stopping) state<=S_IDLE;
+                    else if (data_bytes_left == 32'd0 && raw_pcm) begin
+                        // 原轨循环不清FIFO，保留已预取的尾部，顺序紧接首样本。
+                        data_bytes_left<={raw_sample_count[29:0],2'b00};
+                        load_sec<=raw_start_sector;pcm_idx<=0;pcm_word_idx<=0;ph<=0;state<=S_LOAD_RD;
+                    end else if (data_bytes_left == 32'd0) begin
                         load_done <= 1'b1;
                         state     <= S_IDLE;
                         ready_r   <= 1'b1;

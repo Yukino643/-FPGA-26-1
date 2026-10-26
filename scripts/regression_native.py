@@ -23,7 +23,7 @@ def extract(text,first,last):
 
 def extract_instance(text,marker):
     start=text.index(marker)
-    return text[start:text.index('\n);',start)+3]
+    return text[start:text.index(');',start)+2]
 
 def prepare():
     OUTPUT.mkdir(parents=True,exist_ok=True)
@@ -70,7 +70,7 @@ def prepare():
     (OUTPUT/'reg_video_pipeline_720.vh').write_text('\n'.join(blocks),encoding='utf-8',newline='\n')
     blocks=[extract(top,'reg [2:0] commit_sync;','// vs_rise toggle'),
             extract(top,'// 显示提交握手','// ===================== TF多图扫描'),
-            extract(top,'transition_ctrl #(','// ---- mem_mpu:')]
+            extract(top,'// 两种提交策略','// ---- mem_mpu:')]
     (OUTPUT/'reg_display_commit_720.vh').write_text('\n'.join(blocks),encoding='utf-8',newline='\n')
     (OUTPUT/'reg_source_gate_720.vh').write_text(extract_instance(top,'source_scaler_gate u_source_scaler_gate ('),encoding='utf-8',newline='\n')
     blocks=[extract(top,'// mem_clk 域把 write_finish 单拍转成 toggle', '// 源帧完整后启动缩放'),
@@ -132,8 +132,14 @@ def sim(name,args,reuse=False):
     if reuse and stamp.is_file() and stamp.read_text(encoding='ascii') in accepted_signatures:
         print(f'[REG][PASS] {name} verified input hash unchanged',flush=True)
         return
-    command([IV,'-g2005','-I',OUTPUT.as_posix(),'-I',(ROOT/'sim').as_posix(),'-o',out,*files],name+'_compile')
-    text,elapsed=command([VVP,out],name)
+    if name=='subtitle720':
+        # 保留同一个完整测试台：3背景×8组合、18整圈及逐像素断言。
+        # Icarus完整栅格导出超过1800秒，改用原生编译执行而非缩减覆盖。
+        from compiled_sim_native import run_compiled
+        text,elapsed=run_compiled(ROOT,OUTPUT,name,'tb_subtitle720',files,command)
+    else:
+        command([IV,'-g2005','-I',OUTPUT.as_posix(),'-I',(ROOT/'sim').as_posix(),'-o',out,*files],name+'_compile')
+        text,elapsed=command([VVP,out],name)
     if 'PASS' not in text or re.search(r'\bFAIL\b|\bERROR\b',text):
         raise RuntimeError(f'{name}: {text[-2000:]}')
     stamp.write_text(signature,encoding='ascii',newline='\n')
@@ -185,6 +191,7 @@ def main():
     run('constraints',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/check_constraints.py')],'constraints'))
     run('font720_generated',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/gen_font_720.py'),'--check'],'font720_generated'))
     run('monitor_font_generated',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/gen_monitor_cjk.py'),'--check'],'monitor_font_generated'))
+    run('media_return_transition',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/verify_media_return.py')],'media_return_transition'))
     run('legacy_generated',lambda:command([PY,'-X','utf8',str(ROOT/'scripts/verify_generated.py'),'--output',str(OUTPUT/'generated')],'legacy_generated'))
     # 原有每个模块/边界用例保留，旧顶层提取用例明确作为640基线fixture回归。
     shell=(ROOT/'scripts/regression.sh').read_text(encoding='utf-8')
@@ -197,13 +204,17 @@ def main():
         'audio_menu':['-s','tb_audio_menu','tb_audio_menu.v','../rtl/ctrl/monitor_menu_ctrl.v','../rtl/ctrl/monitor_config_regs.v'],
         'wav_index':['-s','tb_wav_index','tb_wav_index.v','../rtl/sd/fat32_bmp_index.v'],
         'wav_startup':['-DSIMULATION','-s','tb_wav_startup','tb_wav_startup.v',
-                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v',
+                       '../rtl/audio/media_audio_router.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'wav_startup_legacy':['-DSIMULATION','-s','tb_wav_startup','-Ptb_wav_startup.LEGACY=1','tb_wav_startup.v',
-                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v',
+                       '../rtl/audio/media_audio_router.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'wav_startup_bad':['-DSIMULATION','-s','tb_wav_startup','-Ptb_wav_startup.BAD_HEADER=1','tb_wav_startup.v',
-                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v',
+                       '../rtl/audio/media_audio_router.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'wav_startup_missing':['-DSIMULATION','-s','tb_wav_startup','-Ptb_wav_startup.NO_WAV=1','tb_wav_startup.v',
-                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v'],
+                       '../rtl/sd/fat32_bmp_index.v','../rtl/sd/sd_arbiter.v','../rtl/audio/wav_read.v',
+                       '../rtl/audio/media_audio_router.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'sdram_refresh':['-I',(ROOT/'rtl/mem/include').as_posix(),'-s','tb_sdram_refresh',
                          'tb_sdram_refresh.v',(OUTPUT/'reg_sdram_refresh.v').as_posix()],
         'sdram_refresh_disabled':['-I',(ROOT/'rtl/mem/include').as_posix(),'-s','tb_sdram_refresh',
@@ -270,16 +281,16 @@ def main():
         'writer720':['tb_writer720.v','../rtl/sd/frame_fifo_write.v'],
         'bmp_exact720':['tb_bmp_exact720.v','../rtl/sd/bmp_read_g.v'],
         'bmp_multisize':['-Ptb_bmp_exact720.MULTISIZE=1','tb_bmp_exact720.v','../rtl/sd/bmp_read_g.v'],
-        'commit720':['-s','tb_commit720','tb_commit720.v','../rtl/video/transition_ctrl.v','../rtl/sd/source_scaler_gate.v',
+        'commit720':['-s','tb_commit720','tb_commit720.v','../rtl/video/transition_ctrl.v','../rtl/video/video_frame_commit.v','../rtl/sd/source_scaler_gate.v',
                      '../rtl/sd/sd_card_bmp.v','../rtl/sd/sd_card_bmp_g.v','../rtl/sd/bmp_read_g.v','../rtl/sd/fat32_bmp_index.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'autoplay_labels':['-s','tb_autoplay_labels','tb_autoplay_labels.v',
                           '../rtl/video/monitor_menu_renderer.v','../rtl/video/monitor_cjk_rom.v','../rtl/ctrl/font_rom_ascii.v'],
         'autoplay_period':['-s','tb_autoplay_period','tb_autoplay_period.v',
                        '../rtl/sd/sd_card_bmp.v','../rtl/sd/sd_card_bmp_g.v','../rtl/sd/bmp_read_g.v','../rtl/sd/fat32_bmp_index.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'autoplay_visible':['-s','tb_autoplay_visible','tb_autoplay_visible.v',
-                       '../rtl/video/transition_ctrl.v','../rtl/sd/source_scaler_gate.v',
+                       '../rtl/video/transition_ctrl.v','../rtl/video/video_frame_commit.v','../rtl/sd/source_scaler_gate.v',
                        '../rtl/sd/sd_card_bmp.v','../rtl/sd/sd_card_bmp_g.v','../rtl/sd/bmp_read_g.v','../rtl/sd/fat32_bmp_index.v','../rtl/sd/fat32_file_sector_mapper.v'],
-        'prefetch720':['-s','tb_prefetch720','tb_prefetch720.v','../rtl/video/transition_ctrl.v','../rtl/sd/source_scaler_gate.v',
+        'prefetch720':['-s','tb_prefetch720','tb_prefetch720.v','../rtl/video/transition_ctrl.v','../rtl/video/video_frame_commit.v','../rtl/sd/source_scaler_gate.v',
                        '../rtl/sd/sd_card_bmp.v','../rtl/sd/sd_card_bmp_g.v','../rtl/sd/bmp_read_g.v','../rtl/sd/fat32_bmp_index.v','../rtl/sd/fat32_file_sector_mapper.v'],
         'audio720':['-DSIMULATION','tb_audio720.v','../rtl/audio/audio_player.v','../rtl/mem/afifo_simple.v'],
     }

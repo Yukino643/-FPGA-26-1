@@ -20,7 +20,7 @@ module tb_autoplay_labels;
         .cfg_busy(1'b0),.cfg_shadow(4'd7),.cfg_active(4'd7),
         .period_shadow(period_sel),.period_active(period_sel),.cfg_dirty(1'b0),
         .commit_seen(1'b0),.buzzer_test(1'b0),.key_state(3'd0),.key_events(16'd0),
-        .sd_init_done(1'b1),.img_count(4'd7),.led_state(4'd3),.rgb(rgb));
+        .sd_init_done(1'b1),.img_count(4'd7),.rgb(rgb));
     initial begin
         $readmemh("D:/FPGA/code/example/rtl/ctrl/font_ascii_bram.hex",font);
         for(sel=0;sel<4;sel=sel+1)begin

@@ -9,8 +9,20 @@ module sd_card_bmp_g #(
     parameter EXACT_WIDTH = 0, EXACT_HEIGHT = 0,
     parameter MAX_WIDTH = 2047, MAX_HEIGHT = 2047,
     parameter PREFETCH_NEXT = 0,
-    parameter INDEX_WAV = 0
+    parameter INDEX_WAV = 0,
+    parameter EXTERNAL_FS = 0,
+    parameter SEED_ENABLE = 0
 )(
+    output wire fs_scan_start_o, fs_file_start_o, fs_client_req_o,
+    output wire [31:0] fs_cluster_o, fs_size_o, fs_sector_o,
+    input wire fs_busy_i, fs_done_i, fs_found_i,
+    input wire [7:0] fs_error_i,
+    input wire [3:0] fs_total_i,
+    input wire [31:0] fs_cluster_i, fs_size_i,
+    input wire [7:0] fs_data_i,
+    input wire fs_valid_i, fs_client_done_i, fs_client_error_i,
+    output wire quiescent,
+    input wire initial_write_buf,
     input  wire        clk,
     input  wire        rst,
     input  wire        key_next,
@@ -103,9 +115,9 @@ module sd_card_bmp_g #(
     reg [31:0]       load_sector;
     reg [31:0]       load_cluster;
     reg [31:0]       load_file_size;
-    reg              physical_read_active;
+    wire             physical_read_active;
     reg              physical_read_owner_map;
-    reg [31:0]       physical_read_lba;
+    wire [31:0]      physical_read_lba;
     reg [8:0]        physical_read_byte_index;
     reg              scan_kicked;
     reg              first_image_committed;
@@ -649,14 +661,14 @@ module sd_card_bmp_g #(
                         auto_cnt <= 32'd0;
                     end
 
-                    if (scan_done && !first_image_committed && bmp_ready && !load_busy
+                    if (scan_done && !first_image_committed && bmp_ready && !load_busy && !hold_load
                         && (img_found_count != 4'd0) && any_good_image) begin
                         load_idx         <= first_good_image;
                         load_select_idx  <= first_good_image;
                         load_sector      <= 32'd0;
                         load_select_pending <= 1'b1;
-                        pending_buf_idx  <= 2'd0;
-                        write_buf_idx    <= 2'd0;
+                        pending_buf_idx  <= SEED_ENABLE ? {1'b0,initial_write_buf} : 2'd0;
+                        write_buf_idx    <= SEED_ENABLE ? {1'b0,initial_write_buf} : 2'd0;
                         load_busy        <= 1'b1;
                         source_done_seen <= 1'b0;
                         write_finish_seen <= 1'b0;
@@ -765,6 +777,33 @@ module sd_card_bmp_g #(
         .bmp_data               (bmp_data)
     );
 
+    assign fs_scan_start_o=scan_start_pulse;
+    assign fs_file_start_o=load_start_pulse;
+    assign fs_client_req_o=bmp_client_req;
+    assign fs_cluster_o=selected_cluster;
+    assign fs_size_o=selected_file_size;
+    assign fs_sector_o=bmp_client_sector;
+    assign quiescent=!load_busy && !load_select_pending && !load_start_pulse &&
+                     !scan_start_pulse && !fs_scan_busy && !bmp_client_req;
+    generate if(EXTERNAL_FS) begin : g_external_fs
+        assign fs_scan_busy=fs_busy_i;
+        assign fat_index_done=fs_done_i;
+        assign fs_scan_error=fs_error_i;
+        assign scan_found_valid=fs_found_i;
+        assign scan_found_total=fs_total_i;
+        assign scan_found_cluster=fs_cluster_i;
+        assign scan_found_size=fs_size_i;
+        assign bmp_client_data=fs_data_i;
+        assign bmp_client_data_valid=fs_valid_i;
+        assign bmp_client_done=fs_client_done_i;
+        assign bmp_client_error=fs_client_error_i;
+        assign wav_index_found=0;
+        assign wav_index_sector=0;
+        assign physical_read_active=1'b0;
+        assign physical_read_lba=32'd0;
+    end else begin : g_internal_fs
+    reg req_r; reg [31:0] addr_r;
+    assign physical_read_active=req_r; assign physical_read_lba=addr_r;
     fat32_bmp_index #(
         .MAX_IMAGES (8),
         .MAX_ROOT_CLUSTERS (256),
@@ -841,31 +880,32 @@ module sd_card_bmp_g #(
     // 目录扫描和文件装载串行使用 SD 卡；事务期间锁存 owner 与 LBA。
     always @(posedge clk or posedge rst) begin
         if (rst) begin
-            physical_read_active <= 1'b0;
+            req_r <= 1'b0;
             physical_read_owner_map <= 1'b0;
-            physical_read_lba <= 32'd0;
+            addr_r <= 32'd0;
             physical_read_byte_index <= 9'd0;
         end else if (!sd_init_done) begin
-            physical_read_active <= 1'b0;
+            req_r <= 1'b0;
             physical_read_owner_map <= 1'b0;
-            physical_read_lba <= 32'd0;
+            addr_r <= 32'd0;
             physical_read_byte_index <= 9'd0;
         end else if (physical_read_active) begin
             if (sd_sec_read_data_valid)
                 physical_read_byte_index <= physical_read_byte_index + 9'd1;
             if (sd_sec_read_end || sd_sec_read_abort)
-                physical_read_active <= 1'b0;
+                req_r <= 1'b0;
         end else if (fs_sector_req) begin
-            physical_read_active <= 1'b1;
+            req_r <= 1'b1;
             physical_read_owner_map <= 1'b0;
-            physical_read_lba <= fs_sector_lba;
+            addr_r <= fs_sector_lba;
             physical_read_byte_index <= 9'd0;
         end else if (map_sector_req) begin
-            physical_read_active <= 1'b1;
+            req_r <= 1'b1;
             physical_read_owner_map <= 1'b1;
-            physical_read_lba <= map_sector_lba;
+            addr_r <= map_sector_lba;
             physical_read_byte_index <= 9'd0;
         end
     end
 
+    end endgenerate
 endmodule

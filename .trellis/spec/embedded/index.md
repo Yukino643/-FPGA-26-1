@@ -4,6 +4,7 @@
 - Read the relevant teacher example before adapting display features.
 - For continuous curves or seamless transitions, read [continuous-display.md](continuous-display.md).
 - For the HDMI-B 720p branch, read [hdmi-b-720p.md](hdmi-b-720p.md); its pixel packing and native Windows gates supersede the legacy 640 path.
+- For RV16 video or runtime picture/video integration, read [raw-video.md](raw-video.md); distinguish the experimental video release, runtime integration, and their hardware-validation evidence.
 - Keep RGB, coordinates and DE at the same pipeline phase.
 - Identify source and destination clocks for every handshake.
 - 修改TF音频启动或WAV索引时，读取 [audio-startup.md](audio-startup.md)。

@@ -3,12 +3,16 @@
 module audio_player #(
     parameter integer VIDEO_CLK_HZ   = 25_000_000,
     parameter integer SAMPLE_RATE_HZ = 48_000,
-    parameter integer NOMINAL_SAMPLES_PER_FRAME = 806
+    parameter integer NOMINAL_SAMPLES_PER_FRAME = 806,
+    parameter CONTROL_ENABLE=0
 )(
     input  wire        clk_sd,
     input  wire        clk_video,
     input  wire        rst_sd,
     input  wire        rst_video,
+    input wire fifo_rst_sd, fifo_rst_video,
+    input wire consume_enable, frame_mode, frame_start,
+    output wire frame_done, buffer_ready,
     input  wire        pcm_valid,
     input  wire [15:0] pcm_left,
     input  wire [15:0] pcm_right,
@@ -28,14 +32,24 @@ module audio_player #(
     wire        fifo_rd_en;
     wire [31:0] fifo_rd_data;
     wire        fifo_rd_empty;
+    wire [9:0] fifo_level;
+    wire flush_sd=rst_sd | (CONTROL_ENABLE && fifo_rst_sd);
+    wire flush_video=rst_video | (CONTROL_ENABLE && fifo_rst_video);
+    reg [12:0] frame_samples;
+    reg frame_running;
+    // 最后一个旧帧样本恰与VS同拍时也可提交，不能多等一整个60Hz帧。
+    // 此表达式不反向控制rd_en，避免组合环；frame_start同拍消费的仍是旧帧末样本。
+    assign frame_done=(frame_samples>=13'd4800) ||
+        (frame_samples==13'd4799 && fifo_rd_en);
+    assign buffer_ready=fifo_level>=10'd256;
     wire [31:0] fifo_wr_data = {pcm_right, pcm_left};
     wire        fifo_wr_en   = pcm_valid && !fifo_full;
 
     afifo_simple #(.DW(32), .AW(9)) u_audio_fifo(
-        .wr_clk  (clk_sd), .wr_rst(rst_sd), .wr_en(fifo_wr_en),
+        .wr_clk  (clk_sd), .wr_rst(flush_sd), .wr_en(fifo_wr_en),
         .wr_data (fifo_wr_data), .wr_full(fifo_full), .wr_usedw(),
-        .rd_clk  (clk_video), .rd_rst(rst_video), .rd_en(fifo_rd_en),
-        .rd_data (fifo_rd_data), .rd_empty(fifo_rd_empty), .rd_usedw()
+        .rd_clk  (clk_video), .rd_rst(flush_video), .rd_en(fifo_rd_en),
+        .rd_data (fifo_rd_data), .rd_empty(fifo_rd_empty), .rd_usedw(fifo_level)
     );
     assign fifo_empty = fifo_rd_empty;
 
@@ -57,7 +71,15 @@ module audio_player #(
     // tick 与视频同源，不允许监视算法反向修改采样时基。
     // 720p60 配置为每帧800样本。
     reg [15:0] samples_in_frame;
-    assign fifo_rd_en = sample_tick && !fifo_rd_empty;
+    assign fifo_rd_en = sample_tick && !fifo_rd_empty && !flush_video &&
+        (!CONTROL_ENABLE || (consume_enable &&
+         (!frame_mode || (frame_running && frame_samples<13'd4800))));
+    // 只对真正出FIFO的样本计数；停顿和欠载不会推进音轨位置。
+    always @(posedge clk_video or posedge flush_video) begin
+        if(flush_video) begin frame_samples<=0;frame_running<=0;end
+        else if(frame_start) begin frame_samples<=0;frame_running<=1;end
+        else if(fifo_rd_en && frame_mode) frame_samples<=frame_samples+1'b1;
+    end
 
     always @(posedge clk_video or posedge rst_video) begin
         if (rst_video) begin
@@ -84,7 +106,7 @@ module audio_player #(
                 sample_cnt       <= sample_cnt + 32'd1;
                 // VS同拍的sample属于新帧，禁止覆盖VS清零并累积旧帧。
                 samples_in_frame <= vs_pulse ? 16'd1 : samples_in_frame + 16'd1;
-                if (!fifo_rd_empty) begin
+                if (fifo_rd_en) begin
                     sample_data_valid <= 1'b1;
                     audio_left  <= {fifo_rd_data[15:0], 8'd0};
                     audio_right <= {fifo_rd_data[31:16], 8'd0};

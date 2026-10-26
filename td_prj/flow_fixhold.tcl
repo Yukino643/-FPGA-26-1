@@ -178,7 +178,7 @@ proc opt_place_fun {} {
 ### Editable zone for opt_place ###
   # 轮播计时与LBA拆拍：保持原时钟约束，使用官方seed接口重布局。
   # 时钟、SDC与时序验收门限保持不变，失败报告单独归档。
-  set_param place seed 14
+  set_param place seed 16
   # 官方TimingUltra的高扇出优化选项；针对SD数据78扇出连线。
   set_param place hfn_opt_effort high
   place

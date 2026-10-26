@@ -27,6 +27,7 @@ module resize_frame_720(
     reg [2:0] start_sync;
     reg cancelled;
     reg [10:0] width, height, row_words, fit_w, fit_h, left, top, right, bottom;
+    reg [10:0] y_step_threshold;
     reg [20:0] source_row_addr, dest_row_addr;
     reg [20:0] area_w, area_h;
     reg [20:0] source_last_offset;
@@ -48,6 +49,7 @@ module resize_frame_720(
     reg [7:0] burst_left;
     reg [20:0] read_burst_addr;
     reg [7:0] read_burst_len;
+    reg read_burst_final;
     wire [10:0] fetch_remaining=row_words-{1'b0,fetch_index};
     reg [10:0] out_x, source_x, x_phase;
     reg [10:0] x_step_threshold;
@@ -105,13 +107,13 @@ module resize_frame_720(
     always @(posedge clk or posedge rst) begin
         if(rst) begin
             start_sync<=0; state<=IDLE; done_toggle<=0; error<=0; cancelled<=0;
-            width<=1; height<=1; row_words<=1; fit_w<=1; fit_h<=1;
+            width<=1; height<=1; row_words<=1; fit_w<=1; fit_h<=1; y_step_threshold<=0;
             left<=0; top<=0; right<=0; bottom<=0;
             source_row_addr<=0; dest_row_addr<=0; area_w<=0; area_h<=0;
             source_last_offset<=0; source_last_row<=0;
             wide_fit<=0; div_work<=0; div_quotient<=0; div_rem<=0; divisor<=1; div_count<=0;
             out_y<=0; source_y<=0; y_phase<=0; cache_valid<=0; cache_y<=0;
-            fetch_index<=0; burst_left<=0; read_burst_addr<=0; read_burst_len<=0;
+            fetch_index<=0; burst_left<=0; read_burst_addr<=0; read_burst_len<=0; read_burst_final<=0;
             out_x<=0; source_x<=0; x_phase<=0; x_step_threshold<=0;
             pixel_valid<=0; pixel_inside<=0; pixel_odd<=0; pixel_x<=0;
             even_pixel<=0; write_index<=0;
@@ -171,6 +173,8 @@ module resize_frame_720(
                     // phase+width>=fit_w 等价 phase>=fit_w-width；阈值预存，
                     // 移除每像素加法后再比较的8ns关键路径，不降低吞吐。
                     x_step_threshold<=fit_w-width;
+                    // 同理fit_h>=height：预减阈值，隔离逐行加法和地址使能比较。
+                    y_step_threshold<=fit_h-height;
                     left<=(1280-fit_w)>>1; top<=(720-fit_h)>>1;
                     right<=((1280-fit_w)>>1)+fit_w; bottom<=((720-fit_h)>>1)+fit_h;
                     out_y<=0; source_y<=0; y_phase<=0;
@@ -188,6 +192,9 @@ module resize_frame_720(
                 READ_PREP: begin
                     read_burst_addr<=source_row_addr+{11'd0,fetch_index};
                     read_burst_len<=fetch_remaining>128 ? 8'd128 : fetch_remaining[7:0];
+                    // 在命令发出前锁存末突发，响应末拍只用单比特发布行缓存。
+                    // 避免fetch_index加一/比较再串入cache_y写使能。
+                    read_burst_final<=fetch_remaining<=11'd128;
                     state<=READ_CMD;
                 end
                 READ_CMD: if(cmd_ready) begin burst_left<=cmd_len; state<=READ_DATA; end
@@ -195,7 +202,7 @@ module resize_frame_720(
                     fetch_index<=fetch_index+1'b1;
                     burst_left<=burst_left-1'b1;
                     if(burst_left==1) begin
-                        if({1'b0,fetch_index}+1'b1==row_words) begin
+                        if(read_burst_final) begin
                             cache_valid<=1; cache_y<=source_y; state<=ROW;
                         end else state<=READ_PREP;
                     end
@@ -225,8 +232,8 @@ module resize_frame_720(
                         dest_row_addr<=dest_row_addr+21'd640;
                         out_y<=out_y+1'b1;
                         if(inside_row) begin
-                            if(next_y_phase>={1'b0,fit_h}) begin
-                                y_phase<=next_y_phase-fit_h; source_y<=source_y+1'b1;
+                            if(y_phase>=y_step_threshold) begin
+                                y_phase<=y_phase-y_step_threshold; source_y<=source_y+1'b1;
                                 source_row_addr<=source_row_addr-row_words;
                             end else y_phase<=next_y_phase[10:0];
                         end
