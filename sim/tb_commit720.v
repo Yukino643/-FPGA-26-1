@@ -1,6 +1,11 @@
 `timescale 1ns/1ps
 // 当前顶层原文gate+CDC+transition，重复按键完成并交换页，错误零提交。
 module tb_commit720;
+    reg retained_front_v,retain_display_v;
+    wire media_rst_sd=rst_sd, media_rst_video=rst_video;
+    wire media_mode_v=0,media_pause_v=0,media_switch_v=0;
+    wire media_blank_v=0,video_audio_mode=0,audio_buffer_ready=0,audio_frame_done=0;
+    wire video_will_apply;
     reg video_clk=0,sd_card_clk=0,rst_video=1,rst_sd=1;
     always #6.734 video_clk=~video_clk;
     always #5 sd_card_clk=~sd_card_clk;

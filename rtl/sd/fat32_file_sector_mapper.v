@@ -48,6 +48,7 @@ module fat32_file_sector_mapper #(
     localparam [3:0] ST_DATA_SHIFT  = 4'd9;
     localparam [3:0] ST_DATA_BASE   = 4'd10;
     localparam [3:0] ST_DATA_OFFSET = 4'd11;
+    localparam [3:0] ST_COMPARE     = 4'd12;
 
     reg [3:0] state;
     reg [31:0] first_cluster_r;
@@ -59,18 +60,25 @@ module fat32_file_sector_mapper #(
     reg [31:0] max_cluster_r;
 
     reg [31:0] current_cluster;
-    reg [31:0] current_cluster_index;
-    reg [31:0] requested_sector;
-    reg [31:0] chain_steps;
+    // 32位文件字节数最多占2^23个扇区，有效扇区下标仅23位。
+    // 请求的高位单独拒绝，不能通过截断把非法请求别名到文件开头。
+    localparam integer CHAIN_BITS = MAX_CHAIN_STEPS < 2 ? 1 : $clog2(MAX_CHAIN_STEPS + 1);
+    localparam integer TIMEOUT_BITS = TIMEOUT_CYCLES < 2 ? 1 : $clog2(TIMEOUT_CYCLES + 1);
+    reg [22:0] current_cluster_index;
+    reg [22:0] requested_sector;
+    reg requested_high;
+    reg [CHAIN_BITS-1:0] chain_steps;
     reg [8:0] fat_entry_offset;
     reg [7:0] fat_byte0, fat_byte1, fat_byte2, fat_byte3;
-    reg [31:0] timeout_count;
+    reg [TIMEOUT_BITS-1:0] timeout_count;
 
     wire wait_sector = (state == ST_FAT_WAIT) || (state == ST_DATA_WAIT);
     wire timeout_hit = wait_sector && !sector_done &&
                        (timeout_count >= TIMEOUT_CYCLES - 1);
     reg request_invalid;
-    reg [31:0] desired_cluster_index;
+    reg [22:0] desired_cluster_index;
+    reg desired_before_current;
+    reg desired_after_current;
     reg [6:0] desired_sector_in_cluster;
     wire [31:0] next_cluster_value =
         {fat_byte3[3:0], fat_byte2, fat_byte1, fat_byte0};
@@ -100,8 +108,11 @@ module fat32_file_sector_mapper #(
             current_cluster <= 32'd0;
             current_cluster_index <= 32'd0;
             requested_sector <= 32'd0;
+            requested_high <= 1'b0;
             request_invalid <= 1'b0;
             desired_cluster_index <= 32'd0;
+            desired_before_current <= 1'b0;
+            desired_after_current <= 1'b0;
             desired_sector_in_cluster <= 7'd0;
             chain_steps <= 32'd0;
             fat_entry_offset <= 9'd0;
@@ -147,6 +158,7 @@ module fat32_file_sector_mapper #(
                 current_cluster <= first_cluster;
                 current_cluster_index <= 32'd0;
                 requested_sector <= 32'd0;
+                requested_high <= 1'b0;
                 chain_steps <= 32'd1;
                 if (state == ST_IDLE || state == ST_WAIT_RELEASE)
                     state <= ST_IDLE;
@@ -155,29 +167,38 @@ module fat32_file_sector_mapper #(
             end else begin
                 case (state)
                     ST_IDLE: if (client_req) begin
-                        requested_sector <= client_sector_index;
+                        requested_sector <= client_sector_index[22:0];
+                        requested_high <= |client_sector_index[31:23];
                         state <= ST_REQUEST_PREP;
                     end
                     // 请求先锁存，再计算边界与簇内位置；后续FAT遍历复用这些稳定结果，
                     // 不让32位移位/范围比较继续串入LBA和错误输出的公共使能。
                     ST_REQUEST_PREP: begin
-                        request_invalid <= (file_sector_count_r == 0) ||
+                        request_invalid <= requested_high || (file_sector_count_r == 0) ||
                             (sectors_per_cluster_r == 0) ||
-                            ({1'b0, requested_sector} >= {9'd0, file_sector_count_r}) ||
+                            ({1'b0, requested_sector} >= file_sector_count_r) ||
                             (first_cluster_r < 2) || (first_cluster_r > max_cluster_r);
                         desired_cluster_index <= requested_sector >> spc_shift_r;
                         desired_sector_in_cluster <= requested_sector[6:0] &
                                                      (sectors_per_cluster_r[6:0] - 7'd1);
+                        state <= ST_COMPARE;
+                    end
+                    // 比较结果独立寄存，避免23位进位链再串入游标清零/推进的使能。
+                    // 每次desired/current更新后必经此拍；不改变FAT事务和错误优先级。
+                    ST_COMPARE: begin
+                        desired_before_current <= desired_cluster_index < current_cluster_index;
+                        desired_after_current <= desired_cluster_index > current_cluster_index;
                         state <= ST_CHECK;
                     end
                     ST_CHECK: begin
                         if (request_invalid) begin
                             finish_with_error(ERR_CLUSTER);
-                        end else if (desired_cluster_index < current_cluster_index) begin
+                        end else if (desired_before_current) begin
                             current_cluster <= first_cluster_r;
                             current_cluster_index <= 32'd0;
                             chain_steps <= 32'd1;
-                        end else if (desired_cluster_index > current_cluster_index) begin
+                            state <= ST_COMPARE;
+                        end else if (desired_after_current) begin
                             if (chain_steps >= MAX_CHAIN_STEPS) begin
                                 finish_with_error(ERR_CHAIN_LOOP);
                             end else begin
@@ -229,7 +250,7 @@ module fat32_file_sector_mapper #(
                             current_cluster <= next_cluster_value;
                             current_cluster_index <= current_cluster_index + 1'b1;
                             chain_steps <= chain_steps + 1'b1;
-                            state <= ST_CHECK;
+                            state <= ST_COMPARE;
                         end
                     end
                     ST_DATA_REQ: if (!sector_busy) begin

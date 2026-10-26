@@ -2,6 +2,7 @@
 // 提取真实top的打包、动态帧长、官方FIFO writer、完成门和缩放连接。
 // 存储读口使用有返回空拍的模型；真实读写仲裁另由resize_display720覆盖。
 module tb_top_multisize;
+    wire media_rst_sd=rst_sd,media_rst_mem=rst_mem,media_drain_mem=0;
     parameter W=640,H=480;
     reg sd_card_clk=0,ext_mem_clk=0,rst_sd=1,rst_mem=1;
     always #5 sd_card_clk=~sd_card_clk;

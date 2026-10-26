@@ -67,7 +67,8 @@ module promax_audio_waveform #(
 
     // 显示节点采用 Q4 像素：每个 VS 向新完整采样组推进 1/4。
     // 采样组约 80ms 发布一次，但曲线每个视频帧都变化；不改动播放 PCM。
-    reg signed [11:0] smooth_nodes [0:31];
+    // 官方 TD RAM 模板使用 dram 属性；32x12 节点不占用紧张的块 RAM。
+    (* ram_style = "dram" *) reg signed [11:0] smooth_nodes [0:31];
     reg nodes_initialized;
     reg [3:0] build_state;
     reg [4:0] node_index;
@@ -84,8 +85,10 @@ module promax_audio_waveform #(
     reg signed [15:0] quotient6;
     reg signed [15:0] p0_q,p1_q,p2_q,p3_q;
     reg signed [11:0] node_target_q;
+    reg signed [11:0] node_old_q;
     reg signed [12:0] node_error_q;
-    reg [7:0] fraction_q;
+    reg [4:0] smooth_read_index;
+    reg signed [11:0] smooth_read_q;
     wire [15:0] h3_magnitude=h3[15] ? -h3 : h3;
     wire signed [15:0] geometric_raw = PIPELINED_GEOMETRY ? quotient6 : curve_raw;
     wire geometry_valid = PIPELINED_GEOMETRY ? pipe_valid[6] : pipe_valid[3];
@@ -93,7 +96,9 @@ module promax_audio_waveform #(
 
     reg [Y_BITS-1:0] previous_y;
     reg curve_valid;
-    localparam B_IDLE=0, B_NODES=1, B_LOAD=2, B_DRAIN=3, B_LAST=4, B_FETCH=5, B_NODE_FETCH=6;
+    localparam B_IDLE=0, B_NODES=1, B_LOAD=2, B_DRAIN=3, B_LAST=4, B_FETCH=5,
+               B_NODE_FETCH=6, B_NODE_ERROR=7, B_FETCH1=8, B_FETCH2=9,
+               B_FETCH3=10, B_FETCH4=11;
     // 同步读列上下界，适配 BRAM；有效区只查表和比较，避免像素路径串接乘法。
     localparam CURVE_DW = 2*Y_BITS;
     localparam CURVE_AW = $clog2(WAVE_WIDTH);
@@ -126,6 +131,19 @@ module promax_audio_waveform #(
     wire [Y_BITS-1:0] top_y = (current_y < previous_y ? current_y : previous_y) - 9'd1;
     wire [Y_BITS-1:0] bottom_y = (current_y > previous_y ? current_y : previous_y) + 9'd1;
 
+    // 单写口、单同步读口；读地址先寄存，下一状态才消费数据。
+    // 节点首轮初始化前的 RAM 值不参与写回或显示，数据 RAM 无需复位。
+    always @(posedge clk) begin
+        smooth_read_q <= smooth_nodes[smooth_read_index];
+        if (!rst && !vs_pulse && build_state == B_NODES) begin
+            if (!nodes_initialized)
+                smooth_nodes[node_index] <= PIPELINED_GEOMETRY ? node_target_q : node_target;
+            else
+                smooth_nodes[node_index] <= PIPELINED_GEOMETRY ?
+                    node_old_q + node_error_q/4 : smooth_nodes[node_index] + node_error/4;
+        end
+    end
+
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             build_state <= B_IDLE; node_index <= 0; build_x <= 0;
@@ -136,12 +154,14 @@ module promax_audio_waveform #(
             f0 <= 0; f1 <= 0; f2 <= 0; pipe_valid <= 0;
             x0 <= 0; x1 <= 0; x2 <= 0; x3 <= 0;
             x4<=0;x5<=0;x6<=0;magnitude_div32<=0;reciprocal_product<=0;sign4<=0;sign5<=0;quotient6<=0;
-            p0_q<=0;p1_q<=0;p2_q<=0;p3_q<=0;node_target_q<=0;node_error_q<=0;fraction_q<=0;
+            p0_q<=0;p1_q<=0;p2_q<=0;p3_q<=0;
+            node_target_q<=0;node_old_q<=0;node_error_q<=0;smooth_read_index<=0;
             previous_y <= CENTER_Y;
         end else if (vs_pulse) begin
             // 采集 bank 在同一 VS 发布；下一拍才访问新的显示 bank。
             build_state <= PIPELINED_GEOMETRY ? B_NODE_FETCH:B_NODES;
             node_index <= 0; build_x <= 0; pipe_valid <= 0;
+            smooth_read_index <= 0;
         end else begin
             pipe_valid <= {pipe_valid[5:0], build_state == B_LOAD};
             if (pipe_valid[0]) begin
@@ -168,43 +188,49 @@ module promax_audio_waveform #(
             case (build_state)
                 B_NODE_FETCH: begin
                     node_target_q<=node_target;
-                    node_error_q<=node_error;
+                    build_state<=B_NODE_ERROR;
+                end
+                B_NODE_ERROR: begin
+                    node_old_q<=smooth_read_q;
+                    node_error_q<=$signed(node_target_q)-$signed(smooth_read_q);
                     build_state<=B_NODES;
                 end
                 B_NODES: begin
-                    if (!nodes_initialized)
-                        smooth_nodes[node_index] <= PIPELINED_GEOMETRY ? node_target_q:node_target;
-                    else
-                        smooth_nodes[node_index] <= smooth_nodes[node_index] +
-                            (PIPELINED_GEOMETRY ? node_error_q/4:node_error/4);
                     if (node_index == 31) begin
                         nodes_initialized <= 1;
                         build_state <= PIPELINED_GEOMETRY ? B_FETCH:B_LOAD;
+                        smooth_read_index <= 0;
                     end else begin
                         node_index <= node_index + 1'b1;
+                        smooth_read_index <= node_index + 1'b1;
                         if (PIPELINED_GEOMETRY) build_state<=B_NODE_FETCH;
                     end
                 end
                 B_FETCH: begin
-                    // 查节点与系数运算分拍，避免地址mux、节点RAM和乘加串联。
-                    p0_q<=p0;p1_q<=p1;p2_q<=p2;p3_q<=p3;
-                    fraction_q<=build_index==31 ? 8'd0:((build_x%SAMPLE_SPACING)*128)/SAMPLE_SPACING;
-                    build_state<=B_LOAD;
+                    // 首次 i0=0；后续段的 i0 是上一段编号，已在 B_LOAD 登记。
+                    // 四个控制点分时读取，只在换段时更新，段内各列复用。
+                    smooth_read_index<=build_index; build_state<=B_FETCH1;
                 end
+                B_FETCH1: begin p0_q<=smooth_read_q;smooth_read_index<=i2;build_state<=B_FETCH2;end
+                B_FETCH2: begin p1_q<=smooth_read_q;smooth_read_index<=i3;build_state<=B_FETCH3;end
+                B_FETCH3: begin p2_q<=smooth_read_q;build_state<=B_FETCH4;end
+                B_FETCH4: begin p3_q<=smooth_read_q;build_state<=B_LOAD;end
                 B_LOAD: begin
                     // 统一三次 B 样条，节点处二阶导数连续，非负权重抑制尖峰及过冲。
-                    // 三拍乘加流水每拍输出一列；640列也能在不足700拍内构建完成。
+                    // 取节点只在32个曲线段边界暂停，段内仍每拍生成一列。
                     h0 <= -q0+three_q1-three_q2+q3;
                     c1q <= three_q0-(three_q1<<<1)+three_q2;
                     c2q0 <= -three_q0+three_q2;
                     c3q0 <= q0+(q1<<<2)+q2;
-                    f0 <= PIPELINED_GEOMETRY ? fraction_q :
-                          build_index == 31 ? 8'd0 : ((build_x % SAMPLE_SPACING)*128)/SAMPLE_SPACING;
+                    f0 <= build_index == 31 ? 8'd0 : ((build_x % SAMPLE_SPACING)*128)/SAMPLE_SPACING;
                     x0 <= build_x;
                     if (build_x == WAVE_WIDTH-1) build_state <= B_DRAIN;
                     else begin
                         build_x <= build_x+1'b1;
-                        if(PIPELINED_GEOMETRY) build_state<=B_FETCH;
+                        if(PIPELINED_GEOMETRY && build_x % SAMPLE_SPACING == SAMPLE_SPACING-1) begin
+                            smooth_read_index<=build_index;
+                            build_state<=B_FETCH;
+                        end
                     end
                 end
                 B_DRAIN: begin end // 等待流水最后一列落入表。

@@ -1,7 +1,7 @@
 // monitor_menu_ctrl.v - HDMI-A monitor menu input and shadow configuration
 //
 // The monitor console is active immediately after reset. KEY3 short press
-// moves the cursor and KEY3 long press switches the two monitor pages. KEY4
+// moves the cursor and KEY3 long press switches program/media pages. KEY4
 // remains reserved for the emergency long-press path and short-press actions
 // in the selected card. Configuration changes are committed as a toggle and
 // are applied by the HDMI-B video domain at VS.
@@ -9,7 +9,8 @@ module monitor_menu_ctrl #(
     parameter integer CLK_FREQ_HZ = 100_000_000,
     parameter integer DEBOUNCE_MS = 20,
     parameter integer LONG_PRESS_MS = 1000,
-    parameter integer TEST_MS = 200
+    parameter integer TEST_MS = 200,
+    parameter ENABLE_MEDIA=0, DEFAULT_VIDEO=0
 )(
     input  wire       clk,
     input  wire       rst,
@@ -18,8 +19,10 @@ module monitor_menu_ctrl #(
     input  wire       key_emergency,  // physical KEY4, active low
     input  wire       emergency_active,
     input  wire       cfg_commit_ack_toggle,
+    input wire media_busy,
+    output reg media_page,media_edit,media_shadow,requested_video,requested_pause,
     output reg        menu_active,
-    output reg        menu_page,      // 0: HDMI-B controls, 1: peripheral test
+    output reg        menu_page,      // 0: HDMI-B controls, reserved, held at 0 (peripheral page removed)
     output reg [2:0]  cursor,
     output reg [3:0]  cfg_shadow,
     output wire [3:0] cfg_payload,
@@ -55,7 +58,6 @@ module monitor_menu_ctrl #(
     reg [31:0] next_press_len;
     reg [31:0] auto_press_len;
     reg [31:0] emg_press_len;
-    reg [31:0] test_count;
     reg [3:0] cfg_committed;
     // 预览可继续编辑；邮箱正文独立保持到下一次有效提交（必须先收到 ACK）。
     assign cfg_payload = cfg_committed;
@@ -141,6 +143,8 @@ module monitor_menu_ctrl #(
             menu_active <= 1'b1;
             menu_page <= 1'b0;
             cursor <= 3'd0;
+            media_page<=0;media_edit<=0;media_shadow<=DEFAULT_VIDEO;
+            requested_video<=DEFAULT_VIDEO;requested_pause<=0;
             cfg_shadow <= 4'b0111;
             cfg_committed <= 4'b0111;
             period_shadow <= 2'd0;
@@ -158,31 +162,26 @@ module monitor_menu_ctrl #(
             cfg_commit_toggle <= 1'b0;
             cfg_dirty <= 1'b0;
             buzzer_test <= 1'b0;
-            test_count <= 0;
             key_next_pulse <= 1'b0;
             key_auto_pulse <= 1'b0;
             key_event_count <= 0;
         end else begin
             key_next_pulse <= 1'b0;
             key_auto_pulse <= 1'b0;
-            if (buzzer_test) begin
-                if (test_count >= TEST_CNT-1) begin buzzer_test <= 1'b0; test_count <= 0; end
-                else test_count <= test_count + 1'b1;
-            end
-
             // KEY4 long-press remains owned by emergency_ctrl. It is only
             // counted here for diagnostics and never changes the menu.
             if (emg_long) key_event_count <= key_event_count + 1'b1;
 
             if (!menu_active) begin
                 if (next_short) begin
-                    key_next_pulse <= 1'b1;
+                    key_next_pulse <= !(ENABLE_MEDIA && requested_video);
                     key_event_count <= key_event_count + 1'b1;
                 end
                 // Normal KEY3 short press is still handled by the player.
                 if (auto_short) key_event_count <= key_event_count + 1'b1;
                 if (auto_long) begin
                     menu_active <= 1'b1;
+                    media_page<=0;media_edit<=0;media_shadow<=requested_video;
                     menu_page <= 1'b0;
                     cursor <= 3'd0;
                     cfg_dirty <= 1'b0;
@@ -199,11 +198,16 @@ module monitor_menu_ctrl #(
                 end
                 // The player receives a classified short KEY3 event. This
                 // prevents a long press from toggling autoplay before menu entry.
-                if (auto_short) key_auto_pulse <= 1'b1;
+                if (auto_short) begin
+                    if(ENABLE_MEDIA && requested_video) begin
+                        if(!media_busy) requested_pause<=~requested_pause;
+                    end else key_auto_pulse <= 1'b1;
+                end
             end else begin
                 if (next_long) begin
                     // 逐级返回：编辑取消 -> 二级页返回 -> 播放按键。
-                    if (audio_edit) audio_edit <= 1'b0;
+                    if (ENABLE_MEDIA && media_edit) begin media_edit<=0;media_shadow<=requested_video;end
+                    else if (audio_edit) audio_edit <= 1'b0;
                     else if (audio_page) begin
                         audio_page <= 1'b0; cursor <= 3'd1;
                     end else if (subtitle_edit) subtitle_edit <= 1'b0;
@@ -222,10 +226,13 @@ module monitor_menu_ctrl #(
                     audio_shadow <= audio_payload;
                     subtitle_shadow <= subtitle_payload;
                 end else if (auto_long) begin
-                    // Long KEY3 switches between the two monitor pages while
+                    // Long KEY3 switches between program and media pages while
                     // the menu is open. This keeps KEY4 available for commit
                     // and for the emergency long-press path.
-                    menu_page <= (audio_page || screen_page || subtitle_page) ? 1'b0 : ~menu_page;
+                    // 节目↔媒体直接切换；二级设置长按返回节目。
+                    menu_page <= 1'b0;
+                    media_page <= ENABLE_MEDIA && !media_page && !audio_page && !screen_page && !subtitle_page;
+                    media_edit<=0;media_shadow<=requested_video;
                     audio_page <= 1'b0; audio_edit <= 1'b0;
                     screen_page <= 1'b0;
                     screen_edit <= 1'b0;
@@ -241,7 +248,9 @@ module monitor_menu_ctrl #(
                     subtitle_edit <= 1'b0;
                     subtitle_shadow <= subtitle_payload;
                 end else if (next_short) begin
-                    if (audio_edit) begin
+                    if (ENABLE_MEDIA && media_edit) begin
+                        media_shadow<=1'b0;
+                    end else if (audio_edit) begin
                         case(cursor)
                             0: if(audio_shadow[3:0]>0) audio_shadow[3:0]<=audio_shadow[3:0]-1'b1;
                             1: audio_shadow[4]<=1'b0;
@@ -263,8 +272,9 @@ module monitor_menu_ctrl #(
                             default: begin end // 恢复默认预览不可逐档编辑。
                         endcase
                     end else begin
-                        cursor <= cursor_up(cursor, menu_page || audio_page || screen_page || subtitle_page);
-                        if (!menu_page && !audio_page && !screen_page && !subtitle_page) begin
+                        media_shadow<=requested_video;
+                        cursor <= cursor_up(cursor, menu_page || audio_page || screen_page || subtitle_page || (ENABLE_MEDIA && media_page));
+                        if (!menu_page && !audio_page && !screen_page && !subtitle_page && !(ENABLE_MEDIA && media_page)) begin
                             // 主卡移开即放弃预览；已确认邮箱保持，不能撤销在途提交。
                             cfg_shadow <= cfg_committed;
                             period_shadow <= period_active;
@@ -272,7 +282,9 @@ module monitor_menu_ctrl #(
                         end
                     end
                 end else if (auto_short) begin
-                    if (audio_edit) begin
+                    if (ENABLE_MEDIA && media_edit) begin
+                        media_shadow<=1'b1;
+                    end else if (audio_edit) begin
                         case(cursor)
                             0: if(audio_shadow[3:0]<10) audio_shadow[3:0]<=audio_shadow[3:0]+1'b1;
                             1: audio_shadow[4]<=1'b1;
@@ -294,15 +306,25 @@ module monitor_menu_ctrl #(
                             default: begin end
                         endcase
                     end else begin
-                        cursor <= cursor_down(cursor, menu_page || audio_page || screen_page || subtitle_page);
-                        if (!menu_page && !audio_page && !screen_page && !subtitle_page) begin
+                        media_shadow<=requested_video;
+                        cursor <= cursor_down(cursor, menu_page || audio_page || screen_page || subtitle_page || (ENABLE_MEDIA && media_page));
+                        if (!menu_page && !audio_page && !screen_page && !subtitle_page && !(ENABLE_MEDIA && media_page)) begin
                             cfg_shadow <= cfg_committed;
                             period_shadow <= period_active;
                             cfg_dirty <= 1'b0;
                         end
                     end
                 end else if (emg_short) begin
-                    if (audio_page) begin
+                    if (ENABLE_MEDIA && media_page) begin
+                        if(!media_busy) begin
+                            if(cursor==0) begin
+                                if(!media_edit) begin media_edit<=1;media_shadow<=requested_video;end
+                                else begin
+                                    requested_video<=media_shadow;requested_pause<=0;media_edit<=0;
+                                end
+                            end else if(cursor==1 && requested_video) requested_pause<=~requested_pause;
+                        end
+                    end else if (audio_page) begin
                         if (!audio_edit) begin
                             audio_edit<=1'b1; cfg_dirty<=1'b1;
                             if(cursor==3) begin
@@ -381,11 +403,6 @@ module monitor_menu_ctrl #(
                             cfg_committed <= cfg_shadow;
                             period_active <= period_shadow;
                             cfg_dirty <= 1'b0;
-                        end
-                    end else if (cursor == 2'd1) begin
-                        if (!emergency_active) begin
-                            buzzer_test <= 1'b1;
-                            test_count <= 0;
                         end
                     end
                 end

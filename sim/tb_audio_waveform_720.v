@@ -26,7 +26,10 @@ module tb_audio_waveform_720_case #(
  task frame;
  begin @(negedge clk);de=0;vs=1;@(negedge clk);vs=0;cycles=0;
  while(dut.build_state!=0)begin @(negedge clk);cycles=cycles+1;end
- if(cycles>WAVE_WIDTH*2+80)$fatal(1,"FAIL VS build deadline cycles=%0d",cycles);
+ // 32节点各3拍、32段各5拍取样，列流水及末列提交留16拍。
+ // 独立检查720p VS到有效画面最短消隐25行，而非随实现放宽截止。
+ if(cycles>WAVE_WIDTH+32*3+32*5+16 || cycles>=25*1650)
+ $fatal(1,"FAIL VS build deadline cycles=%0d",cycles);
  repeat(2)@(negedge clk);de=1;end endtask
  task pcm_word;input integer value;
  begin @(negedge clk);valid=1;pcm=value*256;@(negedge clk);valid=0;@(negedge clk);end endtask

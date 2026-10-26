@@ -4,9 +4,9 @@ import argparse
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[1]
-CHARSET = '图片波形时间标周期外设蜂鸣器按键板载灯屏幕亮度对比色温恢复默认题'
-EXTRA = '字内容速'
-AUDIO = '音频量静'
+CHARSET = '图片波形时间标周期屏幕亮度对比色温恢复默认题字内容速音频量静模式'
+EXTRA = '播放格状'
+AUDIO = '态'
 FONT = Path('C:/Windows/Fonts/simhei.ttf')
 
 
@@ -51,7 +51,7 @@ def generate():
         for y in range(0,32,4):
             lines.append('        ' + ' '.join(f"{memory}[{offset+y+k}]=32'h{rows[y+k]:08X};" for k in range(4)))
     lines += ['    end']
-    # 四个新增字以列掩码逻辑绘制，保持原BRAM银行深度和一拍读延迟。
+    # 仅剩一个超出36槽的字以列掩码逻辑绘制，保持原BRAM银行深度和一拍读延迟。
     planes = []
     for ch in AUDIO:
         img = Image.new('L', (32, 32), 0)
@@ -63,14 +63,14 @@ def generate():
         planes.append([sum(1 << y for y in range(32) if img.getpixel((x,y)) > 100) for x in range(32)])
     lines += ['    wire [31:0] audio_logic;']
     for x in range(32):
-        terms = [f"((I_index[1:0]==2'd{k}) && |(audio_row_mask & 32'h{planes[k][x]:08X}))"
-                 for k in range(4) if planes[k][x]]
+        terms = [f"((I_index==6'd{k+36}) && |(audio_row_mask & 32'h{planes[k][x]:08X}))"
+                 for k in range(len(AUDIO)) if planes[k][x]]
         lines.append(f"    assign audio_logic[{31-x}] = " + (' | '.join(terms) if terms else "1'b0") + ';')
     lines += ['    always @(posedge I_clk) begin',
               '        base_bits <= glyph_rom[{I_index[4:0], I_row}];',
               '        extra_bits <= extra_rom[{I_index[1:0], I_row}];',
               '        extra_selected <= I_index[5];',
-              "        audio_selected <= I_index[5:2]==4'd9;",
+              "        audio_selected <= I_index>=6'd36 && I_index<6'd37;",
               '        audio_bits <= audio_logic;', '    end',
               '    assign O_bits = audio_selected ? audio_bits : extra_selected ? extra_bits : base_bits;', 'endmodule', '']
     return '\n'.join(lines)
@@ -85,7 +85,7 @@ if __name__ == '__main__':
     if args.check:
         if target.read_bytes() != content.encode('utf-8'):
             raise RuntimeError('32x32菜单字库与生成结果不同')
-        print('MONITOR_CJK PASS 32 base + 4 extra + 4 audio logic native32 glyphs; unchanged bank sizes')
+        print('MONITOR_CJK PASS 32 base + 4 extra + 1 overflow logic native32 glyphs; unchanged bank sizes')
     else:
         target.write_text(content, encoding='utf-8', newline='\n')
         print('Generated native 32x32 menu glyph ROM')

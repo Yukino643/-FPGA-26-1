@@ -1,0 +1,798 @@
+Created by          : Tang Dynasty v6.2.168116
+                    : Copyright (c) 2012-2025 Anlogic Inc.
+Generated           : Mon Oct 26 00:15:28 2026
+
+Top Model           : top
+Device              : EG4S20BG256
+Speed               : NA
+STA coverage        : 99.92%
+
+----------------------------------------------------------------------------------------------------
+Path Group     :     sd_card_clk -> sd_card_clk
+Type           :     Self
+From Clock     :     sd_card_clk
+To Clock       :     sd_card_clk
+Min Period     :     9.428ns
+Fmax           :     106.067MHz
+
+Statistics:
+Max            : SWNS      0.572ns, STNS      0.000ns,         0 Viol Endpoints,         5 Total Endpoints,         5 Paths Analyzed
+Min            : HWNS      0.072ns, HTNS      0.000ns,         0 Viol Endpoints,         5 Total Endpoints,         5 Paths Analyzed
+----------------------------------------------------------------------------------------------------
+
+Max Paths
+----------------------------------------------------------------------------------------------------
+Slack               : 4.176ns
+Begin Point         : u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_media_source/video/frame_first_sector_reg[12]_syn_4.ce (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow
+Budget              : 10.000ns { sd_card_clk rising@10.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 5.544ns (cell 1.469ns (26%), net 4.075ns (74%))
+Clock Skew          : 0.064ns
+Logic Level         : 3 ( LUT5=2  LUT4=1 )
+Max Fanout          : 30
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.201         -0.541          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.541          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.410          1.869          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x015y062z2          0.146    r     2.015          pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.q[0]
+net (fo=9)                              1.378          3.393          net: u_monitor_menu_ctrl/requested_video,  ../../../rtl/ctrl/monitor_menu_ctrl.v(23)
+                                                                      pin: u_media_runtime/busy_sync_reg[0]_syn_4.b[1]
+LUT5                x015y047z1          0.543    f     3.936       1  pin: u_media_runtime/busy_sync_reg[0]_syn_4.fx[0]
+net (fo=30)                             0.571          4.507          net: u_wav_read/halt,  ../../../rtl/audio/wav_read.v(14)
+                                                                      pin: u_media_source/video/file_start_n_syn_120.d[1]
+LUT4                x015y039z3          0.262    r     4.769       2  pin: u_media_source/video/file_start_n_syn_120.f[1]
+net (fo=5)                              0.594          5.363          net: u_media_source/video/disp_buf_idx_b4_n,  NOFILE(0)
+                                                                      pin: u_media_source/video/file_start_n_syn_128.b[0]
+LUT5                x015y038z2          0.431    f     5.794       3  pin: u_media_source/video/file_start_n_syn_128.f[0]
+net (fo=27)                             1.532          7.326          net: u_media_source/video/mux136_syn_2[29],  ../../../rtl/sd/raw_video_player.v(170)
+                                                                      pin: u_media_source/video/frame_first_sector_reg[12]_syn_4.ce
+reg                 x007y037z3          0.087    r     7.413               
+--------------------------------------------------------------------  ---------------
+Arrival                                                7.413               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.978         -0.485          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.485          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.166          1.681          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_media_source/video/frame_first_sector_reg[12]_syn_4.clk
+capture edge                           10.000    r    11.681               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         11.565               
+clock uncertainty                      -0.100         11.465               
+clock pessimism                         0.124         11.589               
+--------------------------------------------------------------------  ---------------
+Required                                              11.589               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.176               
+
+Slack               : 4.238ns
+Begin Point         : u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_media_source/video/frame_first_sector_reg[8]_syn_4.ce (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow
+Budget              : 10.000ns { sd_card_clk rising@10.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 5.482ns (cell 1.469ns (26%), net 4.013ns (74%))
+Clock Skew          : 0.064ns
+Logic Level         : 3 ( LUT5=2  LUT4=1 )
+Max Fanout          : 30
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.201         -0.541          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.541          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.410          1.869          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x015y062z2          0.146    r     2.015          pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.q[0]
+net (fo=9)                              1.378          3.393          net: u_monitor_menu_ctrl/requested_video,  ../../../rtl/ctrl/monitor_menu_ctrl.v(23)
+                                                                      pin: u_media_runtime/busy_sync_reg[0]_syn_4.b[1]
+LUT5                x015y047z1          0.543    f     3.936       1  pin: u_media_runtime/busy_sync_reg[0]_syn_4.fx[0]
+net (fo=30)                             0.571          4.507          net: u_wav_read/halt,  ../../../rtl/audio/wav_read.v(14)
+                                                                      pin: u_media_source/video/file_start_n_syn_120.d[1]
+LUT4                x015y039z3          0.262    r     4.769       2  pin: u_media_source/video/file_start_n_syn_120.f[1]
+net (fo=5)                              0.594          5.363          net: u_media_source/video/disp_buf_idx_b4_n,  NOFILE(0)
+                                                                      pin: u_media_source/video/file_start_n_syn_128.b[0]
+LUT5                x015y038z2          0.431    f     5.794       3  pin: u_media_source/video/file_start_n_syn_128.f[0]
+net (fo=27)                             1.470          7.264          net: u_media_source/video/mux136_syn_2[29],  ../../../rtl/sd/raw_video_player.v(170)
+                                                                      pin: u_media_source/video/frame_first_sector_reg[8]_syn_4.ce
+reg                 x009y036z3          0.087    r     7.351               
+--------------------------------------------------------------------  ---------------
+Arrival                                                7.351               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.978         -0.485          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.485          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.166          1.681          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_media_source/video/frame_first_sector_reg[8]_syn_4.clk
+capture edge                           10.000    r    11.681               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         11.565               
+clock uncertainty                      -0.100         11.465               
+clock pessimism                         0.124         11.589               
+--------------------------------------------------------------------  ---------------
+Required                                              11.589               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.238               
+
+Slack               : 4.249ns
+Begin Point         : u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_media_source/video/frame_index_reg[13]_syn_4.ce (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow
+Budget              : 10.000ns { sd_card_clk rising@10.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 5.471ns (cell 1.469ns (26%), net 4.002ns (74%))
+Clock Skew          : 0.064ns
+Logic Level         : 3 ( LUT5=2  LUT4=1 )
+Max Fanout          : 30
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.201         -0.541          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.541          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.410          1.869          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x015y062z2          0.146    r     2.015          pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.q[0]
+net (fo=9)                              1.378          3.393          net: u_monitor_menu_ctrl/requested_video,  ../../../rtl/ctrl/monitor_menu_ctrl.v(23)
+                                                                      pin: u_media_runtime/busy_sync_reg[0]_syn_4.b[1]
+LUT5                x015y047z1          0.543    f     3.936       1  pin: u_media_runtime/busy_sync_reg[0]_syn_4.fx[0]
+net (fo=30)                             0.571          4.507          net: u_wav_read/halt,  ../../../rtl/audio/wav_read.v(14)
+                                                                      pin: u_media_source/video/file_start_n_syn_120.d[1]
+LUT4                x015y039z3          0.262    r     4.769       2  pin: u_media_source/video/file_start_n_syn_120.f[1]
+net (fo=5)                              0.594          5.363          net: u_media_source/video/disp_buf_idx_b4_n,  NOFILE(0)
+                                                                      pin: u_media_source/video/file_start_n_syn_128.b[0]
+LUT5                x015y038z2          0.431    f     5.794       3  pin: u_media_source/video/file_start_n_syn_128.f[0]
+net (fo=27)                             1.459          7.253          net: u_media_source/video/mux136_syn_2[29],  ../../../rtl/sd/raw_video_player.v(170)
+                                                                      pin: u_media_source/video/frame_index_reg[13]_syn_4.ce
+reg                 x011y039z0          0.087    r     7.340               
+--------------------------------------------------------------------  ---------------
+Arrival                                                7.340               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.978         -0.485          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.485          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.166          1.681          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_media_source/video/frame_index_reg[13]_syn_4.clk
+capture edge                           10.000    r    11.681               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         11.565               
+clock uncertainty                      -0.100         11.465               
+clock pessimism                         0.124         11.589               
+--------------------------------------------------------------------  ---------------
+Required                                              11.589               
+--------------------------------------------------------------------  ---------------
+Slack                                                  4.249               
+
+Slack               : 0.572ns
+Begin Point         : u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_wav_read/data_bytes_left_reg[27]_syn_4.ce (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow
+Budget              : 10.000ns { sd_card_clk rising@10.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 9.148ns (cell 1.979ns (21%), net 7.169ns (79%))
+Clock Skew          : 0.064ns
+Logic Level         : 4 ( LUT4=3  LUT5=1 )
+Max Fanout          : 30
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.201         -0.541          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.541          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.410          1.869          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x015y062z2          0.146    r     2.015          pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.q[0]
+net (fo=9)                              1.378          3.393          net: u_monitor_menu_ctrl/requested_video,  ../../../rtl/ctrl/monitor_menu_ctrl.v(23)
+                                                                      pin: u_media_runtime/busy_sync_reg[0]_syn_4.b[1]
+LUT5                x015y047z1          0.543    f     3.936       1  pin: u_media_runtime/busy_sync_reg[0]_syn_4.fx[0]
+net (fo=30)                             2.558          6.494          net: u_wav_read/halt,  ../../../rtl/audio/wav_read.v(14)
+                                                                      pin: u_wav_read/sel21_syn_985.a[0]
+LUT4                x027y038z3          0.424    f     6.918       2  pin: u_wav_read/sel21_syn_985.f[0]
+net (fo=3)                              0.594          7.512          net: u_wav_read/sel19_syn_180,  ../../../rtl/audio/wav_read.v(206)
+                                                                      pin: u_wav_read/sel21_syn_991.b[1]
+LUT4                x026y038z2          0.431    f     7.943       3  pin: u_wav_read/sel21_syn_991.f[1]
+net (fo=4)                              0.307          8.250          net: u_wav_read/sel21_syn_951,  ../../../rtl/audio/wav_read.v(206)
+                                                                      pin: u_wav_read/sel21_syn_985.c[1]
+LUT4                x027y038z3          0.348    f     8.598       4  pin: u_wav_read/sel21_syn_985.f[1]
+net (fo=18)                             2.332         10.930          net: u_wav_read/sel21_syn_470,  ../../../rtl/audio/wav_read.v(206)
+                                                                      pin: u_wav_read/data_bytes_left_reg[27]_syn_4.ce
+reg                 x023y040z3          0.087    r    11.017               
+--------------------------------------------------------------------  ---------------
+Arrival                                               11.017               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.978         -0.485          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.485          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.166          1.681          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_wav_read/data_bytes_left_reg[27]_syn_4.clk
+capture edge                           10.000    r    11.681               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         11.565               
+clock uncertainty                      -0.100         11.465               
+clock pessimism                         0.124         11.589               
+--------------------------------------------------------------------  ---------------
+Required                                              11.589               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.572               
+
+Slack               : 0.572ns
+Begin Point         : u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_wav_read/data_bytes_left_reg[29]_syn_4.ce (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : setup
+Process             : slow
+Budget              : 10.000ns { sd_card_clk rising@10.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 9.148ns (cell 1.979ns (21%), net 7.169ns (79%))
+Clock Skew          : 0.064ns
+Logic Level         : 4 ( LUT4=3  LUT5=1 )
+Max Fanout          : 30
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.660          1.660          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.660          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.201         -0.541          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.541          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.541          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.410          1.869          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.clk
+launch edge                             0.000    r     1.869               
+--------------------------------------------------------------------  ---------------
+clk2q               x015y062z2          0.146    r     2.015          pin: u_monitor_menu_ctrl/requested_pause_reg_syn_22.q[0]
+net (fo=9)                              1.378          3.393          net: u_monitor_menu_ctrl/requested_video,  ../../../rtl/ctrl/monitor_menu_ctrl.v(23)
+                                                                      pin: u_media_runtime/busy_sync_reg[0]_syn_4.b[1]
+LUT5                x015y047z1          0.543    f     3.936       1  pin: u_media_runtime/busy_sync_reg[0]_syn_4.fx[0]
+net (fo=30)                             2.558          6.494          net: u_wav_read/halt,  ../../../rtl/audio/wav_read.v(14)
+                                                                      pin: u_wav_read/sel21_syn_985.a[0]
+LUT4                x027y038z3          0.424    f     6.918       2  pin: u_wav_read/sel21_syn_985.f[0]
+net (fo=3)                              0.594          7.512          net: u_wav_read/sel19_syn_180,  ../../../rtl/audio/wav_read.v(206)
+                                                                      pin: u_wav_read/sel21_syn_991.b[1]
+LUT4                x026y038z2          0.431    f     7.943       3  pin: u_wav_read/sel21_syn_991.f[1]
+net (fo=4)                              0.307          8.250          net: u_wav_read/sel21_syn_951,  ../../../rtl/audio/wav_read.v(206)
+                                                                      pin: u_wav_read/sel21_syn_985.c[1]
+LUT4                x027y038z3          0.348    f     8.598       4  pin: u_wav_read/sel21_syn_985.f[1]
+net (fo=18)                             2.332         10.930          net: u_wav_read/sel21_syn_470,  ../../../rtl/audio/wav_read.v(206)
+                                                                      pin: u_wav_read/data_bytes_left_reg[29]_syn_4.ce
+reg                 x023y040z2          0.087    r    11.017               
+--------------------------------------------------------------------  ---------------
+Arrival                                               11.017               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.493          1.493          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.493          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.978         -0.485          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.485          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.485          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.166          1.681          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_wav_read/data_bytes_left_reg[29]_syn_4.clk
+capture edge                           10.000    r    11.681               
+--------------------------------------------------------------------  ---------------
+setup                                  -0.116         11.565               
+clock uncertainty                      -0.100         11.465               
+clock pessimism                         0.124         11.589               
+--------------------------------------------------------------------  ---------------
+Required                                              11.589               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.572               
+
+
+
+Min Paths
+----------------------------------------------------------------------------------------------------
+Slack               : 0.072ns
+Begin Point         : u_promax_audio_waveform/rgb_out_b1[22]_syn_10.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_emergency_ctrl/buzzer_cnt_reg[11]_syn_4.sr (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { sd_card_clk rising@0.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 0.533ns (cell 0.161ns (30%), net 0.372ns (70%))
+Clock Skew          : 0.108ns
+Logic Level         : 0
+Max Fanout          : 18
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.879         -0.695          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.695          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.029          1.334          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_promax_audio_waveform/rgb_out_b1[22]_syn_10.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x007y039z3          0.109    f     1.443          pin: u_promax_audio_waveform/rgb_out_b1[22]_syn_10.q[0]
+net (fo=18)                             0.372          1.815          net: u_monitor_menu_ctrl/rst_dup_6,  ../../../rtl/ctrl/monitor_menu_ctrl.v(16)
+                                                                      pin: u_emergency_ctrl/buzzer_cnt_reg[11]_syn_4.sr
+reg                 x007y035z3          0.052    f     1.867               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.867               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.065         -0.763          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.763          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.230          1.467          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_emergency_ctrl/buzzer_cnt_reg[11]_syn_4.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.025          1.795               
+--------------------------------------------------------------------  ---------------
+Required                                               1.795               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.072               
+
+Slack               : 0.072ns
+Begin Point         : u_promax_audio_waveform/rgb_out_b1[22]_syn_10.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_emergency_ctrl/buzzer_cnt_reg[19]_syn_4.sr (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { sd_card_clk rising@0.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 0.533ns (cell 0.161ns (30%), net 0.372ns (70%))
+Clock Skew          : 0.108ns
+Logic Level         : 0
+Max Fanout          : 18
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.879         -0.695          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.695          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.029          1.334          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_promax_audio_waveform/rgb_out_b1[22]_syn_10.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x007y039z3          0.109    f     1.443          pin: u_promax_audio_waveform/rgb_out_b1[22]_syn_10.q[0]
+net (fo=18)                             0.372          1.815          net: u_monitor_menu_ctrl/rst_dup_6,  ../../../rtl/ctrl/monitor_menu_ctrl.v(16)
+                                                                      pin: u_emergency_ctrl/buzzer_cnt_reg[19]_syn_4.sr
+reg                 x007y035z2          0.052    f     1.867               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.867               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.065         -0.763          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.763          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.230          1.467          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_emergency_ctrl/buzzer_cnt_reg[19]_syn_4.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.025          1.795               
+--------------------------------------------------------------------  ---------------
+Required                                               1.795               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.072               
+
+Slack               : 0.102ns
+Begin Point         : u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_monitor_menu_ctrl/subtitle_payload_reg[1]_syn_7.sr (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { sd_card_clk rising@0.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 0.500ns (cell 0.161ns (32%), net 0.339ns (68%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 18
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.879         -0.695          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.695          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.029          1.334          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x013y064z2          0.109    f     1.443          pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.q[0]
+net (fo=18)                             0.339          1.782          net: u_monitor_menu_ctrl/rst_dup_17,  ../../../rtl/ctrl/monitor_menu_ctrl.v(16)
+                                                                      pin: u_monitor_menu_ctrl/subtitle_payload_reg[1]_syn_7.sr
+reg                 x011y064z3          0.052    f     1.834               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.834               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.065         -0.763          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.763          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.230          1.467          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/subtitle_payload_reg[1]_syn_7.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.102               
+
+Slack               : 0.102ns
+Begin Point         : u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_monitor_menu_ctrl/audio_payload_reg[0]_syn_7.sr (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { sd_card_clk rising@0.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 0.500ns (cell 0.161ns (32%), net 0.339ns (68%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 18
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.879         -0.695          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.695          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.029          1.334          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x013y064z2          0.109    f     1.443          pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.q[0]
+net (fo=18)                             0.339          1.782          net: u_monitor_menu_ctrl/rst_dup_17,  ../../../rtl/ctrl/monitor_menu_ctrl.v(16)
+                                                                      pin: u_monitor_menu_ctrl/audio_payload_reg[0]_syn_7.sr
+reg                 x011y064z2          0.052    f     1.834               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.834               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.065         -0.763          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.763          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.230          1.467          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/audio_payload_reg[0]_syn_7.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.102               
+
+Slack               : 0.110ns
+Begin Point         : u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.clk (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+End Point           : u_monitor_menu_ctrl/screen_shadow_reg[8]_syn_13.sr (rising edge triggered by clock sd_card_clk  { rise@0.000000ns  fall@5.000000ns  period=10.000000 })
+Check Type          : removal
+Process             : fast
+Budget              : 0.000ns { sd_card_clk rising@0.000ns - sd_card_clk rising@0.000ns }
+Data Path Delay     : 0.508ns (cell 0.161ns (31%), net 0.347ns (69%))
+Clock Skew          : 0.045ns
+Logic Level         : 0
+Max Fanout          : 18
+Clock Uncertainty   : 0.100ns (sdc uncertainty: 0.000ns, default uncertainty: 0.100ns)
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.184          1.184          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.184          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -1.879         -0.695          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.695          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.695          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.029          1.334          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.clk
+launch edge                             0.000    r     1.334               
+--------------------------------------------------------------------  ---------------
+clk2q               x013y064z2          0.109    f     1.443          pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_23.q[0]
+net (fo=18)                             0.347          1.790          net: u_monitor_menu_ctrl/rst_dup_17,  ../../../rtl/ctrl/monitor_menu_ctrl.v(16)
+                                                                      pin: u_monitor_menu_ctrl/screen_shadow_reg[8]_syn_13.sr
+reg                 x014y064z3          0.052    f     1.842               
+--------------------------------------------------------------------  ---------------
+Arrival                                                1.842               
+
+source latency                          0.000          0.000               
+port                R7                  0.000          0.000          pin: clk
+hierarchy                               0.000          0.000          pin: clk_syn_2.ipad
+PAD                 x020y071            1.302          1.302          pin: clk_syn_2.di
+net (fo=10)         x040y071            0.000          1.302          net: clk_dup_1,  ../../../rtl/top/top_tf_hdmi_audio.v(6)
+                                                                      pin: sys_pll_m0/pll_inst.refclk
+PLL                 x040y071           -2.065         -0.763          pin: sys_pll_m0/pll_inst.clkc[0]
+net (fo=1)                              0.000         -0.763          net: sys_pll_m0/clk0_buf,  ../../../rtl/pll/sys_pll.v(40)
+                                                                      pin: sys_pll_m0/bufg_feedback.clki
+GCLK                x039y070z2          0.000         -0.763          pin: sys_pll_m0/bufg_feedback.clko
+net (fo=3501)                           2.230          1.467          net: u_media_source/fs/indexer/clk,  ../../../rtl/sd/fat32_bmp_index.v(11)
+                                                                      pin: u_monitor_menu_ctrl/screen_shadow_reg[8]_syn_13.clk
+capture edge                            0.000    r     1.467               
+--------------------------------------------------------------------  ---------------
+removal                                 0.253          1.720               
+clock uncertainty                       0.100          1.820               
+clock pessimism                        -0.088          1.732               
+--------------------------------------------------------------------  ---------------
+Required                                               1.732               
+--------------------------------------------------------------------  ---------------
+Slack                                                  0.110               
+
+
+
+
+
+Exclusive Clock Groups
+--------------------
+----------------------------------------------------------------------------------------------------
+Path Group     :     Set Clock Groups
+Constr         :     sd_card_clk -> video_clk
+
+Statistics:
+	Setup Check    :              0   end points,               0   paths
+	Setup Check    :              0   end points,               0   paths
+----------------------------------------------------------------------------------------------------
+
+Max Delay Paths
+----------------------------------------------------------------------------------------------------
+Begin Point         : u_monitor_menu_ctrl/screen_shadow_reg[3]_syn_35.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/screen_preview_video_reg[6]_syn_4.mi[0](triggered by clock video_clk)
+Check Type          : setup
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x019y063z3                                        pin: u_monitor_menu_ctrl/screen_shadow_reg[3]_syn_35.q[0]
+net (fo=6)                                                            net: u_monitor_menu_ctrl/screen_shadow[7],  ../../../rtl/ctrl/monitor_menu_ctrl.v(35)
+                                                                      pin: u_monitor_config_regs/screen_preview_video_reg[6]_syn_4.mi[0]
+reg                 x014y065z3                                        net: u_monitor_config_regs/screen_preview_sync1[7],  ../../../rtl/ctrl/monitor_config_regs.v(29)
+
+
+Begin Point         : u_monitor_menu_ctrl/audio_shadow_reg[3]_syn_18.clk(triggered by clock sd_card_clk)
+End Point           : mon_screen_page_sync_reg[0]_syn_4.mi[1](triggered by clock video_clk)
+Check Type          : setup
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x013y066z2                                        pin: u_monitor_menu_ctrl/audio_shadow_reg[3]_syn_18.q[0]
+net (fo=27)                                                           net: u_monitor_menu_ctrl/screen_page,  ../../../rtl/ctrl/monitor_menu_ctrl.v(33)
+                                                                      pin: mon_screen_page_sync_reg[0]_syn_4.mi[1]
+reg                 x007y062z3                                        net: mon_screen_page_sync[0],  ../../../rtl/top/top_tf_hdmi_audio.v(1308)
+
+
+Begin Point         : u_monitor_menu_ctrl/subtitle_shadow_reg[1]_syn_10.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/screen_preview_video_reg[9]_syn_4.mi[0](triggered by clock video_clk)
+Check Type          : setup
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x014y065z0                                        pin: u_monitor_menu_ctrl/subtitle_shadow_reg[1]_syn_10.q[0]
+net (fo=5)                                                            net: u_monitor_menu_ctrl/subtitle_shadow[1],  ../../../rtl/ctrl/monitor_menu_ctrl.v(39)
+                                                                      pin: u_monitor_config_regs/screen_preview_video_reg[9]_syn_4.mi[0]
+reg                 x010y063z3                                        net: u_monitor_config_regs/subtitle_preview_sync1[1],  ../../../rtl/ctrl/monitor_config_regs.v(30)
+
+
+Begin Point         : u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_27.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/preview_sync1_reg[1]_syn_4.mi[1](triggered by clock video_clk)
+Check Type          : setup
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x015y064z1                                        pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_27.q[0]
+net (fo=3)                                                            net: u_monitor_menu_ctrl/cfg_shadow[1],  ../../../rtl/ctrl/monitor_menu_ctrl.v(27)
+                                                                      pin: u_monitor_config_regs/preview_sync1_reg[1]_syn_4.mi[1]
+reg                 x010y062z3                                        net: u_monitor_config_regs/preview_sync1[1],  ../../../rtl/ctrl/monitor_config_regs.v(28)
+
+
+Begin Point         : u_monitor_menu_ctrl/cfg_committed_reg[0]_syn_7.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/preview_sync1_reg[2]_syn_4.mi[1](triggered by clock video_clk)
+Check Type          : setup
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x012y062z2                                        pin: u_monitor_menu_ctrl/cfg_committed_reg[0]_syn_7.q[0]
+net (fo=3)                                                            net: u_monitor_menu_ctrl/cfg_shadow[2],  ../../../rtl/ctrl/monitor_menu_ctrl.v(27)
+                                                                      pin: u_monitor_config_regs/preview_sync1_reg[2]_syn_4.mi[1]
+reg                 x010y061z2                                        net: u_monitor_config_regs/preview_sync1[2],  ../../../rtl/ctrl/monitor_config_regs.v(28)
+
+
+
+Min Delay Paths
+----------------------------------------------------------------------------------------------------
+Begin Point         : u_monitor_menu_ctrl/screen_shadow_reg[3]_syn_35.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/screen_preview_video_reg[6]_syn_4.mi[0](triggered by clock video_clk)
+Check Type          : hold
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x019y063z3                                        pin: u_monitor_menu_ctrl/screen_shadow_reg[3]_syn_35.q[0]
+net (fo=6)                                                            net: u_monitor_menu_ctrl/screen_shadow[7],  ../../../rtl/ctrl/monitor_menu_ctrl.v(35)
+                                                                      pin: u_monitor_config_regs/screen_preview_video_reg[6]_syn_4.mi[0]
+reg                 x014y065z3                                        net: u_monitor_config_regs/screen_preview_sync1[7],  ../../../rtl/ctrl/monitor_config_regs.v(29)
+
+
+Begin Point         : u_monitor_menu_ctrl/audio_shadow_reg[3]_syn_18.clk(triggered by clock sd_card_clk)
+End Point           : mon_screen_page_sync_reg[0]_syn_4.mi[1](triggered by clock video_clk)
+Check Type          : hold
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x013y066z2                                        pin: u_monitor_menu_ctrl/audio_shadow_reg[3]_syn_18.q[0]
+net (fo=27)                                                           net: u_monitor_menu_ctrl/screen_page,  ../../../rtl/ctrl/monitor_menu_ctrl.v(33)
+                                                                      pin: mon_screen_page_sync_reg[0]_syn_4.mi[1]
+reg                 x007y062z3                                        net: mon_screen_page_sync[0],  ../../../rtl/top/top_tf_hdmi_audio.v(1308)
+
+
+Begin Point         : u_monitor_menu_ctrl/subtitle_shadow_reg[1]_syn_10.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/screen_preview_video_reg[9]_syn_4.mi[0](triggered by clock video_clk)
+Check Type          : hold
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x014y065z0                                        pin: u_monitor_menu_ctrl/subtitle_shadow_reg[1]_syn_10.q[0]
+net (fo=5)                                                            net: u_monitor_menu_ctrl/subtitle_shadow[1],  ../../../rtl/ctrl/monitor_menu_ctrl.v(39)
+                                                                      pin: u_monitor_config_regs/screen_preview_video_reg[9]_syn_4.mi[0]
+reg                 x010y063z3                                        net: u_monitor_config_regs/subtitle_preview_sync1[1],  ../../../rtl/ctrl/monitor_config_regs.v(30)
+
+
+Begin Point         : u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_27.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/preview_sync1_reg[1]_syn_4.mi[1](triggered by clock video_clk)
+Check Type          : hold
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x015y064z1                                        pin: u_monitor_menu_ctrl/cfg_shadow_reg[1]_syn_27.q[0]
+net (fo=3)                                                            net: u_monitor_menu_ctrl/cfg_shadow[1],  ../../../rtl/ctrl/monitor_menu_ctrl.v(27)
+                                                                      pin: u_monitor_config_regs/preview_sync1_reg[1]_syn_4.mi[1]
+reg                 x010y062z3                                        net: u_monitor_config_regs/preview_sync1[1],  ../../../rtl/ctrl/monitor_config_regs.v(28)
+
+
+Begin Point         : u_monitor_menu_ctrl/cfg_committed_reg[0]_syn_7.clk(triggered by clock sd_card_clk)
+End Point           : u_monitor_config_regs/preview_sync1_reg[2]_syn_4.mi[1](triggered by clock video_clk)
+Check Type          : hold
+
+Delay Type          Location             Incr           Path   Level  Netlist Info
+--------------------------------------------------------------------  ---------------
+clk2q               x012y062z2                                        pin: u_monitor_menu_ctrl/cfg_committed_reg[0]_syn_7.q[0]
+net (fo=3)                                                            net: u_monitor_menu_ctrl/cfg_shadow[2],  ../../../rtl/ctrl/monitor_menu_ctrl.v(27)
+                                                                      pin: u_monitor_config_regs/preview_sync1_reg[2]_syn_4.mi[1]
+reg                 x010y061z2                                        net: u_monitor_config_regs/preview_sync1[2],  ../../../rtl/ctrl/monitor_config_regs.v(28)
+
+
+
+Set False Path
+--------------------
+
+From ip sdc
+--------------------
+
+frame_read_write_m0/write_buf
+--------------------

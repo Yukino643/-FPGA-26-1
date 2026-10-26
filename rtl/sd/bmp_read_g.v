@@ -131,7 +131,10 @@ module bmp_read_g #(
     reg [31:0] hdr_pixel_product;
     reg [31:0] header_expected_pixels;
     reg [5:0]  hdr_mul_count;
-    reg [31:0] row_bytes_pad_reg;
+    // 合法头已限制宽度；行内计数不需要跟随文件偏移使用32位。
+    localparam integer ROW_MAX_WIDTH = (MAX_WIDTH < MAX_DIM) ? MAX_WIDTH : MAX_DIM;
+    localparam integer ROW_BITS = $clog2(((ROW_MAX_WIDTH * 3 + 3) / 4) * 4 + 1);
+    reg [ROW_BITS-1:0] row_bytes_pad_reg;
 
     wire read_state = (state == ST_SCAN) || (state == ST_LOAD_HDR) ||
                       (state == ST_LOAD_DATA);
@@ -215,8 +218,8 @@ module bmp_read_g #(
     // byte_pos: 自文件第 0 字节（含 54B 头）计数的已收字节数（终止条件沿用官方）
     // row_pos : 像素区内"下一字节"在源图行内的位置（无除法实现 padding 剥离）
     reg [31:0] byte_pos;
-    reg [31:0] row_pos;
-    reg [31:0] pixel_row_bytes;
+    reg [ROW_BITS-1:0] row_pos;
+    reg [ROW_BITS-1:0] pixel_row_bytes;
     // 头部准备阶段预计算W*3，避免逐字节路径串联加法、行范围比较和像素计数使能。
     // 原有头校验还需多拍，进入ST_LOAD_DATA前该值已稳定，不改变字节/像素相位。
     always @(posedge clk or posedge rst) begin
@@ -227,9 +230,50 @@ module bmp_read_g #(
         else if (state == ST_HDR_PREP)
             pixel_row_bytes <= width + (width << 1);
     end
-    wire [31:0] row_bytes_pad = row_bytes_pad_reg;                 // 已锁存行字节数
+    // 四个8位比较并行，避免32位进位链串入pixel_count使能。
+    // 这是无符号严格小于的等价展开，不增加流水延迟；连续valid也不改变像素相位。
+    function less_u32;
+        input [31:0] a, b;
+        begin
+            less_u32 = (a[31:24] < b[31:24])
+                    || ((a[31:24] == b[31:24]) && (a[23:16] < b[23:16]))
+                    || ((a[31:16] == b[31:16]) && (a[15:8] < b[15:8]))
+                    || ((a[31:8] == b[31:8]) && (a[7:0] < b[7:0]));
+        end
+    endfunction
+    wire [ROW_BITS-1:0] row_bytes_pad = row_bytes_pad_reg;        // 已锁存行字节数
+    reg [31:0] pixel_last_skip, file_last_byte;
+    reg        pixel_started, file_remaining;
+    // 两个边界在头部准备期固定。流内用相等命中推进标志，避免每个字节
+    // 都把32位大小比较串到像素计数/错误输出的公共使能；valid空拍保持。
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            pixel_last_skip <= 32'd0;
+            file_last_byte <= 32'd0;
+            pixel_started <= 1'b0;
+            file_remaining <= 1'b0;
+        end else if (!sd_init_done) begin
+            pixel_started <= 1'b0;
+            file_remaining <= 1'b0;
+        end else if (state == ST_HDR_PREP) begin
+            pixel_last_skip <= pixel_offset - 32'd1;
+            file_last_byte <= file_len - 32'd1;
+        end else if (state == ST_LOAD_WAIT) begin
+            pixel_started <= (pixel_offset == 0);
+            file_remaining <= (file_len != 0);
+        end else if (state == ST_LOAD_DATA && sd_sec_read_data_valid) begin
+            // 保持32位字节计数自然回绕时与原无符号比较完全等价。
+            if (&byte_pos) begin
+                pixel_started <= (pixel_offset == 0);
+                file_remaining <= (file_len != 0);
+            end else begin
+                if (byte_pos == pixel_last_skip) pixel_started <= 1'b1;
+                if (byte_pos == file_last_byte) file_remaining <= 1'b0;
+            end
+        end
+    end
     wire       in_pixel_data  = (state == ST_LOAD_DATA)
-                             && (byte_pos >= pixel_offset) && (byte_pos < file_len);
+                             && pixel_started && file_remaining;
     wire       byte_is_pixel  = in_pixel_data && (row_pos < pixel_row_bytes);
 
     always @(posedge clk or posedge rst) begin
@@ -241,8 +285,8 @@ module bmp_read_g #(
             row_pos  <= 32'd0;
         end else if (state == ST_LOAD_DATA && sd_sec_read_data_valid) begin
             byte_pos <= byte_pos + 32'd1;
-            if (byte_pos >= pixel_offset)
-                row_pos <= (row_pos == row_bytes_pad - 32'd1) ? 32'd0 : row_pos + 32'd1;
+            if (pixel_started)
+                row_pos <= (row_pos == row_bytes_pad - 1'b1) ? {ROW_BITS{1'b0}} : row_pos + 1'b1;
         end
     end
 
@@ -498,7 +542,7 @@ module bmp_read_g #(
                             error_code <= ERR_SD_READ;
                             load_error <= 1'b1;
                             state <= ST_IDLE;
-                        end else if (byte_pos >= file_len) begin
+                        end else if (!file_remaining) begin
                             if (pixel_count == header_expected_pixels) begin
                                 load_done <= 1'b1;
                                 state     <= ST_IDLE;

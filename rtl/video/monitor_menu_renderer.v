@@ -1,12 +1,14 @@
 // HDMI-A menu renderer.
 // The logical canvas is 640x360. Card titles use the generated native32 CJK font;
 // Values remain ASCII; menu pages deliberately omit footer instructions.
-module monitor_menu_renderer(
+module monitor_menu_renderer #(parameter ENABLE_MEDIA=0)(
     input  wire       clk,
     input  wire       de,
     input  wire [9:0] x,
     input  wire [8:0] y,
     input  wire       page,
+    input wire media_page,media_edit,media_shadow,media_active,media_busy,media_paused,
+    input wire [7:0] media_error,
     input  wire       audio_page, audio_edit,
     input  wire [4:0] audio_shadow, audio_active,
     input  wire       screen_page,
@@ -31,7 +33,6 @@ module monitor_menu_renderer(
     input  wire [15:0] key_events,
     input  wire        sd_init_done,
     input  wire [3:0]  img_count,
-    input  wire [3:0]  led_state,
     output wire [23:0] rgb
 );
     localparam [23:0] BG=24'h07131D, HEADER=24'h0B1D28, RULE=24'h2A5A70;
@@ -39,13 +40,17 @@ module monitor_menu_renderer(
     localparam [23:0] FG=24'hE9F4FA, VALUE=24'hC9DBE5, MUTED=24'h8FA9B8;
     localparam [23:0] FOCUS=24'h38BDF8, ON=24'h5BE39B, OFF=24'hFF7B72;
     localparam [23:0] AMBER=24'hFFB84D, DIS=24'h6E8593;
-    localparam [2:0] PAGE_PROGRAM=0, PAGE_PERIPHERAL=1, PAGE_SCREEN=2, PAGE_SUBTITLE=3, PAGE_AUDIO=4;
+    localparam [2:0] PAGE_PROGRAM=0, PAGE_SCREEN=2, PAGE_SUBTITLE=3, PAGE_AUDIO=4, PAGE_MEDIA=5;
     localparam [2:0] VALUE_NORMAL=0, VALUE_ON=1, VALUE_OFF=2, VALUE_WAIT=3, VALUE_ERROR=4;
     localparam [2:0] KIND_HEADER=0, KIND_CJK=1, KIND_VALUE=2, KIND_FOOTER=3,
                      KIND_STATUS=4, KIND_ARROW=5;
 
+    wire media_page_i=ENABLE_MEDIA && media_page;
+    wire media_edit_i=ENABLE_MEDIA && media_edit;
+    wire media_busy_i=ENABLE_MEDIA && media_busy;
+    localparam [127:0] STR_MEDIA="MEDIA PLAYBACK  ";
+    localparam [255:0] STR_VIDEO_KEYS="K3 PAUSE HOLD K3 MENU           ";
     localparam [8*16-1:0] STR_PROG  = "PROGRAM CONTROL ";
-    localparam [8*16-1:0] STR_PERI  = "PERIPHERAL TEST ";
     localparam [8*16-1:0] STR_PLAY  = "PLAYBACK KEYS   ";
     localparam [8*16-1:0] STR_AUDIO = "HDMI-B AUDIO    ";
     localparam [8*16-1:0] STR_SCREEN= "HDMI-B SETTINGS ";
@@ -54,20 +59,36 @@ module monitor_menu_renderer(
 
     // Indices are generated from scripts/gen_monitor_cjk.py. Keeping the mapping
     // local avoids relying on Unicode source support in the TD Verilog parser.
-    localparam [4:0] CJK_TU=5'd0, CJK_PIAN=5'd1;
-    localparam [4:0] CJK_BO=5'd2, CJK_XING=5'd3;
-    localparam [4:0] CJK_SHI=5'd4, CJK_JIAN=5'd5;
-    localparam [4:0] CJK_BIAO=5'd6, CJK_ZHOU=5'd7, CJK_QI=5'd8;
-    localparam [4:0] CJK_TI=5'd31;
-    localparam [4:0] CJK_WAI=5'd9, CJK_SHE=5'd10;
-    localparam [4:0] CJK_FENG=5'd11, CJK_MING=5'd12, CJK_QI2=5'd13;
-    localparam [4:0] CJK_AN=5'd14, CJK_JIAN3=5'd15;
-    localparam [4:0] CJK_BAN=5'd16, CJK_ZAI=5'd17, CJK_DENG=5'd18;
-    localparam [4:0] CJK_PING=19, CJK_MU=20, CJK_LIANG=21, CJK_DU=22;
-    localparam [4:0] CJK_DUI=23, CJK_BI=24, CJK_SE=25, CJK_WEN=26;
-    localparam [4:0] CJK_HUI=27, CJK_FU=28, CJK_MO=29, CJK_REN=30;
-    localparam [5:0] CJK_ZI=32, CJK_NEI=33, CJK_RONG=34, CJK_SU=35;
-    localparam [5:0] CJK_YIN=36, CJK_PIN=37, CJK_VOLUME=38, CJK_JING=39;
+    localparam [5:0] CJK_TU=6'd0;
+    localparam [5:0] CJK_PIAN=6'd1;
+    localparam [5:0] CJK_BO=6'd2;
+    localparam [5:0] CJK_XING=6'd3;
+    localparam [5:0] CJK_SHI=6'd4;
+    localparam [5:0] CJK_JIAN=6'd5;
+    localparam [5:0] CJK_BIAO=6'd6;
+    localparam [5:0] CJK_ZHOU=6'd7;
+    localparam [5:0] CJK_QI=6'd8;
+    localparam [5:0] CJK_TI=6'd21;
+    localparam [5:0] CJK_PING=6'd9;
+    localparam [5:0] CJK_MU=6'd10;
+    localparam [5:0] CJK_LIANG=6'd11;
+    localparam [5:0] CJK_DU=6'd12;
+    localparam [5:0] CJK_DUI=6'd13;
+    localparam [5:0] CJK_BI=6'd14;
+    localparam [5:0] CJK_SE=6'd15;
+    localparam [5:0] CJK_WEN=6'd16;
+    localparam [5:0] CJK_HUI=6'd17;
+    localparam [5:0] CJK_FU=6'd18;
+    localparam [5:0] CJK_MO=6'd19;
+    localparam [5:0] CJK_REN=6'd20;
+    localparam [5:0] CJK_ZI=6'd22;
+    localparam [5:0] CJK_NEI=6'd23;
+    localparam [5:0] CJK_RONG=6'd24;
+    localparam [5:0] CJK_SU=6'd25;
+    localparam [5:0] CJK_YIN=6'd26;
+    localparam [5:0] CJK_PIN=6'd27;
+    localparam [5:0] CJK_VOLUME=6'd28;
+    localparam [5:0] CJK_JING=6'd29;
 
     function [7:0] hex;
         input [3:0] d;
@@ -76,14 +97,14 @@ module monitor_menu_renderer(
 
     // 以下函数仅在状态寄存器前执行，与像素坐标无关。文本、pending、
     // 编辑态与值色类别在同一拍采样，像素路径不再串入参数档位查表。
-    wire [2:0] state_page = audio_page ? PAGE_AUDIO : subtitle_page ? PAGE_SUBTITLE : screen_page ? PAGE_SCREEN :
-                            page ? PAGE_PERIPHERAL : PAGE_PROGRAM;
+    wire [2:0] state_page = media_page_i ? PAGE_MEDIA : audio_page ? PAGE_AUDIO : subtitle_page ? PAGE_SUBTITLE : screen_page ? PAGE_SCREEN : PAGE_PROGRAM;
     function card_pending;
         input [2:0] p;
         input [2:0] idx;
         begin
             card_pending=1'b0;
             case(p)
+                PAGE_MEDIA: card_pending=(idx==0) && (media_shadow!=media_active);
                 PAGE_PROGRAM: case(idx)
                     0,2:card_pending=cfg_shadow[idx]!=cfg_active[idx];
                     3:card_pending=subtitle_shadow[0]!=subtitle_active[0];
@@ -121,6 +142,10 @@ module monitor_menu_renderer(
         begin
             card_value_kind=VALUE_NORMAL;
             case(p)
+                PAGE_MEDIA: begin
+                    if(media_busy_i) card_value_kind=VALUE_WAIT;
+                    else if(media_error!=0 && idx==3) card_value_kind=VALUE_ERROR;
+                end
                 PAGE_PROGRAM: case(idx)
                     0,2:card_value_kind=cfg_shadow[idx] ? VALUE_ON : VALUE_OFF;
                     3:card_value_kind=subtitle_shadow[0] ? VALUE_ON : VALUE_OFF;
@@ -146,11 +171,6 @@ module monitor_menu_renderer(
                     3:card_value_kind=VALUE_NORMAL;
                     default:card_value_kind=VALUE_ERROR;
                 endcase
-                PAGE_PERIPHERAL: case(idx)
-                    0:card_value_kind=sd_init_done ? VALUE_ON : VALUE_WAIT;
-                    1:card_value_kind=buzzer_test ? VALUE_ON : VALUE_NORMAL;
-                    default:card_value_kind=VALUE_NORMAL;
-                endcase
             endcase
         end
     endfunction
@@ -172,6 +192,13 @@ module monitor_menu_renderer(
         begin
             card_value_label="       ERR";
             case(p)
+                PAGE_MEDIA: case(idx)
+                    0:card_value_label=media_shadow ? "     VIDEO" : "   PICTURE";
+                    1:card_value_label=!media_active ? "       N/A" : media_paused ? "    PAUSED" : "   PLAYING";
+                    2:card_value_label=media_active ? " 320X180 10" : "       BMP";
+                    3:card_value_label=media_busy_i ? "      WAIT" : media_error!=0 ?
+                        {"     ERR",hex(media_error[7:4]),hex(media_error[3:0])} : "     READY";
+                endcase
                 PAGE_PROGRAM: case(idx)
                     0,2:card_value_label=cfg_shadow[idx] ? "        ON" : "       OFF";
                     1:card_value_label=audio_shadow[4] ? "      MUTE" : volume_label(audio_shadow[3:0]);
@@ -221,13 +248,6 @@ module monitor_menu_renderer(
                     endcase
                     3:card_value_label=editing_this ? "   CONFIRM" : "     RESET";
                 endcase
-                PAGE_PERIPHERAL: case(idx)
-                    0:card_value_label=sd_init_done ? "     READY" : "      WAIT";
-                    1:card_value_label=buzzer_test ? "      TEST" : "      IDLE";
-                    // 仅调整展示层；沿用既有事件计数高字节口径。
-                    2:card_value_label={40'h2020202020,"CNT",hex(key_events[15:12]),hex(key_events[11:8])};
-                    3:card_value_label={48'h202020202020,"LED",hex(led_state)};
-                endcase
             endcase
         end
     endfunction
@@ -252,34 +272,41 @@ module monitor_menu_renderer(
         for(state_index=0;state_index<6;state_index=state_index+1) begin
             state_selected[state_index]<=menu_active && cursor==state_index;
             state_editing[state_index]<=menu_active && cursor==state_index &&
-                ((audio_page && audio_edit) || (subtitle_page && subtitle_edit) || (screen_page && screen_edit));
+                ((media_page_i && media_edit_i) || (audio_page && audio_edit) || (subtitle_page && subtitle_edit) || (screen_page && screen_edit));
             state_pending[state_index]<=card_pending(state_page,state_index);
-            state_action[state_index]<=(state_page!=PAGE_PERIPHERAL || state_index==1);
+            state_action[state_index]<=(media_page_i ? state_index<2 : 1'b1);
             value_kind[state_index]<=card_value_kind(state_page,state_index);
             value_text[state_index]<=card_value_label(state_page,state_index,menu_active && cursor==state_index &&
-                    ((audio_page && audio_edit) || (subtitle_page && subtitle_edit) || (screen_page && screen_edit)));
+                    ((media_page_i && media_edit_i) || (audio_page && audio_edit) || (subtitle_page && subtitle_edit) || (screen_page && screen_edit)));
         end
         // 页眉只反映当前聚焦卡或二级编辑态，避免全局dirty泄漏到其他卡。
         // 与各卡pending同拍计算，不能用上一拍state_pending配当前cursor。
         // 不改变控制器、不冻结后续预览，也不延长WAIT的实际持续时间。
-        header_status<=cfg_busy ? 2'd2 :
-            ((audio_edit || screen_edit || subtitle_edit || card_pending(state_page,cursor)) ? 2'd1 : 2'd0);
-        header_status_text<=cfg_busy ? "WAIT " :
-            ((audio_edit || screen_edit || subtitle_edit || card_pending(state_page,cursor)) ? "EDIT " : "READY");
+        header_status<=(cfg_busy || media_busy_i) ? 2'd2 :
+            ((media_edit_i || audio_edit || screen_edit || subtitle_edit || card_pending(state_page,cursor)) ? 2'd1 : 2'd0);
+        header_status_text<=(cfg_busy || media_busy_i) ? "WAIT " :
+            ((media_edit_i || audio_edit || screen_edit || subtitle_edit || card_pending(state_page,cursor)) ? "EDIT " : "READY");
     end
 
     function [5:0] cjk_title_char;
         input       p;
         input [2:0] idx;
         input [1:0] pos;
-        input is_screen, is_subtitle, is_audio;
+        input is_screen, is_subtitle, is_audio, is_media;
         begin
             cjk_title_char = 8'd0;
-            if(is_audio) begin
+            if(is_media) begin
+                case(idx)
+                    0:cjk_title_char=pos==0 ? 6'd30 : 6'd31; // 模式
+                    1:cjk_title_char=pos==0 ? 6'd32 : 6'd33; // 播放
+                    2:cjk_title_char=pos==0 ? 6'd34 : 6'd31; // 格式
+                    3:cjk_title_char=pos==0 ? 6'd35 : 6'd36; // 状态
+                endcase
+            end else if(is_audio) begin
                 case(idx)
                     0:cjk_title_char=(pos==0) ? CJK_YIN : CJK_VOLUME;
                     1:cjk_title_char=(pos==0) ? CJK_JING : CJK_YIN;
-                    2:cjk_title_char=(pos==0) ? {1'b0,CJK_BO} : {1'b0,CJK_XING};
+                    2:cjk_title_char=(pos==0) ? CJK_BO : CJK_XING;
                     3:case(pos)
                         0:cjk_title_char=CJK_HUI; 1:cjk_title_char=CJK_FU;
                         2:cjk_title_char=CJK_MO; 3:cjk_title_char=CJK_REN;
@@ -287,10 +314,10 @@ module monitor_menu_renderer(
                 endcase
             end else if (is_subtitle) begin
                 case(idx)
-                    0:cjk_title_char=(pos==0) ? CJK_ZI : {1'b0,CJK_MU};
+                    0:cjk_title_char=(pos==0) ? CJK_ZI : CJK_MU;
                     1:cjk_title_char=(pos==0) ? CJK_NEI : CJK_RONG;
-                    2:cjk_title_char=(pos==0) ? CJK_SU : {1'b0,CJK_DU};
-                    default:cjk_title_char=(pos==0) ? {1'b0,CJK_BIAO} : {1'b0,CJK_TI};
+                    2:cjk_title_char=(pos==0) ? CJK_SU : CJK_DU;
+                    default:cjk_title_char=(pos==0) ? CJK_BIAO : CJK_TI;
                 endcase
             end else if (is_screen) begin
                 case (idx)
@@ -302,28 +329,21 @@ module monitor_menu_renderer(
                         2:cjk_title_char=CJK_MO; 3:cjk_title_char=CJK_REN;
                     endcase
                 endcase
-            end else if (!p) begin
+            end else begin
                 case (idx)
                     3'd0: cjk_title_char = (pos == 0) ? CJK_TU : CJK_PIAN;
                     3'd1: cjk_title_char = (pos == 0) ? CJK_YIN : CJK_PIN;
                     3'd2: cjk_title_char = (pos == 0) ? CJK_SHI : CJK_JIAN;
-                    3'd3: cjk_title_char = (pos == 0) ? CJK_ZI : {1'b0,CJK_MU};
+                    3'd3: cjk_title_char = (pos == 0) ? CJK_ZI : CJK_MU;
                     3'd4: cjk_title_char = (pos == 0) ? CJK_ZHOU : CJK_QI;
                     default: cjk_title_char = (pos == 0) ? CJK_PING : CJK_MU;
-                endcase
-            end else begin
-                case (idx)
-                    3'd0: cjk_title_char = (pos == 0) ? CJK_WAI : CJK_SHE;
-                    3'd1: cjk_title_char = (pos == 0) ? CJK_FENG : ((pos == 1) ? CJK_MING : CJK_QI2);
-                    3'd2: cjk_title_char = (pos == 0) ? CJK_AN : CJK_JIAN3;
-                    default: cjk_title_char = (pos == 0) ? CJK_BAN : ((pos == 1) ? CJK_ZAI : CJK_DENG);
                 endcase
             end
         end
     endfunction
 
     // 节目页严格两行三列；外设和 HDMI-B 设置页两行两列。
-    wire wide_cards = page || screen_page || subtitle_page || audio_page;
+    wire wide_cards = media_page_i || screen_page || subtitle_page || audio_page;
     wire program_top = y < 9'd196;
     wire [1:0] program_col = (x < 10'd220) ? 2'd0 : ((x < 10'd424) ? 2'd1 : 2'd2);
     wire [2:0] card_idx = wide_cards ?
@@ -367,7 +387,7 @@ module monitor_menu_renderer(
     wire pending=state_pending[card_idx];
     wire actionable=state_action[card_idx];
     wire [2:0] pixel_value_kind=value_kind[card_idx];
-    wire card_area = wide_cards ? ((((x >= 10'd32) && (x < 10'd304)) ||
+    wire card_area = (wide_cards ? ((((x >= 10'd32) && (x < 10'd304)) ||
                               ((x >= 10'd336) && (x < 10'd608))) &&
                              (((y >= 9'd64) && (y < 9'd188)) ||
                               ((y >= 9'd204) && (y < 9'd328)))) :
@@ -375,17 +395,17 @@ module monitor_menu_renderer(
                                       ((x >= 10'd228) && (x < 10'd412)) ||
                                       ((x >= 10'd432) && (x < 10'd616))) &&
                                      (((y >= 9'd64) && (y < 9'd188)) ||
-                                      ((y >= 9'd204) && (y < 9'd328))));
+                                      ((y >= 9'd204) && (y < 9'd328)))));
 
     wire header_hit = (x >= 10'd24) && (x < 10'd264) &&
                       (y >= 9'd8) && (y < 9'd40);
     // Native 32x32 glyphs retain the previous title footprint and pixel latency.
-    wire cjk_three_chars = page && !subtitle_page && !audio_page && ((card_idx == 3'd1) || (card_idx == 3'd3));
     wire [9:0] title_end = audio_page ? ((card_idx==3) ? 10'd144 : 10'd80) : screen_page ? ((card_idx == 3) ? 10'd144 : ((card_idx == 1) ? 10'd112 : 10'd80)) :
-                          (cjk_three_chars ? 10'd112 : 10'd80);
+                          10'd80;
     wire cjk_title_hit = card_area && (local_x >= 10'd16) &&
                          (local_x < title_end) &&
                          (local_y >= 9'd12) && (local_y < 9'd44);
+    wire ascii_title_hit=1'b0;
     wire [9:0] value_x0 = wide_cards ? 10'd96 : 10'd8;
     wire card_value_hit = card_area && local_x>=value_x0 &&
                           local_x<(wide_cards ? 10'd256 : 10'd168) &&
@@ -409,11 +429,11 @@ module monitor_menu_renderer(
     // 因而不必把卡片命中、页眉优先级再串入 BRAM 地址关键路径。
     wire [1:0] wide_left_pos = x<10'd80 ? 2'd0 : x<10'd112 ? 2'd1 : x<10'd144 ? 2'd2 : 2'd3;
     wire [1:0] wide_right_pos = x<10'd384 ? 2'd0 : x<10'd416 ? 2'd1 : x<10'd448 ? 2'd2 : 2'd3;
-    wire [5:0] wide_left_glyph = cjk_title_char(page, program_top ? 3'd0 : 3'd2, wide_left_pos, screen_page, subtitle_page, audio_page);
-    wire [5:0] wide_right_glyph = cjk_title_char(page, program_top ? 3'd1 : 3'd3, wide_right_pos, screen_page, subtitle_page, audio_page);
-    wire [5:0] program_left_glyph = cjk_title_char(1'b0, program_top ? 3'd0 : 3'd3, x<10'd72 ? 2'd0 : 2'd1, 1'b0, 1'b0, 1'b0);
-    wire [5:0] program_mid_glyph = cjk_title_char(1'b0, program_top ? 3'd1 : 3'd4, x<10'd276 ? 2'd0 : 2'd1, 1'b0, 1'b0, 1'b0);
-    wire [5:0] program_right_glyph = cjk_title_char(1'b0, program_top ? 3'd2 : 3'd5, x<10'd480 ? 2'd0 : 2'd1, 1'b0, 1'b0, 1'b0);
+    wire [5:0] wide_left_glyph = cjk_title_char(page, program_top ? 3'd0 : 3'd2, wide_left_pos, screen_page, subtitle_page, audio_page, media_page_i);
+    wire [5:0] wide_right_glyph = cjk_title_char(page, program_top ? 3'd1 : 3'd3, wide_right_pos, screen_page, subtitle_page, audio_page, media_page_i);
+    wire [5:0] program_left_glyph = cjk_title_char(1'b0, program_top ? 3'd0 : 3'd3, x<10'd72 ? 2'd0 : 2'd1, 1'b0, 1'b0, 1'b0, 1'b0);
+    wire [5:0] program_mid_glyph = cjk_title_char(1'b0, program_top ? 3'd1 : 3'd4, x<10'd276 ? 2'd0 : 2'd1, 1'b0, 1'b0, 1'b0, 1'b0);
+    wire [5:0] program_right_glyph = cjk_title_char(1'b0, program_top ? 3'd2 : 3'd5, x<10'd480 ? 2'd0 : 2'd1, 1'b0, 1'b0, 1'b0, 1'b0);
     wire [5:0] cjk_pixel_glyph = wide_cards ? (x<10'd320 ? wide_left_glyph : wide_right_glyph) :
                                x<10'd220 ? program_left_glyph : x<10'd424 ? program_mid_glyph : program_right_glyph;
 
@@ -426,16 +446,16 @@ module monitor_menu_renderer(
         if(y<9'd48) begin
             if(x<10'd536)
                 req_char = !menu_active ? STR_PLAY[{header_rev,3'b000} +: 8] :
+                           media_page_i ? STR_MEDIA[{header_rev,3'b000} +: 8] :
                            audio_page ? STR_AUDIO[{header_rev,3'b000} +: 8] :
                            subtitle_page ? STR_SUBTITLE[{header_rev,3'b000} +: 8] :
                            screen_page ? STR_SCREEN[{header_rev,3'b000} +: 8] :
-                           page ? STR_PERI[{header_rev,3'b000} +: 8] :
                                   STR_PROG[{header_rev,3'b000} +: 8];
             else req_char = header_status_text[{status_rev,3'b000} +: 8];
         end else if((y>=9'd76 && y<9'd108) || (y>=9'd216 && y<9'd248))
             req_char = ">";
         else if(!menu_active && y>=9'd336)
-            req_char = STR_PLAY_KEYS[{footer_rev,3'b000} +: 8];
+            req_char = (ENABLE_MEDIA && media_active) ? STR_VIDEO_KEYS[{footer_rev,3'b000} +: 8] : STR_PLAY_KEYS[{footer_rev,3'b000} +: 8];
     end
     reg [3:0] req_row;
     reg [2:0] req_col;
@@ -462,6 +482,9 @@ module monitor_menu_renderer(
         end else if (status_hit) begin
             req_kind = KIND_STATUS;
             req_col = (x-10'd536) >> 1;
+        end else if (ascii_title_hit) begin
+            req_kind=KIND_CJK;
+            req_col=(x-(x<320 ? 10'd48 : 10'd352)) >> 1;
         end else if (cjk_title_hit) begin
             req_kind = KIND_CJK;
             req_cjk = 1'b1;
@@ -516,7 +539,7 @@ module monitor_menu_renderer(
         wide_d<=wide_cards;
         kind_d<=req_kind; value_kind_d<=pixel_value_kind; status_d<=header_status;
         glyph_col_d<=req_col;
-        glyph_hit_d<=header_hit || status_hit || cjk_title_hit || arrow_hit || card_value_hit || footer_hit;
+        glyph_hit_d<=header_hit || status_hit || cjk_title_hit || ascii_title_hit || arrow_hit || card_value_hit || footer_hit;
         cjk_d<=req_cjk; cjk_col_d<=local_x[4:0]-5'd16;
         local_x_d<=local_x; local_y_d<=local_y;
     end

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 13
-- **Last Active**: 2026-10-24
+- **Total Sessions**: 17
+- **Last Active**: 2026-10-26
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~557 | Active |
+| `journal-1.md` | ~590 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,10 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 17 | 2026-10-26 | 最终有声视频工程与发布归档Git同步 | 本次提交 | `feat/raw-video-320x180` |
+| 16 | 2026-10-26 | 视频返回首图局部提速与完整软件验收 | - | `feat/raw-video-320x180` |
+| 15 | 2026-10-26 | 有声媒体融合与资源时序验收完成 | - | `feat/raw-video-320x180` |
+| 14 | 2026-10-25 | 图片与无声视频融合版完成发布 | - | `feat/raw-video-320x180` |
 | 13 | 2026-10-24 | 全幅菜单完整物理构建与Git发布 | `741d715` | `feat/key2-next-prefetch` |
 | 12 | 2026-10-24 | C方向640x360全幅菜单RTL及仿真完成 | - | `feat/key2-next-prefetch` |
 | 11 | 2026-10-23 | 当前UI严格审美外部审查资料包 | - | `feat/key2-next-prefetch` |
