@@ -1,5 +1,21 @@
 # 正式烧录版本索引
 
+## 最终稳定版：20261028-picture-resolution-fixed-order
+
+- [固定顺序分辨率显示 bit](20261028-picture-resolution-fixed-order/av_media.bit)，SHA256 `931f63ccdac13f2a18ca71d4d9410cb6b8ec576b456bd12f32b4691ae2ed4020`。
+- HDMI-B 按 BMP 零基索引显示紫色分辨率：0/2/4 为 1280X720，1 为 960X540，3 为 640X480；视频与无效图片隐藏标签。用户已手动调整 TF 卡图片顺序并确认图片与标签对应。
+- 88/88 原生回归、四组完整媒体流水线、综合/P&R/bitgen、缩放器专项时序和发布清单校验通过。LUT16533/19600、BRAM9K57/64；video/SD/ext_mem/HDMI5x setup 分别 +0.179/+0.308/+0.204/+1.012ns，hold 均非负。
+- 该映射依赖演示 TF 卡的 BMP 遍历顺序。发布目录中的 `TF_CARD_ORDER_20261028.md` 记录调整前的 Windows 枚举；用户确认调整后标签正确，但最终卡序未重新读取记录。未包含冷启动修复实验；旧加密 SDRAM 跨域 SWNS −6.565ns 单列。
+- [发布说明](20261028-picture-resolution-fixed-order/README.md)、[构建证据](20261028-picture-resolution-fixed-order/BUILD_EVIDENCE.md)、[校验清单](20261028-picture-resolution-fixed-order/SHA256SUMS.txt)。
+
+## 当前稳定候选：20261027-flash-coldboot
+
+- [冷启动修复 bit](20261027-flash-coldboot/av_media.bit)，SHA256 `08FB2D34D16536D2D74CB753FC438774188DADBAFDAC2D853CBC9421107426CA`。
+- 基于 `20261026-media-return`，只含 SD 初始化上电等待与失败重试；不含图片源分辨率显示实验。
+- SD 冷启动专项回归 10/10 通过，综合/P&R/bitgen 完成；尚待用户断电重启实测。LUT 16578、BRAM9K 57；报告仍有全局负余量，详见[构建证据](20261027-flash-coldboot/BUILD_EVIDENCE.md)。
+- [烧录说明](20261027-flash-coldboot/README.md)、[源码范围](20261027-flash-coldboot/SOURCE_SCOPE.md)。分辨率 OSD 实验单独保存在 `../experiments/20261027-picture-resolution/`。
+- 旧稳定版本及证据均保留，不覆盖。
+
 ## 最新待板验版本：20261026-media-return
 
 - [返回图片提速 av_media.bit](20261026-media-return/av_media.bit)，SHA256 `739ed883a45ad803ff7c1c5739a6d40bd55b72e0465a6e48d641163753e10cb2`。
